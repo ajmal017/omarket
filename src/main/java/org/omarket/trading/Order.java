@@ -15,6 +15,7 @@ public class Order {
 
 
     public Order(BigDecimal price, Integer quantity, String orderId){
+        assert quantity > 0;
         this.timestamp = new Date();
         this.price = price;
         this.quantity = quantity;
