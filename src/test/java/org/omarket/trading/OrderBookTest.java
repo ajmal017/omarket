@@ -1,6 +1,8 @@
 package org.omarket.trading;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.math.BigDecimal;
@@ -19,8 +21,18 @@ import static org.junit.Assert.assertNull;
 public class OrderBookTest {
     private static Logger logger = LoggerFactory.getLogger(OrderBookTest.class);
 
+    @Before
+    public void setUp() throws Exception {
+
+    }
+
+    @After
+    public void tearDown() throws Exception {
+
+    }
+
     @Test
-    public void basicOrderBookUsage() {
+    public void basicOrderBookUsage() throws Exception {
         OrderBook orderBook = new OrderBook();
 
         orderBook.newBid(new BigDecimal("99"), 12);
@@ -38,7 +50,7 @@ public class OrderBookTest {
     }
 
     @Test(expected=java.lang.AssertionError.class)
-    public void wrongBidEqualsAsk() {
+    public void wrongBidEqualsAsk() throws Exception {
         OrderBook orderBook = new OrderBook();
 
         orderBook.newBid(new BigDecimal("99"), 12);
@@ -51,7 +63,7 @@ public class OrderBookTest {
     }
 
     @Test(expected=java.lang.AssertionError.class)
-    public void wrongBidHigherThanAsk() {
+    public void wrongBidHigherThanAsk() throws Exception {
         OrderBook orderBook = new OrderBook();
 
         orderBook.newBid(new BigDecimal("99"), 12);
@@ -64,7 +76,7 @@ public class OrderBookTest {
     }
 
     @Test
-    public void deleteOrder() {
+    public void deleteOrder() throws Exception {
         OrderBook orderBook = new OrderBook();
 
         String orderId1 = orderBook.newBid(new BigDecimal("99"), 12);
@@ -100,13 +112,13 @@ public class OrderBookTest {
     }
 
     @Test
-    public void emptyBook() {
+    public void emptyBook() throws Exception {
         OrderBook orderBook = new OrderBook();
         assertNull(orderBook.getBestBid());
         assertNull(orderBook.getBestAsk());
     }
     @Test
-    public void orderBookUpdate() {
+    public void orderBookUpdate() throws Exception {
         OrderBook orderBook = new OrderBook();
         Date lastUpdate0 = orderBook.getLastUpdate();
         assertNull(lastUpdate0);
