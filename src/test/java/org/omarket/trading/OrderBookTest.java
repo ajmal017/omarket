@@ -137,26 +137,26 @@ public class OrderBookTest {
         OrderBook orderBook = new OrderBook();
         Date lastUpdate0 = orderBook.getLastUpdate();
         assertNull(lastUpdate0);
-        String orderId1 = orderBook.newBid(new BigDecimal("99"), 12);
+        orderBook.newBid(new BigDecimal("99"), 12, "myId1");
         String orderId2 = orderBook.newBid(new BigDecimal("98"), 10);
         String orderId3 = orderBook.newBid(new BigDecimal("99"), 3);
         String orderId4 = orderBook.newBid(new BigDecimal("97"), 5);
         String orderId5 = orderBook.newBid(new BigDecimal("100"), 2);
 
-        String orderId6 = orderBook.newAsk(new BigDecimal("101"), 21);
+        String orderId6 = orderBook.newAsk(new BigDecimal("101"), 21, "myId2");
         String orderId7 = orderBook.newAsk(new BigDecimal("102"), 9);
         String orderId8 = orderBook.newAsk(new BigDecimal("101"), 9);
 
         Date lastUpdate1 = orderBook.getLastUpdate();
         assertNotNull(lastUpdate1);
-        orderBook.updateOrder(orderId6, 31);
+        orderBook.updateOrder("myId2", 31);
         Date lastUpdate2 = orderBook.getLastUpdate();
         assert(lastUpdate2.compareTo(lastUpdate1) >= 0);
 
         assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
         assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 40), orderBook.getAskLevel(0));
 
-        orderBook.deleteOrder(orderId1);
+        orderBook.deleteOrder("myId1");
         orderBook.deleteOrder(orderId2);
         orderBook.deleteOrder(orderId3);
         orderBook.deleteOrder(orderId4);
