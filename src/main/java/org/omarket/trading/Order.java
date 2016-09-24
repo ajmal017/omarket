@@ -33,6 +33,11 @@ public class Order {
                 " " + orderId + " }";
     }
 
+    public void setQuantity(Integer newQuantity) {
+        this.quantity = newQuantity;
+        this.timestamp = new Date();
+    }
+
     public Date getTimestamp() {
         return timestamp;
     }

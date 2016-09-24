@@ -80,6 +80,7 @@ public class OrderBook {
         Order newOrder = new Order(price, quantity);
         return newEntryFromOrder(newOrder, askSide);
     }
+
     public void deleteOrder(String orderId) {
         BigDecimal targetPrice = orderIdToPrice.get(orderId);
         TreeMap<String, Order> orders = bidSide.get(targetPrice);
@@ -97,6 +98,24 @@ public class OrderBook {
             }
         }
         orderIdToPrice.remove(orderId);
+        this.lastUpdate = new Date();
+    }
+
+    public void updateOrder(String orderId, Integer newVolume) {
+        assert newVolume > 0;
+        Order targetOrder = null;
+        BigDecimal targetPrice = orderIdToPrice.get(orderId);
+        TreeMap<String, Order> orders = bidSide.get(targetPrice);
+        if (orders != null){
+            targetOrder = orders.get(orderId);
+            targetOrder.setQuantity(newVolume);
+        }
+        orders = askSide.get(targetPrice);
+        if (orders != null){
+            targetOrder = orders.get(orderId);
+            targetOrder.setQuantity(newVolume);
+        }
+        this.lastUpdate = targetOrder.getTimestamp();
     }
 
     public Date getLastUpdate() {
@@ -104,10 +123,8 @@ public class OrderBook {
     }
 
     public List<Pair<BigDecimal, Integer>> getBidOrderLevels() {
-        int counter = 0;
         List<Pair<BigDecimal, Integer>> orders = new LinkedList<>();
         for(BigDecimal price: bidSide.keySet()){
-            counter++;
             TreeMap<String, Order> ordersById = bidSide.get(price);
             ImmutablePair<BigDecimal, Integer> ordersAggregate = OrderBook.aggregateOrders(ordersById);
             orders.add(0, ordersAggregate);
@@ -116,10 +133,8 @@ public class OrderBook {
     }
 
     public List<Pair<BigDecimal, Integer>> getAskOrderLevels() {
-        int counter = 0;
         List<Pair<BigDecimal, Integer>> orders = new LinkedList<>();
         for(BigDecimal price: askSide.keySet()){
-            counter++;
             TreeMap<String, Order> ordersById = askSide.get(price);
             ImmutablePair<BigDecimal, Integer> ordersAggregate = OrderBook.aggregateOrders(ordersById);
             orders.add(ordersAggregate);
