@@ -85,11 +85,18 @@ public class OrderBook {
         TreeMap<String, Order> orders = bidSide.get(targetPrice);
         if (orders != null){
             orders.remove(orderId);
+            if(orders.size() == 0){
+                bidSide.remove(targetPrice);
+            }
         }
         orders = askSide.get(targetPrice);
         if (orders != null){
             orders.remove(orderId);
+            if(orders.size() == 0){
+                askSide.remove(targetPrice);
+            }
         }
+        orderIdToPrice.remove(orderId);
     }
 
     public Date getLastUpdate() {
@@ -121,8 +128,12 @@ public class OrderBook {
     }
 
     private static ImmutablePair<BigDecimal, Integer> aggregateOrders(TreeMap<String, Order> ordersById) {
+        ImmutablePair<BigDecimal, Integer> ordersAggregate;
+        if(ordersById.size() == 0){
+            return null;
+        }
         BigDecimal price = ordersById.firstEntry().getValue().getPrice();
-        ImmutablePair<BigDecimal, Integer> ordersAggregate = new ImmutablePair<>(price, 0);
+        ordersAggregate = new ImmutablePair<>(price, 0);
         for(Order order: ordersById.values()){
             Integer previousSize = ordersAggregate.getRight();
             ordersAggregate = new ImmutablePair<>(price, previousSize + order.getQuantity());
