@@ -86,6 +86,25 @@ public class OrderBookTest {
     }
 
     @Test
+    public void ignoreWrongBidHigherThanAsk() throws Exception {
+        OrderBook orderBook = new OrderBook();
+        orderBook.setIgnoreInconsistentBidAsk(true);
+        orderBook.newBid(new BigDecimal("99"), 12);
+        orderBook.newBid(new BigDecimal("98"), 10);
+        orderBook.newBid(new BigDecimal("100"), 2);
+
+        orderBook.newAsk(new BigDecimal("101"), 21);
+        orderBook.newAsk(new BigDecimal("90"), 9);
+        orderBook.newBid(new BigDecimal("103"), 3);
+
+        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
+        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 21), orderBook.getAskLevel(0));
+
+        assertEquals(3, orderBook.getBidOrderLevels().size());
+        assertEquals(1, orderBook.getAskOrderLevels().size());
+    }
+
+    @Test
     public void deleteOrder() throws Exception {
         OrderBook orderBook = new OrderBook();
 

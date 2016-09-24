@@ -41,6 +41,11 @@ public class OrderBook {
     private TreeMap<BigDecimal, TreeMap<String, Order>> askSide = new TreeMap<>();
     private TreeMap<String, BigDecimal> orderIdToPrice = new TreeMap<>();
     private Date lastUpdate = null;
+    private boolean ignoreInconsistentBidAsk = false;
+
+    public void setIgnoreInconsistentBidAsk(boolean ignoreInconsistentBidAsk) {
+        this.ignoreInconsistentBidAsk = ignoreInconsistentBidAsk;
+    }
 
     private String newEntryFromOrder(Order order, TreeMap<BigDecimal, TreeMap<String, Order>> side){
         BigDecimal price = order.getPrice();
@@ -57,12 +62,26 @@ public class OrderBook {
     }
 
     private String newBidEntryFromOrder(Order newOrder){
-        if(getBestAsk() != null) {assert newOrder.getPrice().compareTo(getBestAsk()) == -1;}
+        if(getBestAsk() != null) {
+            boolean bidLowerThanAsk = newOrder.getPrice().compareTo(getBestAsk()) == -1;
+            if (!bidLowerThanAsk && ignoreInconsistentBidAsk){
+                return null;
+            } else {
+                assert bidLowerThanAsk;
+            }
+        }
         return newEntryFromOrder(newOrder, bidSide);
     }
 
     private String newAskEntryFromOrder(Order newOrder){
-        if(getBestBid() != null) {assert newOrder.getPrice().compareTo(getBestBid()) == 1;}
+        if(getBestBid() != null) {
+            boolean askHigherThanBid = newOrder.getPrice().compareTo(getBestBid()) == 1;
+            if (!askHigherThanBid && ignoreInconsistentBidAsk){
+                return null;
+            } else {
+                assert askHigherThanBid;
+            }
+        }
         return newEntryFromOrder(newOrder, askSide);
     }
 
