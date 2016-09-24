@@ -45,8 +45,18 @@ public class OrderBookTest {
         orderBook.newAsk(new BigDecimal("102"), 9);
         orderBook.newAsk(new BigDecimal("101"), 9);
 
-        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBestBid());
-        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 30), orderBook.getBestAsk());
+        assertNull("bid does not match", orderBook.getBidLevel(4));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(97), 5), orderBook.getBidLevel(3));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(98), 10), orderBook.getBidLevel(2));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(99), 15), orderBook.getBidLevel(1));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
+
+        assertNull("ask does not match", orderBook.getAskLevel(2));
+        assertEquals("ask does not match", new ImmutablePair<>(new BigDecimal(102), 9), orderBook.getAskLevel(1));
+        assertEquals("ask does not match", new ImmutablePair<>(new BigDecimal(101), 30), orderBook.getAskLevel(0));
+
+        assertEquals("best bid does not match", new BigDecimal(100), orderBook.getBestBid());
+        assertEquals("best ask does not match", new BigDecimal(101), orderBook.getBestAsk());
     }
 
     @Test(expected=java.lang.AssertionError.class)
@@ -90,8 +100,8 @@ public class OrderBookTest {
         String orderId8 = orderBook.newAsk(new BigDecimal("101"), 9);
         orderBook.deleteOrder(orderId8);
 
-        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBestBid());
-        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 21), orderBook.getBestAsk());
+        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
+        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 21), orderBook.getAskLevel(0));
 
         assertEquals(4, orderBook.getBidOrderLevels().size());
         assertEquals(2, orderBook.getAskOrderLevels().size());
@@ -99,23 +109,28 @@ public class OrderBookTest {
         orderBook.deleteOrder(orderId1);
         orderBook.deleteOrder(orderId2);
         orderBook.deleteOrder(orderId3);
+
+        assertNull("bid does not match", orderBook.getBidLevel(2));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(97), 5), orderBook.getBidLevel(1));
+        assertEquals("bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
+
         orderBook.deleteOrder(orderId4);
         orderBook.deleteOrder(orderId5);
         orderBook.deleteOrder(orderId6);
 
-        assertNull(orderBook.getBestBid());
-        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(102), 9), orderBook.getBestAsk());
+        assertNull(orderBook.getBidLevel(0));
+        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(102), 9), orderBook.getAskLevel(0));
         assertEquals(0, orderBook.getBidOrderLevels().size());
         assertEquals(1, orderBook.getAskOrderLevels().size());
         orderBook.deleteOrder(orderId7);
-        assertNull(orderBook.getBestAsk());
+        assertNull(orderBook.getAskLevel(0));
     }
 
     @Test
     public void emptyBook() throws Exception {
         OrderBook orderBook = new OrderBook();
-        assertNull(orderBook.getBestBid());
-        assertNull(orderBook.getBestAsk());
+        assertNull(orderBook.getBidLevel(0));
+        assertNull(orderBook.getAskLevel(0));
     }
     @Test
     public void orderBookUpdate() throws Exception {
@@ -138,8 +153,8 @@ public class OrderBookTest {
         Date lastUpdate2 = orderBook.getLastUpdate();
         assert(lastUpdate2.compareTo(lastUpdate1) >= 0);
 
-        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBestBid());
-        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 40), orderBook.getBestAsk());
+        assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
+        assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 40), orderBook.getAskLevel(0));
 
         orderBook.deleteOrder(orderId1);
         orderBook.deleteOrder(orderId2);
@@ -150,8 +165,8 @@ public class OrderBookTest {
         orderBook.deleteOrder(orderId7);
         orderBook.deleteOrder(orderId8);
 
-        assertNull(orderBook.getBestBid());
-        assertNull(orderBook.getBestAsk());
+        assertNull(orderBook.getBidLevel(0));
+        assertNull(orderBook.getAskLevel(0));
 
     }
 

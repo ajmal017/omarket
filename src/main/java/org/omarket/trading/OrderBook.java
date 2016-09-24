@@ -12,7 +12,7 @@ import java.util.*;
 /**
  * Created by christophe on 23.09.16.
  *
- * Depth Updates
+ * Depth Updates.
  *
  * The final level of market data detail is the inclusion of market depth updates.
  * Depth updates contain a record of every change to every order in the order book for
@@ -43,7 +43,7 @@ public class OrderBook {
     private TreeMap<String, BigDecimal> orderIdToPrice = new TreeMap<>();
     private Date lastUpdate = null;
 
-    public String newEntryFromOrder(Order order, TreeMap<BigDecimal, TreeMap<String, Order>> side){
+    private String newEntryFromOrder(Order order, TreeMap<BigDecimal, TreeMap<String, Order>> side){
         BigDecimal price = order.getPrice();
         String orderId = order.getOrderId();
         TreeMap<String, Order> targetPriceGroup = side.get(price);
@@ -57,28 +57,34 @@ public class OrderBook {
         return orderId;
     }
 
-    public String newBid(BigDecimal price, Integer quantity, String orderId) {
-        if(getBestAsk() != null) {assert price.compareTo(getBestAsk().getLeft()) == -1;}
-        Order newOrder = new Order(price, quantity, orderId);
+    private String newBidEntryFromOrder(Order newOrder){
+        if(getBestAsk() != null) {assert newOrder.getPrice().compareTo(getBestAsk()) == -1;}
         return newEntryFromOrder(newOrder, bidSide);
+    }
+
+    private String newAskEntryFromOrder(Order newOrder){
+        if(getBestBid() != null) {assert newOrder.getPrice().compareTo(getBestBid()) == 1;}
+        return newEntryFromOrder(newOrder, askSide);
+    }
+
+    public String newBid(BigDecimal price, Integer quantity, String orderId) {
+        Order newOrder = new Order(price, quantity, orderId);
+        return newBidEntryFromOrder(newOrder);
     }
 
     public String newBid(BigDecimal price, Integer quantity) {
-        if(getBestAsk() != null) {assert price.compareTo(getBestAsk().getLeft()) == -1;}
         Order newOrder = new Order(price, quantity);
-        return newEntryFromOrder(newOrder, bidSide);
+        return newBidEntryFromOrder(newOrder);
     }
 
     public String newAsk(BigDecimal price, Integer quantity, String orderId) {
-        if(getBestBid() != null) {assert price.compareTo(getBestBid().getLeft()) == 1;}
         Order newOrder = new Order(price, quantity, orderId);
-        return newEntryFromOrder(newOrder, askSide);
+        return newAskEntryFromOrder(newOrder);
     }
 
     public String newAsk(BigDecimal price, Integer quantity) {
-        if(getBestBid() != null) {assert price.compareTo(getBestBid().getLeft()) == 1;}
         Order newOrder = new Order(price, quantity);
-        return newEntryFromOrder(newOrder, askSide);
+        return newAskEntryFromOrder(newOrder);
     }
 
     public void deleteOrder(String orderId) {
@@ -156,22 +162,72 @@ public class OrderBook {
         return ordersAggregate;
     }
 
-    public Pair<BigDecimal, Integer> getBestBid(){
-        if (bidSide.size() == 0){
+    public BigDecimal getBestBid(){
+        Pair<BigDecimal, Integer> best = getBidLevel(0);
+        if (best == null){
             return null;
         }
-        BigDecimal bestBid = bidSide.lastKey();
-        TreeMap<String, Order> ordersById = bidSide.get(bestBid);
-        return aggregateOrders(ordersById);
+        return best.getLeft();
     }
 
-    public Pair<BigDecimal, Integer> getBestAsk(){
+    public BigDecimal getBestAsk(){
+        Pair<BigDecimal, Integer> best = getAskLevel(0);
+        if (best == null){
+            return null;
+        }
+        return best.getLeft();
+    }
+
+    public Pair<BigDecimal, Integer> getAskLevel(Integer level){
+        assert level >= 0;
         if (askSide.size() == 0){
             return null;
         }
-        BigDecimal bestAsk = askSide.firstKey();
-        TreeMap<String, Order> ordersById = askSide.get(bestAsk);
-        return aggregateOrders(ordersById);
+        Iterator<BigDecimal> keyIterator = askSide.navigableKeySet().iterator();
+        int counter = 0;
+        BigDecimal bestPrice = null;
+        while(keyIterator.hasNext()){
+            bestPrice = keyIterator.next();
+            counter++;
+            if(counter > level){
+                break;
+            }
+        }
+        if (counter <= level){
+            return null;
+        }
+        TreeMap<String, Order> ordersById = askSide.get(bestPrice);
+        Pair<BigDecimal, Integer> best = aggregateOrders(ordersById);
+        if (best == null){
+            return null;
+        }
+        return best;
+    }
+
+    public Pair<BigDecimal, Integer> getBidLevel(Integer level){
+        assert level >= 0;
+        if (bidSide.size() == 0){
+            return null;
+        }
+        Iterator<BigDecimal> keyIterator = bidSide.descendingKeySet().iterator();
+        int counter = 0;
+        BigDecimal bestPrice = null;
+        while(keyIterator.hasNext()){
+            bestPrice = keyIterator.next();
+            counter++;
+            if(counter > level){
+                break;
+            }
+        }
+        if (counter <= level){
+            return null;
+        }
+        TreeMap<String, Order> ordersById = bidSide.get(bestPrice);
+        Pair<BigDecimal, Integer> best = aggregateOrders(ordersById);
+        if (best == null){
+            return null;
+        }
+        return best;
     }
 
 }
