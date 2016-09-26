@@ -43,6 +43,13 @@
             <artifactId>commons-lang3</artifactId>
             <version>3.4</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.interactivebrokers.tws/tws-api -->
+        <dependency>
+            <groupId>com.interactivebrokers.tws</groupId>
+            <artifactId>tws-api</artifactId>
+            <version>9.72.05</version>
+        </dependency>
+
     </dependencies>
 
     <build>
