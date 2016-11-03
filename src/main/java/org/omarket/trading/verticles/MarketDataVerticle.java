@@ -16,7 +16,10 @@ public class MarketDataVerticle extends AbstractVerticle{
     Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
 
     public static final String ADDRESS_SUBSCRIBE = "oot.marketData.subscribe";
+    public static final String ADDRESS_SUBSCRIBE_MULTIPLE = "oot.marketData.subscribe_multiple";
     public static final String ADDRESS_UNSUBSCRIBE = "oot.marketData.unsubscribe";
+    public static final String ADDRESS_UNSUBSCRIBE_MULTIPLE = "oot.marketData.unsubscribe_multiple";
+    public static final String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribe_all";
     private Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     public void start() {
@@ -45,7 +48,7 @@ public class MarketDataVerticle extends AbstractVerticle{
             String status = "failed";
             String productCode = contract.getString("conId");
             if(subscribedProducts.containsKey(productCode)){
-                // subscription takes place here
+                // un-subscription takes place here
                 subscribedProducts.remove(productCode);
                 status = "unsubscribed";
             } else {
