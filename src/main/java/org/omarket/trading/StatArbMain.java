@@ -6,6 +6,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.verticles.ContractDetailsVerticle;
+import org.omarket.trading.verticles.MarketDataVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,19 +26,18 @@ public class StatArbMain {
         //vertx.deployVerticle(new LoggerVerticle("log1", "quotesource.fakeQuote1"), options);
         //vertx.deployVerticle(new LoggerVerticle("log2", "quotesource.fakeQuote1"), options);
         logger.info("deploying contract details verticle");
-        Handler<AsyncResult<String>> completionHandler = result -> {
+        Handler<AsyncResult<String>> contractDetailsCompletionHandler = result -> {
             if (result.succeeded()) {
                 logger.info("contract details deployment result: " + result.result());
 
-                final JsonObject product = new JsonObject()
-                        .put("code", "IBM")
-                        .put("exchange", "SMART")
-                        .put("currency", "USD");
+                final JsonObject product = new JsonObject().put("conId", "12334");
 
                 vertx.eventBus().send(ContractDetailsVerticle.ADDRESS, product, reply -> {
                     if (reply.succeeded()) {
-                        Object replyMessage = reply.result().body();
-                        logger.info("received reply: " + replyMessage);
+                        JsonObject contractDetails = (JsonObject)reply.result().body();
+                        logger.info("received contract details: " + contractDetails);
+                        vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails);
+
                     } else {
                         logger.error("failed to retrieve contract details");
                     }
@@ -47,7 +47,14 @@ public class StatArbMain {
             }
         };
         ContractDetailsVerticle contractDetailsVerticle = new ContractDetailsVerticle();
-        vertx.deployVerticle(contractDetailsVerticle, completionHandler);
+        vertx.deployVerticle(contractDetailsVerticle, contractDetailsCompletionHandler);
+
+
+        Handler<AsyncResult<String>> marketDataCompletionHandler = result -> {
+
+        };
+        MarketDataVerticle marketDataVerticle = new MarketDataVerticle();
+        vertx.deployVerticle(marketDataVerticle, marketDataCompletionHandler);
 
         logger.info("deployment completed");
 

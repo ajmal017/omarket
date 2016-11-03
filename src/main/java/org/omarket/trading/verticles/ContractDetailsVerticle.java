@@ -21,9 +21,14 @@ public class ContractDetailsVerticle extends AbstractVerticle{
         consumer.handler(message -> {
             final JsonObject body = message.body();
             logger.info("received: " + body);
-            JsonObject replyMessage = body.copy();
-            replyMessage.put("status", "processed");
-            message.reply(replyMessage);
+            String productCode = body.getString("conId");
+            // lookup product code and return details
+            final JsonObject product = new JsonObject()
+                    .put("code", "IBM")
+                    .put("exchange", "SMART")
+                    .put("currency", "USD")
+                    .put("conId", productCode);
+            message.reply(product);
         });
         logger.info("started contract details verticle");
     }
