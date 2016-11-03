@@ -5,77 +5,12 @@ import com.ib.client.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static java.lang.Thread.sleep;
-
-class ContractDetailsIBrokersCallback extends AbstractIBrokersCallback {
-    private static Logger logger = LoggerFactory.getLogger(ContractDetailsIBrokersCallback.class);
-    private Map<Integer, Contract> pipeline = new HashMap<>();
-    private Integer lastRequestId = null;
-    private Boolean isCompleted = false;
-
-    ContractDetailsIBrokersCallback() {
-    }
-
-    private Integer newRequestId(){
-        if (lastRequestId == null){
-            lastRequestId = 0;
-        }
-        lastRequestId += 1;
-        return lastRequestId;
-    }
-
-    void addRequest(Contract contract){
-        Integer newRequestId = newRequestId();
-        pipeline.put(newRequestId, contract);
-    }
-
-    void processRequests() {
-        for (Integer requestId: pipeline.keySet()){
-            Contract contract = pipeline.get(requestId);
-            getClient().reqContractDetails(requestId, contract);
-        }
-    }
-
-    @Override
-    public void contractDetails(int requestId, ContractDetails contractDetails) {
-        try {
-            logger.info("received contract details ({}): {}", requestId, contractDetails);
-        } catch (Exception e) {
-            logger.error(e.toString());
-        }
-    }
-
-    @Override
-    public void contractDetailsEnd(int requestId) {
-        pipeline.remove(requestId);
-        if (pipeline.isEmpty()){
-            logger.info("No more request to be processed");
-            setCompleted(true);
-        }
-        logger.info("received contract details end for request: {}", requestId);
-    }
-
-    @Override
-    public void currentTime(long time) {
-        logger.info("requested current time: {}", time);
-    }
-
-    Boolean getCompleted() {
-        return isCompleted;
-    }
-
-    private void setCompleted(Boolean completed) {
-        isCompleted = completed;
-    }
-}
 
 /**
  * Created by Christophe on 26/09/2016.
  */
-public class MarketData {
+public class MarketDataMain {
     private static Logger logger = LoggerFactory.getLogger(ContractDetailsIBrokersCallback.class);
 
     public static void main(String[] args) throws InterruptedException {
@@ -93,7 +28,7 @@ public class MarketData {
             public void run() {
                 EReader reader = new EReader(clientSocket, readerSignal);
                 reader.start();
-                while (!ewrapper.getCompleted() && clientSocket.isConnected()) {
+                while (clientSocket.isConnected()) {
                     readerSignal.waitForSignal();
                     try {
                         logger.info("IBrokers thread waiting for signal");
