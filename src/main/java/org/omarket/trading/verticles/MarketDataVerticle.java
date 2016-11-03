@@ -16,10 +16,11 @@ public class MarketDataVerticle extends AbstractVerticle{
     Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
 
     public static final String ADDRESS_SUBSCRIBE = "oot.marketData.subscribe";
-    public static final String ADDRESS_SUBSCRIBE_MULTIPLE = "oot.marketData.subscribe_multiple";
+    public static final String ADDRESS_SUBSCRIBE_MULTIPLE = "oot.marketData.subscribeMultiple";
     public static final String ADDRESS_UNSUBSCRIBE = "oot.marketData.unsubscribe";
-    public static final String ADDRESS_UNSUBSCRIBE_MULTIPLE = "oot.marketData.unsubscribe_multiple";
-    public static final String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribe_all";
+    public static final String ADDRESS_UNSUBSCRIBE_MULTIPLE = "oot.marketData.unsubscribeMultiple";
+    public static final String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
+    public static final String ADDRESS_CONTRACT_DETAILS = "oot.marketData.contractDetails";
     private Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     public void start() {
@@ -58,5 +59,19 @@ public class MarketDataVerticle extends AbstractVerticle{
             message.reply(reply);
         });
         logger.info("started market data verticle");
+
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DETAILS);
+        consumer.handler(message -> {
+            final JsonObject body = message.body();
+            logger.info("received: " + body);
+            String productCode = body.getString("conId");
+            // lookup product code and return details
+            final JsonObject product = new JsonObject()
+                    .put("code", "IBM")
+                    .put("exchange", "SMART")
+                    .put("currency", "USD")
+                    .put("conId", productCode);
+            message.reply(product);
+        });
     }
 }

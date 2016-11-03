@@ -5,8 +5,8 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import org.omarket.trading.verticles.ContractDetailsVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,10 +27,13 @@ public class StatArbMain {
 
         final Handler<AsyncResult<String>> marketDataCompletionHandler = result -> {
             if (result.succeeded()) {
+                //
+                // Main code - begin
+                //
                 logger.info("market data deployment result: " + result.result());
                 final JsonObject product = new JsonObject().put("conId", "12334");
 
-                vertx.eventBus().send(ContractDetailsVerticle.ADDRESS, product, reply -> {
+                vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
                     if (reply.succeeded()) {
                         JsonObject contractDetails = (JsonObject)reply.result().body();
                         logger.info("received contract details: " + contractDetails);
@@ -42,21 +45,19 @@ public class StatArbMain {
                         logger.error("failed to retrieve contract details");
                     }
                 });
+
+                //
+                // Main code - end
+                //
             } else {
                 logger.error("failed to deploy: " + result);
             }
         };
-        final Handler<AsyncResult<String>> contractDetailsCompletionHandler = result -> {
-            if (result.succeeded()) {
-                logger.info("contract details deployment result: " + result.result());
-                MarketDataVerticle marketDataVerticle = new MarketDataVerticle();
-                vertx.deployVerticle(marketDataVerticle, marketDataCompletionHandler);
-            } else {
-                logger.error("failed to deploy: " + result);
-            }
-        };
-        ContractDetailsVerticle contractDetailsVerticle = new ContractDetailsVerticle();
-        vertx.deployVerticle(contractDetailsVerticle, contractDetailsCompletionHandler);
+        MarketDataVerticle marketDataVerticle = new MarketDataVerticle();
+        vertx.deployVerticle(marketDataVerticle, marketDataCompletionHandler);
+
+        StrategyVerticle strategyVerticle = new StrategyVerticle();
+        vertx.deployVerticle(strategyVerticle);
 
         logger.info("deployment completed");
 
