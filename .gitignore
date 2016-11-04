@@ -14,3 +14,5 @@ hs_err_pid*
 /.vertx/
 /target/
 /statarb.iml
+*.iml
+*.log

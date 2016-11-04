@@ -24,17 +24,19 @@ public class MarketDataVerticle extends AbstractVerticle{
     public static final String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
     public static final String ADDRESS_CONTRACT_DETAILS = "oot.marketData.contractDetails";
     public static final String ADDRESS_CONTRACT_DETAILS_COMPLETED = "oot.marketData.contractDetailsCompleted";
+
     private Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     public void start() {
-
         logger.info("starting market data");
         final EReaderSignal readerSignal = new EJavaSignal();
         final ContractDetailsIBrokersCallback ewrapper = new ContractDetailsIBrokersCallback();
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
-        // TODO - params
-        clientSocket.eConnect("127.0.0.1", 7497, 1);
+        String ibrokersHost = config().getString("ibrokers.host");
+        Integer ibrokersPort = config().getInteger("ibrokers.port");
+        Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
+        clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
 
         /*
         Launching IBrokers client thread

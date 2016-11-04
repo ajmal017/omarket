@@ -1,3 +1,5 @@
 {
-  "fakequote1.startValue" : 100
+  "ibrokers.host": "127.0.0.1",
+  "ibrokers.port": 7497,
+  "ibrokers.clientId": 1
 }

@@ -4,7 +4,6 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.StrategyVerticle;
@@ -15,16 +14,17 @@ public class StatArbMain {
     private static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
 
     public static void main(String[] args) throws InterruptedException {
-        float default_start_value = 100;
-        Integer period = 1000;
-        Vertx vertx = Vertx.vertx();
+        int default_client_id = 1;
+        String default_host = "127.0.0.1";
+        int default_port = 7497;
         DeploymentOptions options = new DeploymentOptions()
-                .setConfig(new JsonObject().put("fakequote1.startValue", default_start_value)
+                .setConfig(new JsonObject()
+                        .put("ibrokers.clientId", default_client_id)
+                        .put("ibrokers.host", default_host)
+                        .put("ibrokers.port", default_port)
                 );
-        //vertx.deployVerticle(new FakeQuoteGeneratorVerticle("quotesource.fakeQuote1", period, new BigDecimal(100), new BigDecimal("0.1")), options);
-        //vertx.deployVerticle(new LoggerVerticle("log1", "quotesource.fakeQuote1"), options);
-        //vertx.deployVerticle(new LoggerVerticle("log2", "quotesource.fakeQuote1"), options);
 
+        Vertx vertx = Vertx.vertx();
 
         final Handler<AsyncResult<String>> marketDataCompletionHandler = result -> {
             if (result.succeeded()) {
@@ -56,14 +56,11 @@ public class StatArbMain {
                 // Main code - end
                 //
             } else {
-                logger.error("failed to deploy: " + result);
+                logger.error("failed to deploy: " + result.cause());
             }
         };
-        MarketDataVerticle marketDataVerticle = new MarketDataVerticle();
-        vertx.deployVerticle(marketDataVerticle, marketDataCompletionHandler);
-
-        StrategyVerticle strategyVerticle = new StrategyVerticle();
-        vertx.deployVerticle(strategyVerticle);
+        vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
+        vertx.deployVerticle(StrategyVerticle.class.getName());
 
         logger.info("deployment completed");
 
