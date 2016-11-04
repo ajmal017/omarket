@@ -83,6 +83,7 @@ public class OrderBookLevelOne {
     public JsonObject asJSON(){
         Gson gson = new GsonBuilder().create();
         JsonObject asJSON = new JsonObject(gson.toJson(this));
+        asJSON.remove("decimalPrecision");
         return asJSON;
     }
 }
