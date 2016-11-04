@@ -1,4 +1,4 @@
-package org.omarket.trading;
+package org.omarket.trading.verticles;
 
 
 import io.vertx.core.AbstractVerticle;
