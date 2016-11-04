@@ -16,23 +16,37 @@ import java.util.Map;
 /**
  * Created by Christophe on 03/11/2016.
  */
-public class ContractDetailsIBrokersCallback extends AbstractIBrokersCallback {
-    private static Logger logger = LoggerFactory.getLogger(ContractDetailsIBrokersCallback.class);
+public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
+    private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
     private Integer lastRequestId = null;
-    private Map<Integer, Message<JsonObject> > callbackMessages = new HashMap<>();
+    private Integer lastSubscriptionId = null;
+    private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
 
-    private Integer newRequestId(){
-        if (lastRequestId == null){
+    private Integer newRequestId() {
+        if (lastRequestId == null) {
             lastRequestId = 0;
         }
         lastRequestId += 1;
         return lastRequestId;
     }
 
-    public void request(Contract contract, Message<JsonObject> message){
+    public void request(Contract contract, Message<JsonObject> message) {
         Integer newRequestId = newRequestId();
         callbackMessages.put(newRequestId, message);
         getClient().reqContractDetails(newRequestId, contract);
+    }
+
+    private Integer newSubscriptionId() {
+        if (lastSubscriptionId == null) {
+            lastSubscriptionId = 0;
+        }
+        lastSubscriptionId += 1;
+        return lastSubscriptionId;
+    }
+
+    public void subscribe(Contract contract) {
+        int ticketId = newSubscriptionId();
+        getClient().reqMktData(ticketId, contract, "", false, null);
     }
 
     @Override
@@ -58,4 +72,13 @@ public class ContractDetailsIBrokersCallback extends AbstractIBrokersCallback {
         logger.info("requested current time: {}", time);
     }
 
+    @Override
+    public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
+        logger.info("tick price: " + tickerId + " " + field + " " + price);
+    }
+
+    @Override
+    public void tickSize(int tickerId, int field, int size) {
+        logger.info("tick size: " + tickerId + " " + field + " " + size);
+    }
 }

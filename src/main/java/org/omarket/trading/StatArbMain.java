@@ -4,11 +4,20 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+class ContractDetailsReplyHandler implements Handler<AsyncResult<Message<JsonObject>>> {
+
+    @Override
+    public void handle(AsyncResult<Message<JsonObject>> event) {
+
+    }
+}
 
 public class StatArbMain {
     private static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
