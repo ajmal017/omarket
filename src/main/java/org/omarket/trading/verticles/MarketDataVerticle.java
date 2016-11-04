@@ -102,9 +102,7 @@ public class MarketDataVerticle extends AbstractVerticle{
             int productCode = Integer.parseInt(body.getString("conId"));
             Contract contract = new Contract();
             contract.conid(productCode);
-            ewrapper.useMessage(message);
-            ewrapper.addRequest(contract);
-            ewrapper.processRequests();
+            ewrapper.request(contract, message);
         });
     }
 }

@@ -37,16 +37,14 @@ public class StatArbMain {
                 final JsonObject product_copper_etf = new JsonObject().put("conId", "211651700");
                 final JsonObject product_oil_etf = new JsonObject().put("conId", "42393358");
                 JsonObject[] products = {product_copper_etf, product_oil_etf};
-                for(JsonObject product: products){
+                for (JsonObject product : products) {
                     vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
                         if (reply.succeeded()) {
-                            JsonArray contractDetailsArray = (JsonArray)reply.result().body();
-                            for (Object contractDetails: contractDetailsArray) {
-                                logger.info("received contract details: " + contractDetails);
-                                vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails, mktDataReply -> {
-                                    logger.info("subscription result: " + mktDataReply.result().body());
-                                });
-                            }
+                            JsonObject contractDetails = (JsonObject) reply.result().body();
+                            logger.info("received contract details: " + contractDetails);
+                            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails, mktDataReply -> {
+                                logger.info("subscription result: " + mktDataReply.result().body());
+                            });
 
                         } else {
                             logger.error("failed to retrieve contract details");
