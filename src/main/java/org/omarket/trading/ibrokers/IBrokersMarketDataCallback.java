@@ -4,11 +4,20 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
+import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.omarket.trading.OrderBook;
+import org.omarket.trading.OrderBookLevelOne;
+import org.omarket.trading.verticles.MarketDataVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,9 +27,15 @@ import java.util.Map;
  */
 public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
+    private static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.orderBookLevelOne";
     private Integer lastRequestId = null;
     private Integer lastSubscriptionId = null;
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
+    private Map<Integer, Pair<OrderBookLevelOne, Contract>> orderBooks = new HashMap<>();
+    private EventBus eventBus;
+    public IBrokersMarketDataCallback(EventBus eventBus){
+        this.eventBus = eventBus;
+    }
 
     private Integer newRequestId() {
         if (lastRequestId == null) {
@@ -44,9 +59,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return lastSubscriptionId;
     }
 
-    public void subscribe(Contract contract) {
-        int ticketId = newSubscriptionId();
-        getClient().reqMktData(ticketId, contract, "", false, null);
+    public void subscribe(Contract contract, double minTick) {
+        int tickerId = newSubscriptionId();
+        orderBooks.put(tickerId, new ImmutablePair<>(new OrderBookLevelOne(minTick), contract));
+        getClient().reqMktData(tickerId, contract, "", false, null);
     }
 
     @Override
@@ -64,7 +80,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     @Override
     public void contractDetailsEnd(int currentRequestId) {
-        logger.info("received contract details end for request: {}", currentRequestId);
+        logger.debug("received contract details end for request: {}", currentRequestId);
     }
 
     @Override
@@ -74,11 +90,37 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     @Override
     public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
-        logger.info("tick price: " + tickerId + " " + field + " " + price);
+        int PRICE_BID = 1;
+        int PRICE_ASK = 2;
+        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
+        OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        Contract contract = orderBookContract.getRight();
+        if (field == PRICE_BID){
+            orderBook.setBestBidPrice(price);
+            String channel = ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + contract.conid();
+            this.eventBus.send(channel, orderBook.asJSON());
+        } else if (field == PRICE_ASK){
+            orderBook.setBestAskPrice(price);
+            String channel = ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + contract.conid();
+            this.eventBus.send(channel, orderBook.asJSON());
+        }
     }
 
     @Override
     public void tickSize(int tickerId, int field, int size) {
-        logger.info("tick size: " + tickerId + " " + field + " " + size);
+        int SIZE_BID = 0;
+        int SIZE_ASK = 3;
+        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
+        OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        Contract contract = orderBookContract.getRight();
+        if (field == SIZE_BID){
+            orderBook.setBestBidSize(size);
+            String channel = ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + contract.conid();
+            this.eventBus.send(channel, orderBook.asJSON());
+        } else if (field == SIZE_ASK){
+            orderBook.setBestAskSize(size);
+            String channel = ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + contract.conid();
+            this.eventBus.send(channel, orderBook.asJSON());
+        }
     }
 }

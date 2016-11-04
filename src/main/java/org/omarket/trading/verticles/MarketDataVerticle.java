@@ -2,6 +2,7 @@ package org.omarket.trading.verticles;
 
 import com.ib.client.*;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -15,8 +16,6 @@ import java.util.Map;
  * Created by Christophe on 01/11/2016.
  */
 public class MarketDataVerticle extends AbstractVerticle {
-    private static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
-
     public static final String ADDRESS_SUBSCRIBE = "oot.marketData.subscribe";
     public static final String ADDRESS_SUBSCRIBE_MULTIPLE = "oot.marketData.subscribeMultiple";
     public static final String ADDRESS_UNSUBSCRIBE = "oot.marketData.unsubscribe";
@@ -24,13 +23,13 @@ public class MarketDataVerticle extends AbstractVerticle {
     public static final String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
     public static final String ADDRESS_CONTRACT_DETAILS = "oot.marketData.contractDetails";
     public static final String ADDRESS_CONTRACT_DETAILS_COMPLETED = "oot.marketData.contractDetailsCompleted";
-
+    private static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
-    private static IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId) {
+    static private IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, EventBus eventBus) {
 
         final EReaderSignal readerSignal = new EJavaSignal();
-        final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback();
+        final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(eventBus);
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
         clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
@@ -65,7 +64,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         String ibrokersHost = config().getString("ibrokers.host");
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
-        final IBrokersMarketDataCallback ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId);
+        final IBrokersMarketDataCallback ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus());
         logger.info("starting market data verticle");
 
         MessageConsumer<JsonObject> consumerSubscribe = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE);
@@ -82,7 +81,7 @@ public class MarketDataVerticle extends AbstractVerticle {
                 contract.currency(contract_json.getString("m_currency"));
                 contract.exchange(contract_json.getString("m_exchange"));
                 contract.secType(contract_json.getString("m_sectype"));
-                ibrokers_client.subscribe(contract);
+                ibrokers_client.subscribe(contract, contractDetails.getDouble("m_minTick"));
                 subscribedProducts.put(Integer.toString(productCode), contractDetails);
                 status = "registered";
             } else {

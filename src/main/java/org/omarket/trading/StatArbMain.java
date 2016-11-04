@@ -6,6 +6,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import org.omarket.trading.verticles.LoggerVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
@@ -70,7 +71,8 @@ public class StatArbMain {
         };
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
         vertx.deployVerticle(StrategyVerticle.class.getName());
-
+        vertx.deployVerticle(new LoggerVerticle("COPX", "oot.orderBookLevelOne.211651700"));
+        vertx.deployVerticle(new LoggerVerticle("DBO", "oot.orderBookLevelOne.42393358"));
         logger.info("deployment completed");
 
     }
