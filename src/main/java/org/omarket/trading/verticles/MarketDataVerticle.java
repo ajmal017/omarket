@@ -89,7 +89,6 @@ public class MarketDataVerticle extends AbstractVerticle {
             JsonObject contract_json = contractDetails.getJsonObject("m_contract");
             int productCode = contract_json.getInteger("m_conid");
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
-                // subscription takes place here
                 Contract contract = new Contract();
                 contract.conid(productCode);
                 contract.currency(contract_json.getString("m_currency"));
