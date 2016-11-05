@@ -21,7 +21,7 @@ class ContractDetailsReplyHandler implements Handler<AsyncResult<Message<JsonObj
 }
 
 public class StatArbMain {
-    private static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
+    private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
 
     public static void main(String[] args) throws InterruptedException {
         int default_client_id = 1;
@@ -34,7 +34,7 @@ public class StatArbMain {
                         .put("ibrokers.port", default_port)
                 );
 
-        Vertx vertx = Vertx.vertx();
+        final Vertx vertx = Vertx.vertx();
 
         final Handler<AsyncResult<String>> marketDataCompletionHandler = result -> {
             if (result.succeeded()) {
@@ -44,22 +44,11 @@ public class StatArbMain {
                 logger.info("market data deployment result: " + result.result());
                 // Global X Copper Miners ETF - COPX - 211651700
                 // PowerShares DB Oil Fund - DBO - 42393358
-                final JsonObject product_copper_etf = new JsonObject().put("conId", "211651700");
-                final JsonObject product_oil_etf = new JsonObject().put("conId", "42393358");
-                JsonObject[] products = {product_copper_etf, product_oil_etf};
-                for (JsonObject product : products) {
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
-                        if (reply.succeeded()) {
-                            JsonObject contractDetails = (JsonObject) reply.result().body();
-                            logger.info("received contract details: " + contractDetails);
-                            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails, mktDataReply -> {
-                                logger.info("subscription result: " + mktDataReply.result().body());
-                            });
-
-                        } else {
-                            logger.error("failed to retrieve contract details");
-                        }
-                    });
+                final Integer product_copper_etf = 211651700;
+                final Integer product_oil_etf = 42393358;
+                Integer[] ibCodes = {product_copper_etf, product_oil_etf};
+                for (Integer ibCode : ibCodes) {
+                    MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
 
                 //
