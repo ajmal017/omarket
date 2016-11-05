@@ -9,9 +9,11 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.cli.*;
-import org.omarket.trading.ibrokers.CurrencyProduct;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -140,27 +142,24 @@ public class MarketDataVerticle extends AbstractVerticle {
         MessageConsumer<String> consumer = vertx.eventBus().consumer(ADDRESS_ADMIN_COMMAND);
         consumer.handler(message -> {
             final String commandLine = message.body();
-            logger.info("received admin command: " + commandLine);
-            CommandLineParser parser = new DefaultParser();
-            Options options = new Options();
-            Option help = new Option("help", "print this message");
-            Option subscribed = new Option("subscribed", "show all subscribed products");
-            options.addOption(help);
-            options.addOption(subscribed);
-            String[] args = commandLine.split("\\s+");
+            String[] fields = commandLine.split("\\s+");
+            String command = fields[0];
+            String[] args = {};
+            if (fields.length >= 2) {
+                args = Arrays.copyOfRange(fields, 1, fields.length);
+            }
             String result = "";
-            try {
-                CommandLine command = parser.parse( options, args);
-                if(command.getArgList().contains("subscribed")){
+            switch (command) {
+                case "subscribed":
                     result = String.join(", ", subscribedProducts.keySet());
-                } else if(command.getArgList().contains("details")){
-                    result = "";
-                } else if(command.hasOption("help")){
-                    result = "";
-                }
-            } catch (ParseException e) {
-                logger.error("failed to parse command", e);
-                result = e.toString();
+                    break;
+                case "details":
+                    String ibCode = args[0];
+                    result = subscribedProducts.get(ibCode).toString();
+                    break;
+                case "help":
+                    result = "available commands: subscribed, details";
+                    break;
             }
             message.reply(result);
         });
@@ -183,8 +182,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     public static void adminCommand(Vertx vertx, String commandLine) {
         vertx.eventBus().send(MarketDataVerticle.ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
             if (reply.succeeded()) {
-                String commandResult = (String)reply.result().body();
-                logger.info("command result: " + commandResult);
+                String commandResult = (String) reply.result().body();
+                logger.info(commandLine + " -> '" + commandResult + "'");
             } else {
                 logger.error("failed to run admin command '" + commandLine + "'");
             }

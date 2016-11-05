@@ -68,7 +68,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     @Override
     public void contractDetails(int requestId, ContractDetails contractDetails) {
         try {
-            logger.info("received contract details ({}): {}", requestId, contractDetails);
             Gson gson = new GsonBuilder().create();
             JsonObject product = new JsonObject(gson.toJson(contractDetails));
             Message<JsonObject> message = callbackMessages.get(requestId);

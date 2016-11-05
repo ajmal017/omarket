@@ -12,7 +12,6 @@ import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.lang.Thread.sleep;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class StatArbMain {
@@ -46,7 +45,14 @@ public class StatArbMain {
                 for (Integer ibCode : ibCodes) {
                     MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
-                for (String currencyCross : CurrencyProduct.IB_CODES.keySet()) {
+                String[] trackedCurrencies = new String[]{
+                        "GBP.USD", "AUD.USD", "EUR.USD", "USD.JPY",
+                        "NZD.USD", "USD.SGD", "USD.SEK", "USD.CHF",
+                        "USD.RUB", "USD.NOK", "USD.MXN", "USD.MXN",
+                        "USD.ILS", "USD.HUF", "USD.HKD", "USD.CZK",
+                        "USD.CNH", "USD.CAD"
+                };
+                for (String currencyCross: trackedCurrencies) {
                     Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
                     MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
@@ -63,8 +69,10 @@ public class StatArbMain {
         vertx.deployVerticle(new LoggerVerticle("COPX", createChannelOrderBookLevelOne(211651700)));
         vertx.deployVerticle(new LoggerVerticle("DBO", createChannelOrderBookLevelOne(42393358)));
 
-        vertx.setPeriodic(1000, id -> {
+        vertx.setPeriodic(3000, id -> {
             MarketDataVerticle.adminCommand(vertx, "subscribed");
+            MarketDataVerticle.adminCommand(vertx, "help");
+            MarketDataVerticle.adminCommand(vertx, "details 42393358");
         });
 
         logger.info("deployment completed");
