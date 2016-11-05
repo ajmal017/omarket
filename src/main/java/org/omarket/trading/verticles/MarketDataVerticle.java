@@ -153,6 +153,8 @@ public class MarketDataVerticle extends AbstractVerticle {
                 CommandLine command = parser.parse( options, args);
                 if(command.getArgList().contains("subscribed")){
                     result = String.join(", ", subscribedProducts.keySet());
+                } else if(command.getArgList().contains("details")){
+                    result = "";
                 } else if(command.hasOption("help")){
                     result = "";
                 }
@@ -169,7 +171,6 @@ public class MarketDataVerticle extends AbstractVerticle {
         vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
             if (reply.succeeded()) {
                 JsonObject contractDetails = (JsonObject) reply.result().body();
-                logger.info("received contract details: " + contractDetails);
                 vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails, mktDataReply -> {
                     logger.info("subscription result: " + mktDataReply.result().body());
                 });

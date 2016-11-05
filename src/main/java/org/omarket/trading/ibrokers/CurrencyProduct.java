@@ -15,8 +15,7 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrde
 public class CurrencyProduct {
     private final static Logger logger = LoggerFactory.getLogger(CurrencyProduct.class);
     public final static Map<String, Integer> IB_CODES = new HashMap<>();
-
-    public CurrencyProduct() {
+    static {
         IB_CODES.put("AUD.ZAR", 208558338);
         IB_CODES.put("GBP.ZAR", 208558332);
         IB_CODES.put("EUR.ZAR", 208558343);
