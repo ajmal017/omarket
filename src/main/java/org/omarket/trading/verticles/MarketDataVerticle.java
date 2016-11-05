@@ -8,6 +8,7 @@ import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.apache.commons.cli.*;
 import org.omarket.trading.ibrokers.CurrencyProduct;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 
@@ -23,9 +24,10 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_UNSUBSCRIBE = "oot.marketData.unsubscribe";
     public final static String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
     public final static String ADDRESS_CONTRACT_DETAILS = "oot.marketData.contractDetails";
-    public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.orderBookLevelOne";
+    public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
+    public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     private static IBrokersMarketDataCallback ibrokers_client;
-    private static Map<String, JsonObject> subscribedProducts = new HashMap<>();
+    private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     static public String createChannelOrderBookLevelOne(Integer ibCode) {
         return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
@@ -72,16 +74,13 @@ public class MarketDataVerticle extends AbstractVerticle {
         processSubscribe(vertx);
         processUnsubscribe(vertx);
         processContractDetails(vertx);
-        for (String currencyCross : CurrencyProduct.IB_CODES.keySet()) {
-            Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
-            subscribeProduct(vertx, ibCode);
-        }
+        processAdminCommand(vertx);
         logger.info("started market data verticle");
     }
 
     private static void processSubscribe(Vertx vertx) {
-        MessageConsumer<JsonObject> consumerSubscribe = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE);
-        consumerSubscribe.handler(message -> {
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE);
+        consumer.handler(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
             String status = "failed";
@@ -106,8 +105,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     private static void processUnsubscribe(Vertx vertx) {
-        MessageConsumer<JsonObject> consumerUnsubscribe = vertx.eventBus().consumer(ADDRESS_UNSUBSCRIBE);
-        consumerUnsubscribe.handler(message -> {
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_UNSUBSCRIBE);
+        consumer.handler(message -> {
             final JsonObject contract = message.body();
             logger.info("received unsubscription request for: " + contract);
             String status = "failed";
@@ -137,6 +136,34 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     }
 
+    private static void processAdminCommand(Vertx vertx) {
+        MessageConsumer<String> consumer = vertx.eventBus().consumer(ADDRESS_ADMIN_COMMAND);
+        consumer.handler(message -> {
+            final String commandLine = message.body();
+            logger.info("received admin command: " + commandLine);
+            CommandLineParser parser = new DefaultParser();
+            Options options = new Options();
+            Option help = new Option("help", "print this message");
+            Option subscribed = new Option("subscribed", "show all subscribed products");
+            options.addOption(help);
+            options.addOption(subscribed);
+            String[] args = commandLine.split("\\s+");
+            String result = "";
+            try {
+                CommandLine command = parser.parse( options, args);
+                if(command.getArgList().contains("subscribed")){
+                    result = String.join(", ", subscribedProducts.keySet());
+                } else if(command.hasOption("help")){
+                    result = "";
+                }
+            } catch (ParseException e) {
+                logger.error("failed to parse command", e);
+                result = e.toString();
+            }
+            message.reply(result);
+        });
+    }
+
     public static void subscribeProduct(Vertx vertx, Integer ibCode) {
         JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
         vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
@@ -148,6 +175,17 @@ public class MarketDataVerticle extends AbstractVerticle {
                 });
             } else {
                 logger.error("failed to retrieve contract details");
+            }
+        });
+    }
+
+    public static void adminCommand(Vertx vertx, String commandLine) {
+        vertx.eventBus().send(MarketDataVerticle.ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
+            if (reply.succeeded()) {
+                String commandResult = (String)reply.result().body();
+                logger.info("command result: " + commandResult);
+            } else {
+                logger.error("failed to run admin command '" + commandLine + "'");
             }
         });
     }

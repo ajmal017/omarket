@@ -5,11 +5,15 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
+import org.omarket.trading.ibrokers.CurrencyProduct;
 import org.omarket.trading.verticles.LoggerVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.lang.Thread.sleep;
+import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class StatArbMain {
     private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
@@ -42,6 +46,10 @@ public class StatArbMain {
                 for (Integer ibCode : ibCodes) {
                     MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
+                for (String currencyCross : CurrencyProduct.IB_CODES.keySet()) {
+                    Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
+                    MarketDataVerticle.subscribeProduct(vertx, ibCode);
+                }
 
                 //
                 // Main code - end
@@ -52,8 +60,13 @@ public class StatArbMain {
         };
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
         vertx.deployVerticle(StrategyVerticle.class.getName());
-        vertx.deployVerticle(new LoggerVerticle("COPX", "oot.orderBookLevelOne.211651700"));
-        vertx.deployVerticle(new LoggerVerticle("DBO", "oot.orderBookLevelOne.42393358"));
+        vertx.deployVerticle(new LoggerVerticle("COPX", createChannelOrderBookLevelOne(211651700)));
+        vertx.deployVerticle(new LoggerVerticle("DBO", createChannelOrderBookLevelOne(42393358)));
+
+        vertx.setPeriodic(1000, id -> {
+            MarketDataVerticle.adminCommand(vertx, "subscribed");
+        });
+
         logger.info("deployment completed");
 
     }
