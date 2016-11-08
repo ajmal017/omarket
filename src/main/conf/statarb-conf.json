@@ -1,5 +1,6 @@
 {
   "ibrokers.host": "127.0.0.1",
   "ibrokers.port": 7497,
-  "ibrokers.clientId": 1
+  "ibrokers.clientId": 1,
+  "ibrokers.ticks.storagePath": "ticks"
 }

@@ -11,8 +11,10 @@ import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.cli.*;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,9 +37,9 @@ public class MarketDataVerticle extends AbstractVerticle {
         return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
     }
 
-    static private IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, EventBus eventBus) {
+    static private IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, EventBus eventBus, Path storageDirPath) {
         final EReaderSignal readerSignal = new EJavaSignal();
-        final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(eventBus);
+        final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(eventBus, storageDirPath);
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
         clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
@@ -52,7 +54,7 @@ public class MarketDataVerticle extends AbstractVerticle {
                 while (clientSocket.isConnected()) {
                     readerSignal.waitForSignal();
                     try {
-                        logger.info("IBrokers thread waiting for signal");
+                        logger.debug("IBrokers thread waiting for signal");
                         reader.processMsgs();
                     } catch (Exception e) {
                         logger.error("Exception", e);
@@ -66,12 +68,16 @@ public class MarketDataVerticle extends AbstractVerticle {
         return ewrapper;
     }
 
-    public void start() {
+    public void start() throws Exception {
         logger.info("starting market data");
+        String storageDirPathName = config().getString("ibrokers.ticks.storagePath");
+        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+
+        logger.info("ticks data storage set to '" + storageDirPath + "'");
         String ibrokersHost = config().getString("ibrokers.host");
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
-        ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus());
+        ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus(), storageDirPath);
         logger.info("starting market data verticle");
         processSubscribe(vertx);
         processUnsubscribe(vertx);
@@ -94,9 +100,13 @@ public class MarketDataVerticle extends AbstractVerticle {
                 contract.currency(contract_json.getString("m_currency"));
                 contract.exchange(contract_json.getString("m_exchange"));
                 contract.secType(contract_json.getString("m_sectype"));
-                ibrokers_client.subscribe(contract, contractDetails.getDouble("m_minTick"));
-                subscribedProducts.put(Integer.toString(productCode), contractDetails);
-                status = "registered";
+                try {
+                    ibrokers_client.subscribe(contract, contractDetails.getDouble("m_minTick"));
+                    subscribedProducts.put(Integer.toString(productCode), contractDetails);
+                    status = "registered";
+                } catch (IOException e) {
+                    logger.error("failed to subscribe product: '" + productCode + "'", e);
+                }
             } else {
                 status = "already_registered";
             }

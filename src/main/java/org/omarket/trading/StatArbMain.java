@@ -18,14 +18,16 @@ public class StatArbMain {
     private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
 
     public static void main(String[] args) throws InterruptedException {
-        int default_client_id = 1;
-        String default_host = "127.0.0.1";
-        int default_port = 7497;
+        String defaultStoragePath = "ticks";
+        int defaultClientId = 1;
+        String defaultHost = "127.0.0.1";
+        int defaultPort = 7497;
         DeploymentOptions options = new DeploymentOptions()
                 .setConfig(new JsonObject()
-                        .put("ibrokers.clientId", default_client_id)
-                        .put("ibrokers.host", default_host)
-                        .put("ibrokers.port", default_port)
+                        .put("ibrokers.ticks.storagePath", defaultStoragePath)
+                        .put("ibrokers.clientId", defaultClientId)
+                        .put("ibrokers.host", defaultHost)
+                        .put("ibrokers.port", defaultPort)
                 );
 
         final Vertx vertx = Vertx.vertx();
