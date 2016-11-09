@@ -8,16 +8,15 @@ import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.apache.commons.cli.*;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 
 import java.io.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -32,6 +31,18 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     private static IBrokersMarketDataCallback ibrokers_client;
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
+
+    private static String getProductAsString(String ibCode){
+        JsonObject product = subscribedProducts.get(ibCode);
+        if (product == null){
+            logger.error("product not found for : " + ibCode);
+            return null;
+        }
+        return product.toString();
+    }
+    private static Set<String> getSubscribedProducts(){
+        return subscribedProducts.keySet();
+    }
 
     static public String createChannelOrderBookLevelOne(Integer ibCode) {
         return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
@@ -160,11 +171,11 @@ public class MarketDataVerticle extends AbstractVerticle {
             String result = "";
             switch (command) {
                 case "subscribed":
-                    result = String.join(", ", subscribedProducts.keySet());
+                    result = String.join(", ", getSubscribedProducts());
                     break;
                 case "details":
                     String ibCode = args[0];
-                    result = subscribedProducts.get(ibCode).toString();
+                    result = getProductAsString(ibCode);
                     break;
                 case "help":
                     result = "available commands: subscribed, details";

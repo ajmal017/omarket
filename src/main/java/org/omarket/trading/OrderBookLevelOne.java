@@ -1,8 +1,5 @@
 package org.omarket.trading;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.oracle.javafx.jmx.json.JSONDocument;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
 
 /**
@@ -29,7 +27,7 @@ public class OrderBookLevelOne {
     private final SimpleDateFormat isoFormat;
 
     public OrderBookLevelOne(double minTick) {
-        String[] parts = Double.toString(minTick).split("\\.");
+        String[] parts = String.format(Locale.ROOT,"%f", minTick).split("\\.");
         if (parts[0].equals("0")) {
             decimalPrecision = parts[parts.length - 1].length();
         } else {
@@ -87,6 +85,11 @@ public class OrderBookLevelOne {
 
     public String toString() {
         return "< " + getBestBidSize() + " " + getBestBidPrice() + " / " + getBestAskPrice() + " " + getBestAskSize() + " >";
+    }
+
+    public boolean isValid() {
+        boolean isNull = bestBidPrice == null || bestAskPrice == null|| bestBidSize == null|| bestAskSize == null;
+        return !isNull && bestBidSize > 0 && bestAskSize > 0 && bestBidPrice.compareTo(bestAskPrice) < 0;
     }
 
     public JsonObject asJSON() {
