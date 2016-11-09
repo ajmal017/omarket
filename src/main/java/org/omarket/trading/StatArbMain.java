@@ -43,7 +43,8 @@ public class StatArbMain {
                 // PowerShares DB Oil Fund - DBO - 42393358
                 final Integer product_copper_etf = 211651700;
                 final Integer product_oil_etf = 42393358;
-                Integer[] ibCodes = {product_copper_etf, product_oil_etf};
+                final Integer product_eur_chf = 12087792;
+                Integer[] ibCodes = {product_copper_etf, product_oil_etf, product_eur_chf};
                 for (Integer ibCode : ibCodes) {
                     MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
@@ -56,7 +57,7 @@ public class StatArbMain {
                 };
                 for (String currencyCross: trackedCurrencies) {
                     Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
-                    MarketDataVerticle.subscribeProduct(vertx, ibCode);
+                    //MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
 
                 //
@@ -70,6 +71,7 @@ public class StatArbMain {
         vertx.deployVerticle(StrategyVerticle.class.getName());
         vertx.deployVerticle(new LoggerVerticle("COPX", createChannelOrderBookLevelOne(211651700)));
         vertx.deployVerticle(new LoggerVerticle("DBO", createChannelOrderBookLevelOne(42393358)));
+        vertx.deployVerticle(new LoggerVerticle("EUR.CHF", createChannelOrderBookLevelOne(12087792)));
 
         vertx.setPeriodic(3000, id -> {
             MarketDataVerticle.adminCommand(vertx, "subscribed");

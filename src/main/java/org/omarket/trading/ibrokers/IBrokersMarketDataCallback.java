@@ -115,12 +115,16 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if (field != PRICE_BID && field != PRICE_ASK) {
             return;
         }
+        logger.info("received price: {}", price);
         Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
         OrderBookLevelOne orderBook = orderBookContract.getLeft();
         if (field == PRICE_BID) {
             orderBook.setBestBidPrice(price);
         } else {
             orderBook.setBestAskPrice(price);
+        }
+        if (!orderBook.isValid()){
+            return;
         }
         Contract contract = orderBookContract.getRight();
         String channel = createChannelOrderBookLevelOne(contract.conid());
@@ -156,8 +160,28 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         } else {
             orderBook.setBestAskSize(size);
         }
+        if (!orderBook.isValid()){
+            return;
+        }
         Contract contract = orderBookContract.getRight();
         String channel = createChannelOrderBookLevelOne(contract.conid());
-        this.eventBus.send(channel, orderBook.asJSON());
+        try {
+            Path rootDirectory = subscribed.get(contract.conid());
+            Date now = new Date();
+            Path currentDirectory = rootDirectory.resolve(formatYearMonthDay.format(now));
+            Files.createDirectories(currentDirectory);
+            Path tickFilePath = currentDirectory.resolve(formatHour.format(now));
+            String content = orderBook.asPriceVolumeString();
+            if(!Files.exists(tickFilePath)){
+                Files.createFile(tickFilePath);
+            }
+            BufferedWriter writer = Files.newBufferedWriter(tickFilePath, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            writer.write(content);
+            writer.newLine();
+            writer.close();
+            this.eventBus.send(channel, orderBook.asJSON());
+        } catch (IOException e) {
+            logger.error("unable to record order book: message not sent", e);
+        }
     }
 }
