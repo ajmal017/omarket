@@ -39,14 +39,6 @@ public class StatArbMain {
                 //
 
                 logger.info("market data deployment result: " + result.result());
-                // Global X Copper Miners ETF - COPX - 211651700
-                // PowerShares DB Oil Fund - DBO - 42393358
-                final Integer product_copper_etf = 211651700;
-                final Integer product_oil_etf = 42393358;
-                Integer[] ibCodes = {product_copper_etf, product_oil_etf};
-                for (Integer ibCode : ibCodes) {
-                    MarketDataVerticle.subscribeProduct(vertx, ibCode);
-                }
                 String[] trackedCurrencies = new String[]{
                         "GBP.USD", "AUD.USD", "EUR.USD", "USD.JPY",
                         "NZD.USD", "USD.SGD", "USD.SEK", "USD.CHF",
@@ -68,8 +60,6 @@ public class StatArbMain {
         };
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
         vertx.deployVerticle(StrategyVerticle.class.getName());
-        vertx.deployVerticle(new LoggerVerticle("COPX", createChannelOrderBookLevelOne(211651700)));
-        vertx.deployVerticle(new LoggerVerticle("DBO", createChannelOrderBookLevelOne(42393358)));
 
         vertx.setPeriodic(3000, id -> {
             MarketDataVerticle.adminCommand(vertx, "subscribed");
