@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
@@ -117,12 +116,13 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
         OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        boolean modified;
         if (field == PRICE_BID) {
-            orderBook.setBestBidPrice(price);
+            modified = orderBook.updateBestBidPrice(price);
         } else {
-            orderBook.setBestAskPrice(price);
+            modified = orderBook.updateBestAskPrice(price);
         }
-        if (!orderBook.isValid()){
+        if (!orderBook.isValid() || !modified){
             return;
         }
         Contract contract = orderBookContract.getRight();
@@ -154,12 +154,13 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
         OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        boolean modified;
         if (field == SIZE_BID) {
-            orderBook.setBestBidSize(size);
+            modified = orderBook.updateBestBidSize(size);
         } else {
-            orderBook.setBestAskSize(size);
+            modified = orderBook.updateBestAskSize(size);
         }
-        if (!orderBook.isValid()){
+        if (!orderBook.isValid() || !modified){
             return;
         }
         Contract contract = orderBookContract.getRight();

@@ -6,8 +6,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -30,16 +28,16 @@ public class OrderBookLevelOneTest {
     @Test
     public void basicUsagePrecision2() throws Exception {
         OrderBookLevelOne orderBook = new OrderBookLevelOne(0.01);
-        orderBook.setBestBidPrice(10.125);
-        orderBook.setBestAskPrice(10.139);
+        orderBook.updateBestBidPrice(10.125);
+        orderBook.updateBestAskPrice(10.139);
         assertEquals("unexpected order book", "< null 10.13 / 10.14 null >", orderBook.toString());
     }
 
     @Test
     public void basicUsagePrecision0() throws Exception {
         OrderBookLevelOne orderBook = new OrderBookLevelOne(1);
-        orderBook.setBestBidPrice(10.125);
-        orderBook.setBestAskPrice(10.139);
+        orderBook.updateBestBidPrice(10.125);
+        orderBook.updateBestAskPrice(10.139);
         assertEquals("unexpected order book", "< null 10 / 10 null >", orderBook.toString());
     }
 }

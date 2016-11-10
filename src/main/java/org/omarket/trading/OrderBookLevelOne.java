@@ -17,7 +17,7 @@ public class OrderBookLevelOne {
 
     private static Logger logger = LoggerFactory.getLogger(OrderBookLevelOne.class);
 
-    private Date lastUpdate = null;
+    private Date lastModified = null;
     private BigDecimal bestBidPrice = null;
     private BigDecimal bestAskPrice = null;
     private Integer bestBidSize = null;
@@ -39,32 +39,50 @@ public class OrderBookLevelOne {
         isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    public void setBestBidSize(int size) {
+    public boolean updateBestBidSize(int size) {
+        if (bestBidSize != null && bestBidSize.equals(size)){
+            return false;
+        }
         bestBidSize = size;
-        setLastUpdate(new Date());
+        setLastModified(new Date());
+        return true;
     }
 
-    public void setBestAskSize(int size) {
+    public boolean updateBestAskSize(int size) {
+        if (bestAskSize != null && bestAskSize == size){
+            return false;
+        }
         bestAskSize = size;
-        setLastUpdate(new Date());
+        setLastModified(new Date());
+        return true;
     }
 
-    public void setBestBidPrice(double price) {
-        bestBidPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
-        setLastUpdate(new Date());
+    public boolean updateBestBidPrice(double price) {
+        BigDecimal newBestBidPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
+        if (newBestBidPrice.equals(bestBidPrice)){
+            return false;
+        }
+        bestBidPrice = newBestBidPrice;
+        setLastModified(new Date());
+        return true;
     }
 
-    public void setBestAskPrice(double price) {
-        bestAskPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
-        setLastUpdate(new Date());
+    public boolean updateBestAskPrice(double price) {
+        BigDecimal newBestAskPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
+        if (newBestAskPrice.equals(bestAskPrice)){
+            return false;
+        }
+        bestAskPrice = newBestAskPrice;
+        setLastModified(new Date());
+        return true;
     }
 
-    private void setLastUpdate(Date lastUpdate) {
-        this.lastUpdate = lastUpdate;
+    private void setLastModified(Date lastModified) {
+        this.lastModified = lastModified;
     }
 
-    public Date getLastUpdate() {
-        return lastUpdate;
+    public Date getLastModified() {
+        return lastModified;
     }
 
     public BigDecimal getBestBidPrice() {
@@ -96,7 +114,7 @@ public class OrderBookLevelOne {
         JsonObject asJSON = new JsonObject();
         BigDecimal bidPrice = getBestBidPrice();
         BigDecimal askPrice = getBestAskPrice();
-        asJSON.put("lastUpdate", isoFormat.format(getLastUpdate()));
+        asJSON.put("lastModified", isoFormat.format(getLastModified()));
         asJSON.put("bestBidSize", getBestBidSize());
         if (bidPrice!=null){
             asJSON.put("bestBidPrice", bidPrice.doubleValue());
@@ -113,7 +131,7 @@ public class OrderBookLevelOne {
     }
 
     public String asPriceVolumeString() {
-        return this.millisFormat.format(getLastUpdate()) + "," + getBestBidSize() + "," + getBestBidPrice() + "," + getBestAskPrice() + "," + getBestAskSize();
+        return this.millisFormat.format(getLastModified()) + "," + getBestBidSize() + "," + getBestBidPrice() + "," + getBestAskPrice() + "," + getBestAskSize();
     }
 
 }
