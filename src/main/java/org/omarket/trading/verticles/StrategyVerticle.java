@@ -2,9 +2,14 @@ package org.omarket.trading.verticles;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.omarket.trading.OrderBookLevelOne;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
@@ -12,8 +17,11 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrde
 /**
  * Created by Christophe on 01/11/2016.
  */
-public class StrategyVerticle extends AbstractVerticle{
+public class StrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(StrategyVerticle.class);
+
+    private static Map<Integer, JsonObject> orderBooks = new HashMap<>();
+    private static Map<Integer, JsonObject> contracts = new HashMap<>();
 
     public void start() {
         logger.info("starting strategy verticle");
@@ -22,17 +30,26 @@ public class StrategyVerticle extends AbstractVerticle{
         final Integer productCopperETF = 211651700;
         final Integer productOilETF = 42393358;
         Integer[] ibCodes = {productCopperETF, productOilETF};
-        for (Integer ibCode : ibCodes) {
-            MarketDataVerticle.subscribeProduct(vertx, ibCode);
-        }
 
-        String channelCOPX = createChannelOrderBookLevelOne(productCopperETF);
-        String channelDBO = createChannelOrderBookLevelOne(productOilETF);
-        vertx.eventBus().consumer(channelCOPX, (Message<JsonObject> message) -> orderBookReceived(productCopperETF, message.body()));
-        vertx.eventBus().consumer(channelDBO, (Message<JsonObject> message) -> orderBookReceived(productOilETF, message.body()));
+        for (Integer ibCode : ibCodes) {
+            MarketDataVerticle.subscribeProduct(vertx, ibCode, reply -> {
+                if (reply.succeeded()) {
+                    logger.info("subscribed to:" + ibCode);
+                    JsonObject contractDetails = reply.result().body();
+                    contracts.put(ibCode, contractDetails);
+                } else {
+                    logger.error("failed to subscribe to: " + ibCode);
+                }
+            });
+            String channelProduct = createChannelOrderBookLevelOne(ibCode);
+            vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> orderBookReceived(ibCode, message.body()));
+        }
     }
 
     private static void orderBookReceived(Integer productCode, JsonObject message) {
-        logger.info("received for {}: {}", productCode, message);
+        JsonObject contract = contracts.get(productCode);
+        orderBooks.put(productCode, message);
+        String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
+        logger.info("received for " + symbol + ": " + message);
     }
 }

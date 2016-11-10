@@ -48,9 +48,9 @@ public class StatArbMain {
                 };
                 for (String currencyCross: trackedCurrencies) {
                     Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
-                    MarketDataVerticle.subscribeProduct(vertx, ibCode);
+                    // MarketDataVerticle.subscribeProduct(vertx, ibCode);
                 }
-
+                vertx.deployVerticle(StrategyVerticle.class.getName());
                 //
                 // Main code - end
                 //
@@ -59,7 +59,6 @@ public class StatArbMain {
             }
         };
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
-        vertx.deployVerticle(StrategyVerticle.class.getName());
 
         vertx.setPeriodic(3000, id -> {
             MarketDataVerticle.adminCommand(vertx, "subscribed");

@@ -115,4 +115,5 @@ public class OrderBookLevelOne {
     public String asPriceVolumeString() {
         return this.millisFormat.format(getLastUpdate()) + "," + getBestBidSize() + "," + getBestBidPrice() + "," + getBestAskPrice() + "," + getBestAskSize();
     }
+
 }

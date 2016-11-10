@@ -2,8 +2,11 @@ package org.omarket.trading.verticles;
 
 import com.ib.client.*;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -23,10 +26,10 @@ import java.util.Set;
  */
 public class MarketDataVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
-    public final static String ADDRESS_SUBSCRIBE = "oot.marketData.subscribe";
-    public final static String ADDRESS_UNSUBSCRIBE = "oot.marketData.unsubscribe";
+    public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
+    public final static String ADDRESS_UNSUBSCRIBE_TICK = "oot.marketData.unsubscribeTick";
     public final static String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
-    public final static String ADDRESS_CONTRACT_DETAILS = "oot.marketData.contractDetails";
+    public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     private static IBrokersMarketDataCallback ibrokers_client;
@@ -90,15 +93,15 @@ public class MarketDataVerticle extends AbstractVerticle {
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
         ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus(), storageDirPath);
         logger.info("starting market data verticle");
-        processSubscribe(vertx);
-        processUnsubscribe(vertx);
-        processContractDetails(vertx);
+        processContractRetrieve(vertx);
+        processSubscribeTick(vertx);
+        processUnsubscribeTick(vertx);
         processAdminCommand(vertx);
         logger.info("started market data verticle");
     }
 
-    private static void processSubscribe(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE);
+    private static void processSubscribeTick(Vertx vertx) {
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE_TICK);
         consumer.handler(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
@@ -126,8 +129,8 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void processUnsubscribe(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_UNSUBSCRIBE);
+    private static void processUnsubscribeTick(Vertx vertx) {
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_UNSUBSCRIBE_TICK);
         consumer.handler(message -> {
             final JsonObject contract = message.body();
             logger.info("received unsubscription request for: " + contract);
@@ -145,8 +148,8 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void processContractDetails(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DETAILS);
+    private static void processContractRetrieve(Vertx vertx) {
+        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         consumer.handler(message -> {
             final JsonObject body = message.body();
             logger.info("received: " + body);
@@ -155,7 +158,6 @@ public class MarketDataVerticle extends AbstractVerticle {
             contract.conid(productCode);
             ibrokers_client.request(contract, message);
         });
-
     }
 
     private static void processAdminCommand(Vertx vertx) {
@@ -185,16 +187,23 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void subscribeProduct(Vertx vertx, Integer ibCode) {
+    public static void subscribeProduct(Vertx vertx, Integer ibCode){
+        subscribeProduct(vertx, ibCode, null);
+    }
+
+    public static void subscribeProduct(Vertx vertx, Integer ibCode, Handler<AsyncResult<Message<JsonObject>>> replyHandler) {
         JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DETAILS, product, reply -> {
+        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, (AsyncResult<Message<JsonObject>>reply) -> {
             if (reply.succeeded()) {
-                JsonObject contractDetails = (JsonObject) reply.result().body();
-                vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE, contractDetails, mktDataReply -> {
+                JsonObject contractDetails = reply.result().body();
+                vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractDetails, mktDataReply -> {
                     logger.info("subscription result: " + mktDataReply.result().body());
                 });
             } else {
-                logger.error("failed to retrieve contract details");
+                logger.error("failed to retrieve contract details: ", reply.cause());
+            }
+            if(replyHandler != null) {
+                replyHandler.handle(reply);
             }
         });
     }

@@ -115,7 +115,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if (field != PRICE_BID && field != PRICE_ASK) {
             return;
         }
-        logger.info("received price: {}", price);
         Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
         OrderBookLevelOne orderBook = orderBookContract.getLeft();
         if (field == PRICE_BID) {
