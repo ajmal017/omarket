@@ -19,6 +19,7 @@ public class StatArbMain {
     private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
 
     public static void main(String[] args) throws InterruptedException {
+
         String defaultStoragePath = "ticks";
         int defaultClientId = 1;
         String defaultHost = "127.0.0.1";

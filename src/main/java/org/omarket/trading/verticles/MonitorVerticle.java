@@ -32,14 +32,14 @@ public class MonitorVerticle  extends AbstractVerticle {
         router.route().handler(StaticHandler.create());
 
         HttpServer server = vertx.createHttpServer();
+        server.requestHandler(router::accept);
         String host = config().getString("oot.monitor.host", "0.0.0.0");
         Integer port = config().getInteger("oot.monitor.port", 8080);
-        server.requestHandler(router::accept);
         server.listen(port, host);
 
         vertx.setPeriodic(1000, t -> vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY,
                 new JsonObject()
                         .put("creatTime", System.currentTimeMillis())
-                        .put("value", new Random().nextDouble())));
+                        .put("cpuTime", new Random().nextDouble())));
     }
 }
