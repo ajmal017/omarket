@@ -6,10 +6,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.ibrokers.CurrencyProduct;
-import org.omarket.trading.verticles.LoggerVerticle;
-import org.omarket.trading.verticles.MarketDataVerticle;
-import org.omarket.trading.verticles.MonitorVerticle;
-import org.omarket.trading.verticles.StrategyVerticle;
+import org.omarket.trading.verticles.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,20 +36,8 @@ public class StatArbMain {
                 //
                 // Main code - begin
                 //
-
-                logger.info("market data deployment result: " + result.result());
-                String[] trackedCurrencies = new String[]{
-                        "GBP.USD", "AUD.USD", "EUR.USD", "USD.JPY",
-                        "NZD.USD", "USD.SGD", "USD.SEK", "USD.CHF",
-                        "USD.RUB", "USD.NOK", "USD.MXN", "USD.MXN",
-                        "USD.ILS", "USD.HUF", "USD.HKD", "USD.CZK",
-                        "USD.CNH", "USD.CAD"
-                };
-                for (String currencyCross: trackedCurrencies) {
-                    Integer ibCode = CurrencyProduct.IB_CODES.get(currencyCross);
-                    // MarketDataVerticle.subscribeProduct(vertx, ibCode);
-                }
                 vertx.deployVerticle(StrategyVerticle.class.getName());
+                vertx.deployVerticle(SingleLegMeanReversionStrategyVerticle.class.getName());
                 //
                 // Main code - end
                 //
