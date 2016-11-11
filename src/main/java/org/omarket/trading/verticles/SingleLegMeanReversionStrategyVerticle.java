@@ -10,6 +10,7 @@ import org.omarket.trading.OrderBookLevelOne;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
@@ -19,7 +20,7 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrde
  */
 public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
-
+    private final static ArrayBlockingQueue<OrderBookLevelOne> orderBookHistory = new ArrayBlockingQueue<OrderBookLevelOne>(1000);
     private static JsonObject contract;
 
     public void start() {
