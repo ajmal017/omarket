@@ -5,7 +5,9 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.omarket.trading.OrderBookLevelOne;
 
+import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,10 +35,17 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
             }
         });
         String channelProduct = createChannelOrderBookLevelOne(productEurChf);
-        vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> orderBookReceived(contract, message.body()));
+        vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
+            double minTick = contract.getDouble("m_minTick");
+            try {
+                orderBookReceived(contract, OrderBookLevelOne.fromJSON(message.body(), minTick));
+            } catch (ParseException e) {
+                logger.error("failed to parse tick data for contract " + contract, e);
+            }
+        });
     }
 
-    private static void orderBookReceived(JsonObject contract, JsonObject orderBook) {
+    private static void orderBookReceived(JsonObject contract, OrderBookLevelOne orderBook) {
         String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
         logger.debug("received for " + symbol + ": " + orderBook);
         // TODO: calc signal, run from recorded ticks...

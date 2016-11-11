@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -24,7 +25,12 @@ public class OrderBookLevelOne {
     private Integer bestAskSize = null;
     private int decimalPrecision;
     private final SimpleDateFormat millisFormat;
-    private final SimpleDateFormat isoFormat;
+    private final static SimpleDateFormat isoFormat;
+
+    static {
+        isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
+        isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
 
     public OrderBookLevelOne(double minTick) {
         String[] parts = String.format(Locale.ROOT,"%f", minTick).split("\\.");
@@ -35,8 +41,6 @@ public class OrderBookLevelOne {
         }
         millisFormat = new SimpleDateFormat("mm:ss.SSS");
         millisFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
-        isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     public boolean updateBestBidSize(int size) {
@@ -134,4 +138,13 @@ public class OrderBookLevelOne {
         return this.millisFormat.format(getLastModified()) + "," + getBestBidSize() + "," + getBestBidPrice() + "," + getBestAskPrice() + "," + getBestAskSize();
     }
 
+    public static OrderBookLevelOne fromJSON(JsonObject json, double minTick) throws ParseException {
+        OrderBookLevelOne newOrderBook = new OrderBookLevelOne(minTick);
+        newOrderBook.lastModified = isoFormat.parse(json.getString("lastModified"));
+        newOrderBook.bestBidPrice = BigDecimal.valueOf(json.getDouble("bestBidPrice"));
+        newOrderBook.bestAskPrice = BigDecimal.valueOf(json.getDouble("bestAskPrice"));
+        newOrderBook.bestBidSize = json.getInteger("bestBidSize");
+        newOrderBook.bestAskSize = json.getInteger("bestAskSize");
+        return newOrderBook;
+    }
 }
