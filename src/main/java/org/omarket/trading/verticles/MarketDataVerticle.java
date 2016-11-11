@@ -212,7 +212,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         vertx.eventBus().send(MarketDataVerticle.ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
             if (reply.succeeded()) {
                 String commandResult = (String) reply.result().body();
-                logger.info(commandLine + " -> '" + commandResult + "'");
+                logger.debug(commandLine + " -> '" + commandResult + "'");
             } else {
                 logger.error("failed to run admin command '" + commandLine + "'");
             }

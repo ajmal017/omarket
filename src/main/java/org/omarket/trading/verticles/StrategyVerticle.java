@@ -50,7 +50,7 @@ public class StrategyVerticle extends AbstractVerticle {
         JsonObject contract = contracts.get(productCode);
         orderBooks.put(productCode, message);
         String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
-        logger.info("received for " + symbol + ": " + message);
+        logger.debug("received for " + symbol + ": " + message);
         // TODO: calc signal, deploy web server, run from recorded ticks...
     }
 }
