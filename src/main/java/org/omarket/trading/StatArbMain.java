@@ -8,6 +8,7 @@ import io.vertx.core.json.JsonObject;
 import org.omarket.trading.ibrokers.CurrencyProduct;
 import org.omarket.trading.verticles.LoggerVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.omarket.trading.verticles.MonitorVerticle;
 import org.omarket.trading.verticles.StrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,10 +56,11 @@ public class StatArbMain {
                 // Main code - end
                 //
             } else {
-                logger.error("failed to deploy: " + result.cause());
+                logger.error("failed to deploy", result.cause());
             }
         };
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
+        vertx.deployVerticle(MonitorVerticle.class.getName(), options);
 
         vertx.setPeriodic(3000, id -> {
             MarketDataVerticle.adminCommand(vertx, "subscribed");
