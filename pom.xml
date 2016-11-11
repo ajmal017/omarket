@@ -9,6 +9,34 @@
     <properties>
         <slf4jVersion>1.6.1</slf4jVersion>
     </properties>
+    <profiles>
+        <profile>
+            <repositories>
+                <repository>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                    <id>bintray-cardillo-maven</id>
+                    <name>bintray</name>
+                    <url>http://dl.bintray.com/cardillo/maven</url>
+                </repository>
+            </repositories>
+            <pluginRepositories>
+                <pluginRepository>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                    <id>bintray-cardillo-maven</id>
+                    <name>bintray-plugins</name>
+                    <url>http://dl.bintray.com/cardillo/maven</url>
+                </pluginRepository>
+            </pluginRepositories>
+            <id>bintray</id>
+        </profile>
+    </profiles>
+    <activeProfiles>
+        <activeProfile>bintray</activeProfile>
+    </activeProfiles>
     <dependencies>
         <dependency>
             <groupId>io.vertx</groupId>
@@ -75,6 +103,12 @@
             <groupId>eu.verdelhan</groupId>
             <artifactId>ta4j</artifactId>
             <version>0.8</version>
+        </dependency>
+        <dependency>
+            <groupId>joinery</groupId>
+            <artifactId>joinery-dataframe</artifactId>
+            <version>1.8</version>
+            <type>pom</type>
         </dependency>
     </dependencies>
 

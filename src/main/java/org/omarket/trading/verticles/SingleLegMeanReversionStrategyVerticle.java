@@ -8,8 +8,6 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.OrderBookLevelOne;
 
 import java.text.ParseException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;

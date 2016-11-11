@@ -1,44 +1,24 @@
-import io.vertx.core.*;
-import io.vertx.core.eventbus.MessageConsumer;
-import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class TestVerticle extends AbstractVerticle {
-    final Logger logger = LoggerFactory.getLogger(TestVerticle.class.getName());
+import java.util.Arrays;
+import java.util.List;
 
-    public static final String ADDRESS = "oot.test";
+import joinery.DataFrame;
 
-    public void start() {
-        logger.info("starting test verticle");
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS);
-        consumer.handler(message -> {
-            final JsonObject body = message.body();
-            logger.info("received: " + body);
-            JsonObject replyMessage = body.copy();
-            replyMessage.put("status", "processed");
-            message.reply(replyMessage);
-        });
-        logger.info("started test verticle");
-    }
-}
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
     public static void main(String[] args) throws InterruptedException {
-        Vertx vertx = Vertx.vertx();
-        logger.info("deploying test verticle");
-        Handler<AsyncResult<String>> completionHandler = result -> {
-            System.out.println("done");
-            if (result.succeeded()) {
-                logger.info("deployment result: " + result.result());
-            } else {
-                logger.error("failed to deploy: " + result);
-            }
-        };
-        TestVerticle testVerticle = new TestVerticle();
-        vertx.deployVerticle(testVerticle, completionHandler);
+        DataFrame<Object> df = new DataFrame<Object>(
+                Arrays.<Object>asList("row1", "row2", "row3"),
+                Arrays.<Object>asList("category", "name", "value"),
+                Arrays.<List<Object>>asList(
+                        Arrays.<Object>asList("test", "test", "test", "beta", "beta", "beta"),
+                        Arrays.<Object>asList("one", "two", "three", "one", "two", "three" ),
+                        Arrays.<Object>asList(10, 20, 30, 40, 50, 60)
+                )
+        );
 
-        logger.info("deployment completed");
     }
 }
