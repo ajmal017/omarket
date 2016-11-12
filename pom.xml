@@ -83,10 +83,11 @@
             <version>0.8</version>
         </dependency>
         <dependency>
-            <groupId>com.github.cardillo</groupId>
+            <groupId>com.github.chris-ch</groupId>
             <artifactId>joinery</artifactId>
-            <version>v1.8</version>
+            <version>v1.8.2</version>
         </dependency>
+
     </dependencies>
 
     <build>

@@ -48,12 +48,6 @@ public class StatArbMain {
         vertx.deployVerticle(MarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
         vertx.deployVerticle(MonitorVerticle.class.getName(), options);
 
-        vertx.setPeriodic(30000, id -> {
-            MarketDataVerticle.adminCommand(vertx, "subscribed");
-            MarketDataVerticle.adminCommand(vertx, "help");
-            MarketDataVerticle.adminCommand(vertx, "details 42393358");
-        });
-
         logger.info("deployment completed");
 
     }

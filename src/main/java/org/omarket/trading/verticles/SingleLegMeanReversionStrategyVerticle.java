@@ -18,8 +18,8 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrde
  */
 public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
-    private final static ArrayBlockingQueue<OrderBookLevelOne> orderBookHistory = new ArrayBlockingQueue<OrderBookLevelOne>(1000);
     private static JsonObject contract;
+    private static OrderBookLevelOne orderBook;
 
     public void start() {
         logger.info("starting strategy verticle");
@@ -42,11 +42,16 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                 logger.error("failed to parse tick data for contract " + contract, e);
             }
         });
+
+        vertx.setPeriodic(1000, id -> {
+            String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
+            // Calculate signal
+
+        });
+
     }
 
-    private static void orderBookReceived(JsonObject contract, OrderBookLevelOne orderBook) {
-        String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
-        logger.debug("received for " + symbol + ": " + orderBook);
-        // TODO: calc signal, run from recorded ticks...
+    private void orderBookReceived(JsonObject contract, OrderBookLevelOne orderBook) {
+        SingleLegMeanReversionStrategyVerticle.orderBook = orderBook;
     }
 }
