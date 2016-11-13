@@ -1,6 +1,7 @@
 package org.omarket.trading.verticles;
 
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -11,8 +12,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.text.ParseException;
+import java.util.List;
 import java.util.stream.Stream;
 
+import static java.lang.Thread.sleep;
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
@@ -29,27 +32,32 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         logger.info("starting single leg mean reversion strategy verticle");
         final Integer productEurChf = 12087817;
 
-        MarketDataVerticle.subscribeProduct(vertx, productEurChf, reply -> {
-            if (reply.succeeded()) {
-                logger.info("subscribed to:" + productEurChf);
-                contract = reply.result().body();
-
-                String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
-                Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-                Integer ibCode = contract.getJsonObject("m_contract").getInteger("m_conid");
-                Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
-                logger.info("accessing storage: " + productStorage);
-                if(Files.exists(productStorage)) {
-                    try (Stream<Path> paths = Files.walk(productStorage)) {
-                        paths.forEach(filePath -> {
-                            if (Files.isRegularFile(filePath)) {
-                                logger.info("processing recorded ticks: " + filePath);
-                            }
-                        });
-                    } catch (IOException e) {
-                        logger.error("failed to access recorded ticks for product " + ibCode, e);
+        MarketDataVerticle.subscribeProduct(vertx, productEurChf, subscribeProductResult -> {
+            if (subscribeProductResult.succeeded()) {
+                vertx.executeBlocking(future -> {
+                    logger.info("subscribed to:" + productEurChf);
+                    contract = subscribeProductResult.result().body();
+                    List<String> dirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList();
+                    String storageDirPathName = String.join(File.separator, dirs);
+                    Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+                    Integer ibCode = contract.getJsonObject("m_contract").getInteger("m_conid");
+                    Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
+                    logger.info("accessing storage: " + productStorage);
+                    if(Files.exists(productStorage)) {
+                        try (Stream<Path> paths = Files.walk(productStorage)) {
+                            paths.forEach(filePath -> {
+                                if (Files.isRegularFile(filePath)) {
+                                    logger.info("processing recorded ticks: " + filePath);
+                                }
+                            });
+                        } catch (IOException e) {
+                            logger.error("failed to access recorded ticks for product " + ibCode, e);
+                        }
                     }
-                }
+                    future.succeeded();
+                }, result -> {
+                    logger.info("processed recorded ticks for " + productEurChf);
+                });
                 vertx.setPeriodic(1000, id -> {
                     String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
                     // Calculate signal
