@@ -8,6 +8,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -16,10 +17,7 @@ import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import java.io.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -32,6 +30,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
+    public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
     private static IBrokersMarketDataCallback ibrokers_client;
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
@@ -84,7 +83,7 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public void start() throws Exception {
         logger.info("starting market data");
-        String storageDirPathName = config().getString("ibrokers.ticks.storagePath");
+        String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
 
         logger.info("ticks data storage set to '" + storageDirPath + "'");

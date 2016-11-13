@@ -7,9 +7,13 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.OrderBookLevelOne;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
 import java.text.ParseException;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.stream.Stream;
 
+import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 
@@ -22,13 +26,35 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private static OrderBookLevelOne orderBook;
 
     public void start() {
-        logger.info("starting strategy verticle");
+        logger.info("starting single leg mean reversion strategy verticle");
         final Integer productEurChf = 12087817;
 
         MarketDataVerticle.subscribeProduct(vertx, productEurChf, reply -> {
             if (reply.succeeded()) {
                 logger.info("subscribed to:" + productEurChf);
                 contract = reply.result().body();
+
+                String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
+                Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+                Integer ibCode = contract.getJsonObject("m_contract").getInteger("m_conid");
+                Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
+                logger.info("accessing storage: " + productStorage);
+                if(Files.exists(productStorage)) {
+                    try (Stream<Path> paths = Files.walk(productStorage)) {
+                        paths.forEach(filePath -> {
+                            if (Files.isRegularFile(filePath)) {
+                                logger.info("processing recorded ticks: " + filePath);
+                            }
+                        });
+                    } catch (IOException e) {
+                        logger.error("failed to access recorded ticks for product " + ibCode, e);
+                    }
+                }
+                vertx.setPeriodic(1000, id -> {
+                    String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
+                    // Calculate signal
+
+                });
             } else {
                 logger.error("failed to subscribe to: " + productEurChf);
             }
@@ -41,12 +67,6 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
             } catch (ParseException e) {
                 logger.error("failed to parse tick data for contract " + contract, e);
             }
-        });
-
-        vertx.setPeriodic(1000, id -> {
-            String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
-            // Calculate signal
-
         });
 
     }

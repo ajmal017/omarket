@@ -4,12 +4,16 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.ibrokers.CurrencyProduct;
 import org.omarket.trading.verticles.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+
+import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class StatArbMain {
@@ -17,17 +21,16 @@ public class StatArbMain {
 
     public static void main(String[] args) throws InterruptedException {
 
-        String defaultStoragePath = "ticks";
+        JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         int defaultClientId = 1;
         String defaultHost = "127.0.0.1";
         int defaultPort = 7497;
-        DeploymentOptions options = new DeploymentOptions()
-                .setConfig(new JsonObject()
-                        .put("ibrokers.ticks.storagePath", defaultStoragePath)
-                        .put("ibrokers.clientId", defaultClientId)
-                        .put("ibrokers.host", defaultHost)
-                        .put("ibrokers.port", defaultPort)
-                );
+        JsonObject jsonConfig = new JsonObject()
+                .put(IBROKERS_TICKS_STORAGE_PATH, defaultStoragePath)
+                .put("ibrokers.clientId", defaultClientId)
+                .put("ibrokers.host", defaultHost)
+                .put("ibrokers.port", defaultPort);
+        DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
 
         final Vertx vertx = Vertx.vertx();
 
@@ -36,8 +39,8 @@ public class StatArbMain {
                 //
                 // Main code - begin
                 //
-                vertx.deployVerticle(StrategyVerticle.class.getName());
-                vertx.deployVerticle(SingleLegMeanReversionStrategyVerticle.class.getName());
+                //vertx.deployVerticle(StrategyVerticle.class.getName());
+                vertx.deployVerticle(SingleLegMeanReversionStrategyVerticle.class.getName(), options);
                 //
                 // Main code - end
                 //
