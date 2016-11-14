@@ -2,6 +2,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,11 +16,14 @@ import java.util.stream.Stream;
 
 import joinery.DataFrame;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
+    public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
+    static {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
 
     public static void main2(String[] args) throws InterruptedException, ParseException, IOException {
         DateFormat format = new SimpleDateFormat("yyyyMMdd HH:mm:ss:SSS");
@@ -64,9 +68,13 @@ public class Scratchpad {
 
     public static void main(String[] args){
         List<String> dirs = Arrays.asList("data", "ticks");
+        Integer ibCode = 12087817;
+        processRecordedTicks(dirs, ibCode);
+    }
+
+    private static void processRecordedTicks(List<String> dirs, Integer ibCode) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-        Integer ibCode = 12087817;
         Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
         logger.info("accessing storage: " + productStorage);
         if(Files.exists(productStorage)) {
@@ -77,7 +85,7 @@ public class Scratchpad {
                         Pattern yyyymmddhhEnding = Pattern.compile(".*([0-9]{8})\\/([0-9]{2})$");
                         Matcher matcher = yyyymmddhhEnding.matcher(filePath.toString());
                         if(matcher.matches()) {
-                            String yyyymmddhh = matcher.group(1) + matcher.group(2);
+                            String yyyymmddhh = matcher.group(1) + " " + matcher.group(2);
                             logger.info("will be processing recorded ticks: " + yyyymmddhh);
                             tickFiles.put(yyyymmddhh, filePath);
                         }
@@ -89,18 +97,27 @@ public class Scratchpad {
             for (Map.Entry<String, Path> entry : tickFiles.entrySet()) {
                 String yyyymmddhh = entry.getKey();
                 Path filePath = entry.getValue();
+                String fullLine = null;
                 try (Scanner scanner = new Scanner(filePath, "utf-8")) {
                     scanner.useDelimiter("\n");
                     while (scanner.hasNext()) {
                         String rawLine = scanner.next().trim();
                         if (!rawLine.equals("")){
-                            String fullLine = yyyymmddhh + rawLine;
-                            logger.info(fullLine);
+                            fullLine = yyyymmddhh + ":" + rawLine;
+                            String[] fields = fullLine.split(",");
+                            Date timestamp = DATE_FORMAT.parse(fields[0] + "");
+                            Integer volumeBid = Integer.valueOf(fields[1]);
+                            BigDecimal priceBid = new BigDecimal(fields[2]);
+                            BigDecimal priceAsk = new BigDecimal(fields[3]);
+                            Integer volumeAsk = Integer.valueOf(fields[4]);
+                            logger.info("line: " + timestamp + "," + volumeBid + "," + priceBid);
                         }
                     }
                     scanner.close();
                 } catch (IOException e) {
                     logger.error("unable to access tick file: " + filePath, e);
+                } catch (ParseException e) {
+                    logger.error("unable to parse line: " + fullLine, e);
                 }
             }
         }
