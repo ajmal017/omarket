@@ -90,13 +90,23 @@ public class MarketDataVerticle extends AbstractVerticle {
         String ibrokersHost = config().getString("ibrokers.host");
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
-        ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus(), storageDirPath);
-        logger.info("starting market data verticle");
-        processContractRetrieve(vertx);
-        processSubscribeTick(vertx);
-        processUnsubscribeTick(vertx);
-        processAdminCommand(vertx);
-        logger.info("started market data verticle");
+
+        vertx.executeBlocking(future -> {
+            ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus(), storageDirPath);
+            logger.info("starting market data verticle");
+            processContractRetrieve(vertx);
+            processSubscribeTick(vertx);
+            processUnsubscribeTick(vertx);
+            processAdminCommand(vertx);
+            future.succeeded();
+        }, result -> {
+            if (result.succeeded()) {
+                logger.info("started market data verticle");
+            } else {
+                logger.info("failed to start market data verticle");
+            }
+        }
+        );
     }
 
     private static void processSubscribeTick(Vertx vertx) {

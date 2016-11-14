@@ -1,22 +1,27 @@
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import joinery.DataFrame;
+
+import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
-    public static void main(String[] args) throws InterruptedException, ParseException, IOException {
+    public static void main2(String[] args) throws InterruptedException, ParseException, IOException {
         DateFormat format = new SimpleDateFormat("yyyyMMdd HH:mm:ss:SSS");
         List rows = new LinkedList();
         List columns = Arrays.asList("timestamp", "category", "name", "value");
@@ -54,6 +59,50 @@ public class Scratchpad {
             Object field = ((List)fields).get(0);
             Date ts = (Date)field;
             logger.info(format.format(ts));
+        }
+    }
+
+    public static void main(String[] args){
+        List<String> dirs = Arrays.asList("data", "ticks");
+        String storageDirPathName = String.join(File.separator, dirs);
+        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+        Integer ibCode = 12087817;
+        Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
+        logger.info("accessing storage: " + productStorage);
+        if(Files.exists(productStorage)) {
+            Map<String, Path> tickFiles = new TreeMap<>();
+            try (Stream<Path> paths = Files.walk(productStorage)) {
+                paths.forEach(filePath -> {
+                    if (Files.isRegularFile(filePath)) {
+                        Pattern yyyymmddhhEnding = Pattern.compile(".*([0-9]{8})\\/([0-9]{2})$");
+                        Matcher matcher = yyyymmddhhEnding.matcher(filePath.toString());
+                        if(matcher.matches()) {
+                            String yyyymmddhh = matcher.group(1) + matcher.group(2);
+                            logger.info("will be processing recorded ticks: " + yyyymmddhh);
+                            tickFiles.put(yyyymmddhh, filePath);
+                        }
+                    }
+                });
+            } catch (IOException e) {
+                logger.error("failed to access recorded ticks for product " + ibCode, e);
+            }
+            for (Map.Entry<String, Path> entry : tickFiles.entrySet()) {
+                String yyyymmddhh = entry.getKey();
+                Path filePath = entry.getValue();
+                try (Scanner scanner = new Scanner(filePath, "utf-8")) {
+                    scanner.useDelimiter("\n");
+                    while (scanner.hasNext()) {
+                        String rawLine = scanner.next().trim();
+                        if (!rawLine.equals("")){
+                            String fullLine = yyyymmddhh + rawLine;
+                            logger.info(fullLine);
+                        }
+                    }
+                    scanner.close();
+                } catch (IOException e) {
+                    logger.error("unable to access tick file: " + filePath, e);
+                }
+            }
         }
     }
 
