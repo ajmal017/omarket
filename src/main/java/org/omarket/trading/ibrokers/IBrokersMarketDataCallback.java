@@ -89,14 +89,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     @Override
     public void contractDetails(int requestId, ContractDetails contractDetails) {
-        try {
             Gson gson = new GsonBuilder().create();
             JsonObject product = new JsonObject(gson.toJson(contractDetails));
             Message<JsonObject> message = callbackMessages.get(requestId);
             message.reply(product);
-        } catch (Exception e) {
-            logger.error(e.toString());
-        }
     }
 
     @Override
@@ -126,6 +122,30 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
             return;
         }
         Contract contract = orderBookContract.getRight();
+        processOrderBook(contract, orderBook);
+    }
+
+    @Override
+    public void tickSize(int tickerId, int field, int size) {
+        if (field != SIZE_BID && field != SIZE_ASK) {
+            return;
+        }
+        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
+        OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        boolean modified;
+        if (field == SIZE_BID) {
+            modified = orderBook.updateBestBidSize(size);
+        } else {
+            modified = orderBook.updateBestAskSize(size);
+        }
+        if (!orderBook.isValid() || !modified){
+            return;
+        }
+        Contract contract = orderBookContract.getRight();
+        processOrderBook(contract, orderBook);
+    }
+
+    private void processOrderBook(Contract contract, OrderBookLevelOne orderBook) {
         String channel = createChannelOrderBookLevelOne(contract.conid());
         try {
             Path rootDirectory = subscribed.get(contract.conid());
@@ -147,41 +167,4 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
     }
 
-    @Override
-    public void tickSize(int tickerId, int field, int size) {
-        if (field != SIZE_BID && field != SIZE_ASK) {
-            return;
-        }
-        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
-        OrderBookLevelOne orderBook = orderBookContract.getLeft();
-        boolean modified;
-        if (field == SIZE_BID) {
-            modified = orderBook.updateBestBidSize(size);
-        } else {
-            modified = orderBook.updateBestAskSize(size);
-        }
-        if (!orderBook.isValid() || !modified){
-            return;
-        }
-        Contract contract = orderBookContract.getRight();
-        String channel = createChannelOrderBookLevelOne(contract.conid());
-        try {
-            Path rootDirectory = subscribed.get(contract.conid());
-            Date now = new Date();
-            Path currentDirectory = rootDirectory.resolve(formatYearMonthDay.format(now));
-            Files.createDirectories(currentDirectory);
-            Path tickFilePath = currentDirectory.resolve(formatHour.format(now));
-            String content = orderBook.asPriceVolumeString();
-            if(!Files.exists(tickFilePath)){
-                Files.createFile(tickFilePath);
-            }
-            BufferedWriter writer = Files.newBufferedWriter(tickFilePath, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
-            writer.write(content);
-            writer.newLine();
-            writer.close();
-            this.eventBus.send(channel, orderBook.asJSON());
-        } catch (IOException e) {
-            logger.error("unable to record order book: message not sent", e);
-        }
-    }
 }

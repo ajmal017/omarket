@@ -56,28 +56,31 @@ public class MarketDataVerticle extends AbstractVerticle {
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
         clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
-
-        /*
-        Launching IBrokers client thread
-         */
-        new Thread() {
-            public void run() {
-                EReader reader = new EReader(clientSocket, readerSignal);
-                reader.start();
-                while (clientSocket.isConnected()) {
-                    readerSignal.waitForSignal();
-                    try {
-                        logger.debug("IBrokers thread waiting for signal");
-                        reader.processMsgs();
-                    } catch (Exception e) {
-                        logger.error("Exception", e);
+        if(!clientSocket.isConnected()){
+            logger.error("failed to connect to IBrokers client");
+        } else {
+            /*
+            Launching IBrokers client thread
+             */
+            new Thread() {
+                public void run() {
+                    EReader reader = new EReader(clientSocket, readerSignal);
+                    reader.start();
+                    while (clientSocket.isConnected()) {
+                        readerSignal.waitForSignal();
+                        try {
+                            logger.debug("IBrokers thread waiting for signal");
+                            reader.processMsgs();
+                        } catch (Exception e) {
+                            logger.error("Exception", e);
+                        }
+                    }
+                    if (clientSocket.isConnected()) {
+                        clientSocket.eDisconnect();
                     }
                 }
-                if (clientSocket.isConnected()) {
-                    clientSocket.eDisconnect();
-                }
-            }
-        }.start();
+            }.start();
+        }
         return ewrapper;
     }
 

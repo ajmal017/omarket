@@ -76,7 +76,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                             BigDecimal priceBid = new BigDecimal(fields[2]);
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
-                            logger.info("line: " + timestamp + "," + volumeBid + "," + priceBid);
+                            //logger.info("line: " + timestamp + "," + volumeBid + "," + priceBid);
                         }
                     }
                     scanner.close();
@@ -107,21 +107,22 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                         contract = subscribeProductResult.result().body();
                         String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
                     });
+
+                    // Constantly maintains order book up to date
+                    final String channelProduct = createChannelOrderBookLevelOne(ibCode);
+                    final double minTick = contract.getDouble("m_minTick");
+                    vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
+                        try {
+                            SingleLegMeanReversionStrategyVerticle.orderBook = OrderBookLevelOne.fromJSON(message.body(), minTick);
+                        } catch (ParseException e) {
+                            logger.error("failed to parse tick data for contract " + contract, e);
+                        }
+                    });
+
                 } else {
                     logger.error("failed to subscribe to: " + ibCode);
                 }
             });
-        });
-
-        final String channelProduct = createChannelOrderBookLevelOne(ibCode);
-        final double minTick = contract.getDouble("m_minTick");
-        // Constantly maintains order book up to date
-        vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
-            try {
-                SingleLegMeanReversionStrategyVerticle.orderBook = OrderBookLevelOne.fromJSON(message.body(), minTick);
-            } catch (ParseException e) {
-                logger.error("failed to parse tick data for contract " + contract, e);
-            }
         });
 
     }
