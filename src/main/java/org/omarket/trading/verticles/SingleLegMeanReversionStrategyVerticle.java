@@ -1,12 +1,12 @@
 package org.omarket.trading.verticles;
 
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.OrderBookLevelOne;
+import org.omarket.trading.OrderBookLevelOneImmutable;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,14 +31,13 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrde
 public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
     private static JsonObject contract;
-    private static OrderBookLevelOne orderBook;
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
-
+    private static OrderBookLevelOneImmutable orderBook;
     static {
         DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static void processRecordedTicks(List<String> dirs, Integer ibCode) {
+    private static void processRecordedOrderBooks(List<String> dirs, Integer ibCode) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
@@ -64,6 +63,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                 String yyyymmddhh = entry.getKey();
                 Path filePath = entry.getValue();
                 String fullLine = null;
+
                 try (Scanner scanner = new Scanner(filePath, "utf-8")) {
                     scanner.useDelimiter("\n");
                     while (scanner.hasNext()) {
@@ -76,7 +76,9 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                             BigDecimal priceBid = new BigDecimal(fields[2]);
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
-                            //logger.info("line: " + timestamp + "," + volumeBid + "," + priceBid);
+                            OrderBookLevelOneImmutable orderBook = new OrderBookLevelOneImmutable(timestamp,
+                            volumeBid, priceBid, priceAsk, volumeAsk);
+                            processOrderBook(orderBook, true);
                         }
                     }
                     scanner.close();
@@ -89,13 +91,17 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         }
     }
 
+    private static void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+        logger.info("line: " + orderBook);
+    }
+
     public void start() {
         logger.info("starting single leg mean reversion strategy verticle");
         final Integer ibCode = 12087817;
 
         vertx.executeBlocking(future -> {
             List<String> dirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList();
-            processRecordedTicks(dirs, ibCode);
+            processRecordedOrderBooks(dirs, ibCode);
             future.succeeded();
         }, result -> {
             logger.info("processed recorded ticks for " + ibCode);
@@ -106,14 +112,14 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                         // Sampling: calculates signal
                         contract = subscribeProductResult.result().body();
                         String symbol = contract.getJsonObject("m_contract").getString("m_localSymbol");
+                        logger.info("order book for " + symbol + ": " + orderBook);
                     });
 
                     // Constantly maintains order book up to date
                     final String channelProduct = createChannelOrderBookLevelOne(ibCode);
-                    final double minTick = contract.getDouble("m_minTick");
                     vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
                         try {
-                            SingleLegMeanReversionStrategyVerticle.orderBook = OrderBookLevelOne.fromJSON(message.body(), minTick);
+                            orderBook = OrderBookLevelOneImmutable.fromJSON(message.body());
                         } catch (ParseException e) {
                             logger.error("failed to parse tick data for contract " + contract, e);
                         }
