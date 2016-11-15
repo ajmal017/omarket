@@ -1,14 +1,18 @@
 package org.omarket.trading;
 
 import io.vertx.core.json.JsonObject;
+import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
+import java.util.*;
+
+import static org.omarket.trading.OrderBookLevelOneImmutable.Sampling.HOUR;
+import static org.omarket.trading.OrderBookLevelOneImmutable.Sampling.MINUTE;
+import static org.omarket.trading.OrderBookLevelOneImmutable.Sampling.SECOND;
 
 /**
  * Created by Christophe on 04/11/2016.
@@ -24,6 +28,9 @@ public class OrderBookLevelOneImmutable {
     protected Integer bestAskSize = null;
     private final static SimpleDateFormat millisFormat;
     protected final static SimpleDateFormat isoFormat;
+    public enum Sampling {
+        SECOND, MINUTE, HOUR
+    }
 
     static {
         isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
@@ -87,6 +94,22 @@ public class OrderBookLevelOneImmutable {
         }
         asJSON.put("bestAskSize", getBestAskSize());
         return asJSON;
+    }
+
+    public boolean sameSampledTime(OrderBookLevelOneImmutable other, Sampling frequency){
+        Date timestamp;
+        Date timestampOther;
+        if (frequency == HOUR){
+            timestamp = DateUtils.round(getLastModified(), Calendar.HOUR);
+            timestampOther = DateUtils.round(other.getLastModified(), Calendar.HOUR);
+        } else if (frequency == MINUTE){
+            timestamp = DateUtils.round(getLastModified(), Calendar.MINUTE);
+            timestampOther = DateUtils.round(other.getLastModified(), Calendar.MINUTE);
+        } else {
+            timestamp = DateUtils.round(getLastModified(), Calendar.SECOND);
+            timestampOther = DateUtils.round(other.getLastModified(), Calendar.SECOND);
+        }
+        return timestamp.equals(timestampOther);
     }
 
     public String asPriceVolumeString() {

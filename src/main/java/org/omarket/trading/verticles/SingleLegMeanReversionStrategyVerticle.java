@@ -32,6 +32,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
     private static JsonObject contract;
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
+    private static OrderBookLevelOneImmutable orderBookPrev;
     private static OrderBookLevelOneImmutable orderBook;
     static {
         DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -76,9 +77,12 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                             BigDecimal priceBid = new BigDecimal(fields[2]);
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
-                            OrderBookLevelOneImmutable orderBook = new OrderBookLevelOneImmutable(timestamp,
-                            volumeBid, priceBid, priceAsk, volumeAsk);
-                            processOrderBook(orderBook, true);
+                            orderBook = new OrderBookLevelOneImmutable(timestamp, volumeBid, priceBid, priceAsk, volumeAsk);
+                            logger.info("current order book: " + orderBook + " (" + orderBook.getLastModified() + ")");
+                            if (orderBookPrev!=null && !orderBook.sameSampledTime(orderBookPrev, OrderBookLevelOneImmutable.Sampling.SECOND)){
+                                processOrderBook(true);
+                            }
+                            orderBookPrev = orderBook;
                         }
                     }
                     scanner.close();
@@ -91,8 +95,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         }
     }
 
-    private static void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
-        logger.info("line: " + orderBook);
+    private static void processOrderBook(boolean isBacktest) {
+        logger.info("computing signal");
     }
 
     public void start() {
