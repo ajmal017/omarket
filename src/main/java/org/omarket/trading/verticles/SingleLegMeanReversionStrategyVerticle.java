@@ -1,5 +1,9 @@
 package org.omarket.trading.verticles;
 
+import com.jimmoores.quandl.DataSetRequest;
+import com.jimmoores.quandl.QuandlSession;
+import com.jimmoores.quandl.TabularResult;
+import eu.verdelhan.ta4j.TimeSeries;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
@@ -77,10 +81,11 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                             BigDecimal priceBid = new BigDecimal(fields[2]);
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
+                            DateFormat isoFormat = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
                             orderBook = new OrderBookLevelOneImmutable(timestamp, volumeBid, priceBid, priceAsk, volumeAsk);
-                            logger.info("current order book: " + orderBook + " (" + orderBook.getLastModified() + ")");
-                            if (orderBookPrev!=null && !orderBook.sameSampledTime(orderBookPrev, OrderBookLevelOneImmutable.Sampling.SECOND)){
-                                processOrderBook(true);
+                            logger.info("current order book: " + orderBook + " (" + isoFormat.format(orderBook.getLastModified()) + ")");
+                            if (orderBookPrev != null && !orderBook.sameSampledTime(orderBookPrev, OrderBookLevelOneImmutable.Sampling.SECOND)){
+                                processOrderBook(orderBookPrev, true);
                             }
                             orderBookPrev = orderBook;
                         }
@@ -95,7 +100,9 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         }
     }
 
-    private static void processOrderBook(boolean isBacktest) {
+    private static void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+        BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
+        TimeSeries ts;
         logger.info("computing signal");
     }
 
@@ -105,6 +112,12 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
 
         vertx.executeBlocking(future -> {
             List<String> dirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList();
+
+            QuandlSession session = QuandlSession.create();
+            DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of("ECB/EURCHF").withMaxRows(200);
+            TabularResult tabularResult = session.getDataSet(requestBuilder.build());
+            logger.info("loaded: " + tabularResult.toPrettyPrintedString());
+
             processRecordedOrderBooks(dirs, ibCode);
             future.succeeded();
         }, result -> {

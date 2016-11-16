@@ -100,14 +100,14 @@ public class OrderBookLevelOneImmutable {
         Date timestamp;
         Date timestampOther;
         if (frequency == HOUR){
-            timestamp = DateUtils.round(getLastModified(), Calendar.HOUR);
-            timestampOther = DateUtils.round(other.getLastModified(), Calendar.HOUR);
+            timestamp = DateUtils.truncate(getLastModified(), Calendar.HOUR);
+            timestampOther = DateUtils.truncate(other.getLastModified(), Calendar.HOUR);
         } else if (frequency == MINUTE){
-            timestamp = DateUtils.round(getLastModified(), Calendar.MINUTE);
-            timestampOther = DateUtils.round(other.getLastModified(), Calendar.MINUTE);
+            timestamp = DateUtils.truncate(getLastModified(), Calendar.MINUTE);
+            timestampOther = DateUtils.truncate(other.getLastModified(), Calendar.MINUTE);
         } else {
-            timestamp = DateUtils.round(getLastModified(), Calendar.SECOND);
-            timestampOther = DateUtils.round(other.getLastModified(), Calendar.SECOND);
+            timestamp = DateUtils.truncate(getLastModified(), Calendar.SECOND);
+            timestampOther = DateUtils.truncate(other.getLastModified(), Calendar.SECOND);
         }
         return timestamp.equals(timestampOther);
     }
