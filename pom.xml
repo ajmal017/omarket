@@ -92,6 +92,13 @@
             <artifactId>quandl</artifactId>
             <version>1.4.0</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/com.xeiam/xchart -->
+        <dependency>
+            <groupId>com.xeiam</groupId>
+            <artifactId>xchart</artifactId>
+            <version>1.2.1</version>
+        </dependency>
+
     </dependencies>
 
     <build>

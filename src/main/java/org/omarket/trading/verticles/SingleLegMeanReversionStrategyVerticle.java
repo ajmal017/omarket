@@ -2,6 +2,7 @@ package org.omarket.trading.verticles;
 
 import com.jimmoores.quandl.DataSetRequest;
 import com.jimmoores.quandl.QuandlSession;
+import com.jimmoores.quandl.Row;
 import com.jimmoores.quandl.TabularResult;
 import eu.verdelhan.ta4j.TimeSeries;
 import io.vertx.core.AbstractVerticle;
@@ -9,8 +10,9 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.omarket.trading.OrderBookLevelOne;
+import joinery.DataFrame;
 import org.omarket.trading.OrderBookLevelOneImmutable;
+import org.threeten.bp.LocalDate;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +26,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static java.lang.Thread.sleep;
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
@@ -116,7 +117,15 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
             QuandlSession session = QuandlSession.create();
             DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of("ECB/EURCHF").withMaxRows(200);
             TabularResult tabularResult = session.getDataSet(requestBuilder.build());
-            logger.info("loaded: " + tabularResult.toPrettyPrintedString());
+            Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
+            DataFrame<Double> dataFrame = new DataFrame<>(columnNames);
+            for(Row row: tabularResult){
+                LocalDate date = row.getLocalDate("Date");
+                Double value = row.getDouble("Value");
+                Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue(), date.getDayOfMonth());
+                dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
+            }
+            logger.info("loaded: " + dataFrame.head());
 
             processRecordedOrderBooks(dirs, ibCode);
             future.succeeded();

@@ -1,3 +1,7 @@
+import com.jimmoores.quandl.DataSetRequest;
+import com.jimmoores.quandl.QuandlSession;
+import com.jimmoores.quandl.Row;
+import com.jimmoores.quandl.TabularResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +19,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import joinery.DataFrame;
+import org.threeten.bp.LocalDate;
 
+import static java.lang.Math.sqrt;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
 public class Scratchpad {
@@ -67,9 +73,19 @@ public class Scratchpad {
     }
 
     public static void main(String[] args){
-        List<String> dirs = Arrays.asList("data", "ticks");
-        Integer ibCode = 12087817;
-        processRecordedTicks(dirs, ibCode);
+        QuandlSession session = QuandlSession.create();
+        DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of("ECB/EURCHF").withMaxRows(200);
+        TabularResult tabularResult = session.getDataSet(requestBuilder.build());
+        Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
+        DataFrame<Double> dataFrame = new DataFrame<>(columnNames);
+        for(Row row: tabularResult){
+            LocalDate date = row.getLocalDate("Date");
+            Double value = row.getDouble("Value");
+            Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue() + 1, date.getDayOfMonth());
+            dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
+        }
+        Double stddev = dataFrame.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
+        logger.info("loaded: " + stddev);
     }
 
     private static void processRecordedTicks(List<String> dirs, Integer ibCode) {
