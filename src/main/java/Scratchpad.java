@@ -73,8 +73,13 @@ public class Scratchpad {
     }
 
     public static void main(String[] args){
+        DataFrame<Double> df = loadQuandlInstrument("ECB/EURCHF", 200);
+        logger.info("loaded: " + df.percentChange().stddev().get(0, 1)/ sqrt(24*60*60));
+    }
+
+    private static DataFrame<Double> loadQuandlInstrument(String quandlCode, int samples) {
         QuandlSession session = QuandlSession.create();
-        DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of("ECB/EURCHF").withMaxRows(200);
+        DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of(quandlCode).withMaxRows(samples);
         TabularResult tabularResult = session.getDataSet(requestBuilder.build());
         Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
         DataFrame<Double> dataFrame = new DataFrame<>(columnNames);
@@ -84,8 +89,7 @@ public class Scratchpad {
             Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue() + 1, date.getDayOfMonth());
             dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
         }
-        Double stddev = dataFrame.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
-        logger.info("loaded: " + stddev);
+        return dataFrame;
     }
 
     private static void processRecordedTicks(List<String> dirs, Integer ibCode) {

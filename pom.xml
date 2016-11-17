@@ -9,12 +9,6 @@
     <properties>
         <slf4jVersion>1.6.1</slf4jVersion>
     </properties>
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
     <dependencies>
         <dependency>
             <groupId>io.vertx</groupId>
@@ -78,11 +72,6 @@
             <version>9.72.05</version>
         </dependency>
         <dependency>
-            <groupId>eu.verdelhan</groupId>
-            <artifactId>ta4j</artifactId>
-            <version>0.8</version>
-        </dependency>
-        <dependency>
             <groupId>com.github.chris-ch</groupId>
             <artifactId>joinery</artifactId>
             <version>v1.8.2</version>
@@ -92,13 +81,12 @@
             <artifactId>quandl</artifactId>
             <version>1.4.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.xeiam/xchart -->
+        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-math3 -->
         <dependency>
-            <groupId>com.xeiam</groupId>
-            <artifactId>xchart</artifactId>
-            <version>1.2.1</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.6.1</version>
         </dependency>
-
     </dependencies>
 
     <build>

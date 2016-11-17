@@ -4,9 +4,10 @@ import com.jimmoores.quandl.DataSetRequest;
 import com.jimmoores.quandl.QuandlSession;
 import com.jimmoores.quandl.Row;
 import com.jimmoores.quandl.TabularResult;
-import eu.verdelhan.ta4j.TimeSeries;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -26,6 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static java.lang.Math.sqrt;
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
 
@@ -37,13 +39,14 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
     private static JsonObject contract;
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
+    public static final String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.singleLeg";
     private static OrderBookLevelOneImmutable orderBookPrev;
     private static OrderBookLevelOneImmutable orderBook;
     static {
         DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static void processRecordedOrderBooks(List<String> dirs, Integer ibCode) {
+    private void processRecordedOrderBooks(List<String> dirs, Integer ibCode) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(ibCode));
@@ -65,6 +68,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
             } catch (IOException e) {
                 logger.error("failed to access recorded ticks for product " + ibCode, e);
             }
+            DataFrame<Double> eurchfDaily = loadQuandlInstrument("ECB/EURCHF", 200);
+            Double stddev = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
             for (Map.Entry<String, Path> entry : tickFiles.entrySet()) {
                 String yyyymmddhh = entry.getKey();
                 Path filePath = entry.getValue();
@@ -86,7 +91,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
                             orderBook = new OrderBookLevelOneImmutable(timestamp, volumeBid, priceBid, priceAsk, volumeAsk);
                             logger.info("current order book: " + orderBook + " (" + isoFormat.format(orderBook.getLastModified()) + ")");
                             if (orderBookPrev != null && !orderBook.sameSampledTime(orderBookPrev, OrderBookLevelOneImmutable.Sampling.SECOND)){
-                                processOrderBook(orderBookPrev, true);
+                                processOrderBook(orderBookPrev, stddev, true);
                             }
                             orderBookPrev = orderBook;
                         }
@@ -101,10 +106,24 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         }
     }
 
-    private static void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+    private void processOrderBook(OrderBookLevelOneImmutable orderBook, Double stddev, boolean isBacktest) {
         BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
-        TimeSeries ts;
-        logger.info("computing signal");
+        vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, new JsonObject().put("signal", midPrice.doubleValue()));
+    }
+
+    private static DataFrame<Double> loadQuandlInstrument(String quandlCode, int samples) {
+        QuandlSession session = QuandlSession.create();
+        DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of(quandlCode).withMaxRows(samples);
+        TabularResult tabularResult = session.getDataSet(requestBuilder.build());
+        Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
+        DataFrame<Double> dataFrame = new DataFrame<>(columnNames);
+        for(Row row: tabularResult){
+            LocalDate date = row.getLocalDate("Date");
+            Double value = row.getDouble("Value");
+            Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue() + 1, date.getDayOfMonth());
+            dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
+        }
+        return dataFrame;
     }
 
     public void start() {
@@ -112,21 +131,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractVerticle {
         final Integer ibCode = 12087817;
 
         vertx.executeBlocking(future -> {
-            List<String> dirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList();
-
-            QuandlSession session = QuandlSession.create();
-            DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of("ECB/EURCHF").withMaxRows(200);
-            TabularResult tabularResult = session.getDataSet(requestBuilder.build());
-            Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
-            DataFrame<Double> dataFrame = new DataFrame<>(columnNames);
-            for(Row row: tabularResult){
-                LocalDate date = row.getLocalDate("Date");
-                Double value = row.getDouble("Value");
-                Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue(), date.getDayOfMonth());
-                dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
-            }
-            logger.info("loaded: " + dataFrame.head());
-
+            JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
+            List<String> dirs = storageDirs.getList();
             processRecordedOrderBooks(dirs, ibCode);
             future.succeeded();
         }, result -> {
