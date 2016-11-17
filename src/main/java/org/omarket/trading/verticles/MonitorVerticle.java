@@ -43,14 +43,14 @@ public class MonitorVerticle  extends AbstractVerticle {
         vertx.eventBus().consumer(SingleLegMeanReversionStrategyVerticle.ADDRESS_STRATEGY_SIGNAL, (Message<JsonObject> message) -> {
             Double signal = message.body().getDouble("signal");
             JsonObject newSample = new JsonObject()
-                    .put("creatTime", System.currentTimeMillis())
-                    .put("cpuTime", signal);
+                    .put("time", System.currentTimeMillis())
+                    .put("signal", signal);
             vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY, newSample);
         });
 
         vertx.setPeriodic(1000, t -> vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY,
                 new JsonObject()
-                        .put("creatTime", System.currentTimeMillis())
-                        .put("cpuTime", new Random().nextDouble())));
+                        .put("time", System.currentTimeMillis())
+                        .put("signal", new Random().nextDouble())));
     }
 }

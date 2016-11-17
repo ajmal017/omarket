@@ -25,7 +25,7 @@
       stroke: steelblue;
       stroke-width: 1.5px;
     }  </style>
-    <title>CPU Load</title>
+    <title>Strategy signal</title>
     <script src="http://d3js.org/d3.v3.js"></script>
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
     <script src="vertxbus.js"></script>
@@ -56,10 +56,10 @@
 
     var line = d3.svg.line()
         .x(function (d) {
-          return x(d.creatTime);
+          return x(d.time);
         })
         .y(function (d) {
-          return y(d.cpuTime);
+          return y(d.signal);
         });
 
     // function
@@ -71,8 +71,8 @@
           data.shift();
         }
         data.push({
-          "creatTime": new Date(msg.creatTime),
-          "cpuTime": msg.cpuTime
+          "time": new Date(msg.time),
+          "signal": msg.signal
         });
         render();
       });
@@ -89,11 +89,11 @@
           .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
       x.domain(d3.extent(data, function (d) {
-        return d.creatTime;
+        return d.time;
       }));
 
       y.domain(d3.extent(data, function (d) {
-        return d.cpuTime;
+        return d.signal;
       }));
 
       svg.append("g")
@@ -120,7 +120,7 @@
           .attr("dy", ".41em")
           .attr("font-size", "1.3em")
           .style("text-anchor", "end")
-          .text("CPU%");
+          .text("Signal");
 
       svg.append("path")
           .datum(data)
