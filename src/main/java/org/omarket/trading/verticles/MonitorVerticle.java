@@ -11,11 +11,6 @@ import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
-import org.omarket.trading.OrderBookLevelOneImmutable;
-
-import java.text.ParseException;
-import java.util.Date;
-import java.util.Random;
 
 /**
  * Created by Christophe on 11/11/2016.
@@ -44,13 +39,10 @@ public class MonitorVerticle  extends AbstractVerticle {
             Double signal = message.body().getDouble("signal");
             JsonObject newSample = new JsonObject()
                     .put("time", System.currentTimeMillis())
-                    .put("signal", signal);
+                    .put("signal", signal)
+                    .put("thresholdLow1", signal * 0.8);
             vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY, newSample);
         });
 
-        vertx.setPeriodic(1000, t -> vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY,
-                new JsonObject()
-                        .put("time", System.currentTimeMillis())
-                        .put("signal", new Random().nextDouble())));
     }
 }
