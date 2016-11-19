@@ -23,8 +23,14 @@
     .line {
       fill: none;
       stroke: steelblue;
-      stroke-width: 1.5px;
-    }  </style>
+      stroke-width: 2px;
+    }
+    .line2 {
+      fill: none;
+      stroke: orange;
+      stroke-width: 2px;
+    }
+    </style>
     <title>Strategy signal</title>
     <script src="http://d3js.org/d3.v3.js"></script>
     <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
@@ -48,7 +54,7 @@
     var xAxis = d3.svg.axis()
         .scale(x)
         .orient("bottom")
-        .tickFormat(d3.time.format("%S"));
+        .tickFormat(d3.time.format("%H:%M:%S"));
 
     var yAxis = d3.svg.axis()
         .scale(y)
@@ -74,10 +80,11 @@
 
     eb.onopen = function () {
       eb.registerHandler("oot.monitor.strategy", function (msg) {
-        if (data.length === 25) {
-          // when length of data equal 25 then pop data[0]
+        if (data.length === 100) {
+          // when length of data reaches max then pop data[0]
           data.shift();
         }
+        console.log("received msg: " + msg.signal + ", " + msg.thresholdLow1);
         data.push({
           "time": new Date(msg.time),
           "signal": msg.signal,
@@ -111,7 +118,7 @@
           .style("text-anchor", "end")
           .call(xAxis)
           .append("text")
-          .attr("transform", "rotate(0)")
+          .attr("transform", "rotate(90)")
           .attr("y", 40)
           .attr("dx", xcenter)
           .attr("font-size", "1.3em")
@@ -138,7 +145,7 @@
 
       svg.append("path")
           .datum(data)
-          .attr("class", "line")
+          .attr("class", "line2")
           .attr("d", line2);
     }
   </script>

@@ -67,7 +67,9 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
             }
         }
         BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
-        JsonObject message = new JsonObject().put("signal", midPrice.doubleValue());
+        JsonObject message = new JsonObject();
+        message.put("signal", midPrice.doubleValue());
+        message.put("thresholdLow1", (1 - 3 * threasholdStep) * midPrice.doubleValue());
         logger.info("emitting: " + message);
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }

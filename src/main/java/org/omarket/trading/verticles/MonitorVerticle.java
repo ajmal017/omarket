@@ -37,10 +37,11 @@ public class MonitorVerticle  extends AbstractVerticle {
 
         vertx.eventBus().consumer(SingleLegMeanReversionStrategyVerticle.ADDRESS_STRATEGY_SIGNAL, (Message<JsonObject> message) -> {
             Double signal = message.body().getDouble("signal");
+            Double threshold1 = message.body().getDouble("thresholdLow1");
             JsonObject newSample = new JsonObject()
                     .put("time", System.currentTimeMillis())
                     .put("signal", signal)
-                    .put("thresholdLow1", signal * 0.8);
+                    .put("thresholdLow1", threshold1);
             vertx.eventBus().publish(ADDRESS_MONITOR_STRATEGY, newSample);
         });
 
