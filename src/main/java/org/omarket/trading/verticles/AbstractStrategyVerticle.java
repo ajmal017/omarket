@@ -38,11 +38,18 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle {
 
     private OrderBookLevelOneImmutable orderBookPrev;
     private OrderBookLevelOneImmutable orderBook;
+
+    private JsonObject parameters = new JsonObject();
+
     private Map<Integer, JsonObject> contracts = new HashMap<>();
     protected abstract void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest);
 
     abstract protected Integer[] getIBrokersCodes();
     abstract protected void init();
+
+    protected JsonObject getParameters(){
+        return parameters;
+    }
 
     private void processBacktest(List<String> dirs, Integer ibCode) {
         String storageDirPathName = String.join(File.separator, dirs);

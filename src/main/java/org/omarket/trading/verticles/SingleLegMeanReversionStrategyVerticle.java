@@ -22,9 +22,8 @@ import static java.lang.Math.sqrt;
  */
 public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
-    static final String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.singleLeg";
-    private static final Integer IB_CODE = 12087817;
-    private Double threasholdStep;
+    final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.singleLeg";
+    private final static Integer IB_CODE = 12087817;
 
     private static DataFrame<Double> loadQuandlInstrument(String quandlCode, int samples) {
         QuandlSession session = QuandlSession.create();
@@ -50,7 +49,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     protected void init(){
         logger.info("starting single leg mean reversion strategy verticle");
         DataFrame<Double> eurchfDaily = loadQuandlInstrument("ECB/EURCHF", 200);
-        threasholdStep = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
+        Double threasholdStep = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
+        getParameters().put("thresholdStep", threasholdStep);
     }
 
     /**
@@ -69,7 +69,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
         BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());
-        message.put("thresholdLow1", (1 - 3 * threasholdStep) * midPrice.doubleValue());
+        message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
         logger.info("emitting: " + message);
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }

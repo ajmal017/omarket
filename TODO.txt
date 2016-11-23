@@ -1,0 +1,9 @@
+Web UI: AngularJS + plotly?
+One Tab / Strategy
+Hard codes strategies
+Web UI starts/stop strategies
+Strategy tab:
+- chart for backtest
+- realtime chart when started
+- start/stop buttons
+- parameters
