@@ -114,50 +114,61 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle {
 
     @Override
     public void start() {
-        init();
-        for (Integer ibCode: getIBrokersCodes()) {
-            vertx.executeBlocking(future -> {
-                JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
-                List<String> dirs = storageDirs.getList();
-                try {
-                    processBacktest(dirs, ibCode);
-                    future.complete();
-                } catch (Exception e) {
-                    logger.error("backtest failed", e);
-                    future.fail(e);
-                }
-            }, result -> {
-                logger.info("processed recorded ticks for " + ibCode);
-                // now launching realtime ticks
-                MarketDataVerticle.subscribeProduct(vertx, ibCode, subscribeProductResult -> {
-                    if (subscribeProductResult.succeeded()) {
-                        JsonObject contract = subscribeProductResult.result().body();
-                        contracts.put(ibCode, contract);
-                        // Constantly maintains order book up to date
-                        final String channelProduct = createChannelOrderBookLevelOne(ibCode);
-                        vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
-                            try {
-                                orderBook = OrderBookLevelOneImmutable.fromJSON(message.body());
-                            } catch (ParseException e) {
-                                logger.error("failed to parse tick data for contract " + contract, e);
-                            }
-                        });
-
-                    } else {
-                        logger.error("failed to subscribe to: " + ibCode);
-                    }
-                });
-            });
-        }
-
-        vertx.setPeriodic(1000, id -> {
-            if(contracts.size() != getIBrokersCodes().length){
-                return;
+        vertx.executeBlocking(future -> {
+            try {
+                init();
+                future.complete();
+            } catch (Exception e) {
+                logger.error("failed to initialize strategy", e);
+                future.fail(e);
             }
-            // Sampling: calculates signal
-            logger.info("processing order book: " + orderBook);
-            processOrderBook(orderBook, false);
+        }, completed -> {
+            logger.info("initialized strategy");
+            for (Integer ibCode: getIBrokersCodes()) {
+                vertx.executeBlocking(future -> {
+                    JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
+                    List<String> dirs = storageDirs.getList();
+                    try {
+                        processBacktest(dirs, ibCode);
+                        future.complete();
+                    } catch (Exception e) {
+                        logger.error("backtest failed", e);
+                        future.fail(e);
+                    }
+                }, result -> {
+                    logger.info("processed recorded ticks for " + ibCode);
+                    // now launching realtime ticks
+                    MarketDataVerticle.subscribeProduct(vertx, ibCode, subscribeProductResult -> {
+                        if (subscribeProductResult.succeeded()) {
+                            JsonObject contract = subscribeProductResult.result().body();
+                            contracts.put(ibCode, contract);
+                            // Constantly maintains order book up to date
+                            final String channelProduct = createChannelOrderBookLevelOne(ibCode);
+                            vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
+                                try {
+                                    orderBook = OrderBookLevelOneImmutable.fromJSON(message.body());
+                                } catch (ParseException e) {
+                                    logger.error("failed to parse tick data for contract " + contract, e);
+                                }
+                            });
+
+                        } else {
+                            logger.error("failed to subscribe to: " + ibCode);
+                        }
+                    });
+                });
+            }
+
+            vertx.setPeriodic(1000, id -> {
+                if(contracts.size() != getIBrokersCodes().length){
+                    return;
+                }
+                // Sampling: calculates signal
+                logger.info("processing order book: " + orderBook);
+                processOrderBook(orderBook, false);
+            });
         });
+
     }
 }
 
