@@ -2,23 +2,21 @@ package org.omarket.trading.verticles;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.omarket.trading.OrderBookLevelOne;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 
 /**
  * Created by Christophe on 01/11/2016.
  */
-public class StrategyVerticle extends AbstractVerticle {
-    private final static Logger logger = LoggerFactory.getLogger(StrategyVerticle.class);
+public class DummyStrategyVerticle extends AbstractVerticle {
+    private final static Logger logger = LoggerFactory.getLogger(DummyStrategyVerticle.class);
 
     private static Map<Integer, JsonObject> orderBooks = new HashMap<>();
     private static Map<Integer, JsonObject> contracts = new HashMap<>();

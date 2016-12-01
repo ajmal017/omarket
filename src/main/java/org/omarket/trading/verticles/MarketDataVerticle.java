@@ -46,10 +46,6 @@ public class MarketDataVerticle extends AbstractVerticle {
         return subscribedProducts.keySet();
     }
 
-    static public String createChannelOrderBookLevelOne(Integer ibCode) {
-        return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
-    }
-
     static private IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, EventBus eventBus, Path storageDirPath) {
         final EReaderSignal readerSignal = new EJavaSignal();
         final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(eventBus, storageDirPath);
@@ -160,7 +156,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void processContractRetrieve(Vertx vertx) {
+    public static void processContractRetrieve(Vertx vertx) {
         MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         consumer.handler(message -> {
             final JsonObject body = message.body();
@@ -209,7 +205,7 @@ public class MarketDataVerticle extends AbstractVerticle {
             if (reply.succeeded()) {
                 JsonObject contractDetails = reply.result().body();
                 vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractDetails, mktDataReply -> {
-                    logger.info("subscription result: " + mktDataReply.result().body());
+                    logger.info("subscription result: " + mktDataReply.result());
                 });
             } else {
                 logger.error("failed to retrieve contract details: ", reply.cause());

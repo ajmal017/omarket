@@ -49,8 +49,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     protected void init(){
         logger.info("starting single leg mean reversion strategy verticle");
         DataFrame<Double> eurchfDaily = loadQuandlInstrument("ECB/EURCHF", 200);
-        Double threasholdStep = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
-        getParameters().put("thresholdStep", threasholdStep);
+        Double thresholdStep = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
+        getParameters().put("thresholdStep", thresholdStep);
     }
 
     /**
@@ -58,14 +58,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
      * @param isBacktest
      */
     @Override
-    protected void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
-        if(isBacktest){
-            try {
-                TimeUnit.SECONDS.sleep(1);
-            } catch (InterruptedException e) {
-                logger.error("interrupted timer", e);
-            }
-        }
+    public void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
         BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());

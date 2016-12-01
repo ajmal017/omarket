@@ -1,13 +1,12 @@
 package org.omarket.trading.ibrokers;
 
-import org.omarket.trading.StatArbMain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 /**
  * Created by Christophe on 05/11/2016.

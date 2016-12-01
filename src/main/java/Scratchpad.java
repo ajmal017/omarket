@@ -22,7 +22,7 @@ import joinery.DataFrame;
 import org.threeten.bp.LocalDate;
 
 import static java.lang.Math.sqrt;
-import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);

@@ -20,7 +20,7 @@ import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 
 /**

@@ -1,3 +1,4 @@
+FakeMarketDataVerticle instead of paused replay
 Web UI: AngularJS + plotly?
 One Tab / Strategy
 Hard codes strategies
