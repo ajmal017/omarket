@@ -93,7 +93,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
             }
 
             vertx.setPeriodic(1000, id -> {
-                if(contracts.size() != getIBrokersCodes().length){
+                if(contracts.size() != getIBrokersCodes().length || orderBook == null){
                     return;
                 }
                 // Sampling: calculates signal
