@@ -29,17 +29,39 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
     private Map<Integer, JsonObject> contracts = new HashMap<>();
 
     abstract protected Integer[] getIBrokersCodes();
-    abstract protected void init();
+
+    /**
+     * For how long back the verticle needs to keep past order books.
+     *
+     * @return lookback period in milliseconds
+     */
+    abstract protected Integer getLookBackPeriod();
+
+    /*
+     *
+     */
+    abstract protected void init(Integer lookbackPeriod);
+
+    public void updateOrderBooks(OrderBookLevelOneImmutable orderBookPrev){
+        // TODO
+    }
 
     protected JsonObject getParameters(){
         return parameters;
+    }
+    protected List<OrderBookLevelOneImmutable> getPastOrderBooks(){
+        JsonArray orderBooks = getParameters().getJsonArray("pastOrderBooks");
+        List<OrderBookLevelOneImmutable> orderBooksList = orderBooks.getList();
+        return orderBooksList;
     }
 
     @Override
     public void start() {
         vertx.executeBlocking(future -> {
             try {
-                init();
+                JsonArray array = new JsonArray();
+                getParameters().put("pastOrderBooks", array);
+                init(getLookBackPeriod());
                 future.complete();
             } catch (Exception e) {
                 logger.error("failed to initialize strategy", e);
@@ -99,9 +121,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 // Sampling: calculates signal
                 logger.info("processing order book: " + orderBook);
                 processOrderBook(orderBook, false);
+                updateOrderBooks(orderBook);
             });
         });
 
     }
+
 }
 

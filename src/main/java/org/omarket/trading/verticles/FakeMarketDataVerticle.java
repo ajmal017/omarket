@@ -39,10 +39,20 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         vertx.executeBlocking(future -> {
             try {
                 processContractRetrieve(vertx);
-                processBacktest(dirs, IB_CODE, (orderBook, isBacktest) -> {
-                    orderBooks.add(orderBook);
+                processBacktest(dirs, IB_CODE, new StrategyProcessor(){
+
+                    @Override
+                    public void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+                        orderBooks.add(orderBook);
+                    }
+
+                    @Override
+                    public void updateOrderBooks(OrderBookLevelOneImmutable orderBookPrev) {
+
+                    }
                 });
                 future.complete();
+
             } catch (Exception e) {
                 logger.error("failed to initialize strategy", e);
                 future.fail(e);

@@ -4,6 +4,7 @@ import com.jimmoores.quandl.DataSetRequest;
 import com.jimmoores.quandl.QuandlSession;
 import com.jimmoores.quandl.Row;
 import com.jimmoores.quandl.TabularResult;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -46,7 +47,12 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     }
 
     @Override
-    protected void init(){
+    protected Integer getLookBackPeriod() {
+        return 200;
+    }
+
+    @Override
+    protected void init(Integer lookBackPeriod){
         logger.info("starting single leg mean reversion strategy verticle");
         DataFrame<Double> eurchfDaily = loadQuandlInstrument("ECB/EURCHF", 200);
         Double thresholdStep = eurchfDaily.percentChange().stddev().get(0, 1)/ sqrt(24*60*60);
@@ -64,6 +70,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
         message.put("signal", midPrice.doubleValue());
         message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
         logger.info("emitting: " + message);
+        List<OrderBookLevelOneImmutable> pastOrderBooks = this.getPastOrderBooks();
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }
+
 }

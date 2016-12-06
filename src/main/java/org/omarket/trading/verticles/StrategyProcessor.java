@@ -7,4 +7,5 @@ import org.omarket.trading.OrderBookLevelOneImmutable;
  */
 public interface StrategyProcessor {
     void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest);
+    void updateOrderBooks(OrderBookLevelOneImmutable orderBookPrev);
 }
