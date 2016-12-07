@@ -8,5 +8,5 @@ import java.text.ParseException;
  */
 public interface StrategyProcessor {
     void processOrderBook(Quote orderBook, boolean isBacktest);
-    void updateOrderBooks(Quote orderBookPrev) throws ParseException;
+    void updateOrderBooks(Quote orderBook) throws ParseException;
 }

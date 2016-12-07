@@ -22,6 +22,7 @@ import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
+    public static final String PARAM_PAST_ORDER_BOOKS = "pastOrderBooks";
 
     private Quote orderBook;
 
@@ -44,25 +45,25 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
     abstract protected void init(Integer lookbackPeriod);
 
     public void updateOrderBooks(Quote orderBook) throws ParseException {
-        List<JsonObject> orderBooks = this.getParameters().getJsonArray("pastOrderBooks").getList();
+        List<JsonObject> orderBooks = this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).getList();
         Date now = new Date();
         Calendar expiration = Calendar.getInstance();
         expiration.setTimeInMillis(now.getTime() - getLookBackPeriod());
-        this.getParameters().put("pastOrderBooks", new JsonArray());
+        this.getParameters().put(PARAM_PAST_ORDER_BOOKS, new JsonArray());
         for(JsonObject currentOrderBookJson: orderBooks){
             Quote currentOrderBook = QuoteConverter.fromJSON(currentOrderBookJson);
             if(currentOrderBook.getLastModified().after(expiration.getTime())) {
-                this.getParameters().getJsonArray("pastOrderBooks").add(QuoteConverter.toJSON(currentOrderBook));
+                this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).add(QuoteConverter.toJSON(currentOrderBook));
             }
         }
-        this.getParameters().getJsonArray("pastOrderBooks").add(QuoteConverter.toJSON(orderBook));
+        this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).add(QuoteConverter.toJSON(orderBook));
     }
 
     protected JsonObject getParameters(){
         return parameters;
     }
     protected List<Quote> getPastOrderBooks(){
-        JsonArray orderBooks = getParameters().getJsonArray("pastOrderBooks");
+        JsonArray orderBooks = getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS);
         List<Quote> orderBooksList = orderBooks.getList();
         return orderBooksList;
     }
@@ -72,7 +73,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         vertx.executeBlocking(future -> {
             try {
                 JsonArray array = new JsonArray();
-                getParameters().put("pastOrderBooks", array);
+                getParameters().put(PARAM_PAST_ORDER_BOOKS, array);
                 init(getLookBackPeriod());
                 future.complete();
             } catch (Exception e) {
