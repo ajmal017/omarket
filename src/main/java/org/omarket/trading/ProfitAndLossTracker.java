@@ -40,25 +40,25 @@ public class ProfitAndLossTracker {
         /* Adding a fill updates the P&L intermediary data.
          */
         logger.debug("adding fill: {} at {}", fillQty, fillPrice);
-        Integer oldQty = this.quantity;
+        Integer oldQuantity = this.quantity;
         float oldCost = this.acquisitionCost;
-        float old_realized = this.realizedPnl;
+        float oldRealized = this.realizedPnl;
 
-        if (oldQty == 0) {
+        if (oldQuantity == 0) {
             this.quantity = fillQty;
             this.acquisitionCost = fillPrice.multiply(BigDecimal.valueOf(fillQty)).floatValue();
             this.realizedPnl = 0;
         } else {
             Integer closingQty = 0;
             Integer openingQty = fillQty;
-            if (Math.signum(oldQty) != Math.signum(fillQty)) {
-                closingQty = min(abs(oldQty), abs(fillQty)) * (int) Math.signum(fillQty);
+            if (Math.signum(oldQuantity) != Math.signum(fillQty)) {
+                closingQty = min(abs(oldQuantity), abs(fillQty)) * (int) Math.signum(fillQty);
                 openingQty = fillQty - closingQty;
             }
 
-            this.quantity = oldQty + fillQty;
-            this.acquisitionCost = oldCost + openingQty * fillPrice.floatValue() + closingQty.floatValue() * oldCost / oldQty;
-            this.realizedPnl = old_realized + closingQty.floatValue() * (oldCost / oldQty - fillPrice.floatValue());
+            this.quantity = oldQuantity + fillQty;
+            this.acquisitionCost = oldCost + openingQty * fillPrice.floatValue() + closingQty.floatValue() * oldCost / oldQuantity;
+            this.realizedPnl = oldRealized + closingQty.floatValue() * (oldCost / oldQuantity - fillPrice.floatValue());
         }
     }
 
