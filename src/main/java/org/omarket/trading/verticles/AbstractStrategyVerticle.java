@@ -11,10 +11,12 @@ import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 
 import java.text.ParseException;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
-import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelQuote;
 
 /**
  * Created by Christophe on 18/11/2016.
@@ -22,9 +24,9 @@ import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
-    public static final String PARAM_PAST_ORDER_BOOKS = "pastOrderBooks";
+    public static final String PARAM_PAST_QUOTES = "pastQuotes";
 
-    private Quote orderBook;
+    private Quote quote;
 
     private JsonObject parameters = new JsonObject();
 
@@ -44,28 +46,32 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
      */
     abstract protected void init(Integer lookbackPeriod);
 
-    public void updateOrderBooks(Quote orderBook) throws ParseException {
-        List<JsonObject> orderBooks = this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).getList();
-        Date now = new Date();
-        Calendar expiration = Calendar.getInstance();
-        expiration.setTimeInMillis(now.getTime() - getLookBackPeriod());
-        this.getParameters().put(PARAM_PAST_ORDER_BOOKS, new JsonArray());
-        for(JsonObject currentOrderBookJson: orderBooks){
-            Quote currentOrderBook = QuoteConverter.fromJSON(currentOrderBookJson);
-            if(currentOrderBook.getLastModified().after(expiration.getTime())) {
-                this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).add(QuoteConverter.toJSON(currentOrderBook));
+    public void updateQuotes(Quote quote) throws ParseException {
+        List<JsonObject> quotes = this.getParameters().getJsonArray(PARAM_PAST_QUOTES).getList();
+        if(quotes.size() > 0) {
+            Quote firstQuote = QuoteConverter.fromJSON(quotes.get(0));
+            Quote lastQuote = QuoteConverter.fromJSON(quotes.get(quotes.size() - 1));
+            logger.info("quotes range before update: " + firstQuote.getLastModified() + " / " + lastQuote.getLastModified());
+        }
+        ZonedDateTime lastModified = quote.getLastModified();
+        ZonedDateTime expiry = lastModified.minus(getLookBackPeriod(), ChronoUnit.MILLIS);
+        this.getParameters().put(PARAM_PAST_QUOTES, new JsonArray());
+        for(JsonObject currentQuoteJson: quotes){
+            Quote currentQuote = QuoteConverter.fromJSON(currentQuoteJson);
+            if(currentQuote.getLastModified().isAfter(expiry)) {
+                this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(currentQuote));
             }
         }
-        this.getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS).add(QuoteConverter.toJSON(orderBook));
+        this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(quote));
     }
 
     protected JsonObject getParameters(){
         return parameters;
     }
-    protected List<Quote> getPastOrderBooks(){
-        JsonArray orderBooks = getParameters().getJsonArray(PARAM_PAST_ORDER_BOOKS);
-        List<Quote> orderBooksList = orderBooks.getList();
-        return orderBooksList;
+    protected List<Quote> getPastQuotes(){
+        JsonArray quotes = getParameters().getJsonArray(PARAM_PAST_QUOTES);
+        List<Quote> quotesList = quotes.getList();
+        return quotesList;
     }
 
     @Override
@@ -73,7 +79,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         vertx.executeBlocking(future -> {
             try {
                 JsonArray array = new JsonArray();
-                getParameters().put(PARAM_PAST_ORDER_BOOKS, array);
+                getParameters().put(PARAM_PAST_QUOTES, array);
                 init(getLookBackPeriod());
                 future.complete();
             } catch (Exception e) {
@@ -110,11 +116,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                             JsonObject contract = subscribeProductResult.result().body();
                             contracts.put(ibCode, contract);
                             // Constantly maintains order book up to date
-                            final String channelProduct = createChannelOrderBookLevelOne(ibCode);
+                            final String channelProduct = createChannelQuote(ibCode);
                             vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
                                 try {
-                                    orderBook = QuoteConverter.fromJSON(message.body());
-                                    logger.info("updated order book: " + orderBook);
+                                    quote = QuoteConverter.fromJSON(message.body());
+                                    logger.info("updated quote: " + quote);
                                 } catch (ParseException e) {
                                     logger.error("failed to parse tick data for contract " + contract, e);
                                 }
@@ -128,16 +134,16 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
             }
 
             vertx.setPeriodic(1000, id -> {
-                if(contracts.size() != getIBrokersCodes().length || orderBook == null){
+                if(contracts.size() != getIBrokersCodes().length || quote == null){
                     return;
                 }
                 // Sampling: calculates signal
-                logger.info("processing order book: " + orderBook);
-                processOrderBook(orderBook, false);
+                logger.info("processing order book: " + quote);
+                processQuote(quote, false);
                 try {
-                    updateOrderBooks(orderBook);
+                    updateQuotes(quote);
                 } catch (ParseException e) {
-                    logger.error("unable to update orderbook", e);
+                    logger.error("unable to update quotes", e);
                 }
             });
         });

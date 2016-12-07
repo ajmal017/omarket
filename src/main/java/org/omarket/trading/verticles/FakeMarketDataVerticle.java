@@ -16,7 +16,7 @@ import org.omarket.trading.quote.Quote;
 
 import java.util.*;
 
-import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.MarketData.processBacktest;
 
 /**
@@ -34,21 +34,21 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         logger.info("starting market data");
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
-        final String channel = createChannelOrderBookLevelOne(IB_CODE);
+        final String channel = createChannelQuote(IB_CODE);
 
-        Stack<Quote> orderBooks = new Stack<>();
+        Queue<Quote> quotes = new LinkedList<>();
         vertx.executeBlocking(future -> {
             try {
                 processContractRetrieve(vertx);
                 processBacktest(dirs, IB_CODE, new StrategyProcessor(){
 
                     @Override
-                    public void processOrderBook(Quote orderBook, boolean isBacktest) {
-                        orderBooks.add(orderBook);
+                    public void processQuote(Quote quote, boolean isBacktest) {
+                        quotes.add(quote);
                     }
 
                     @Override
-                    public void updateOrderBooks(Quote orderBookPrev) {
+                    public void updateQuotes(Quote quotePrev) {
 
                     }
                 });
@@ -61,10 +61,14 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         }, completed -> {
             if(completed.succeeded()) {
                 vertx.setPeriodic(1000, id -> {
-                    // todo: test if stack is empty and interrupt timer
-                    Quote orderBook = orderBooks.pop();
-                    logger.info("sending order book: " + orderBook);
-                    vertx.eventBus().send(channel, QuoteConverter.toJSON(orderBook));
+                    if(quotes.size() > 0) {
+                        Quote quote = quotes.remove();
+                        logger.info("sending quote: " + quote);
+                        vertx.eventBus().send(channel, QuoteConverter.toJSON(quote));
+                    } else {
+                        // todo: interrupt timer
+                        logger.info("queue empty: skipping");
+                    }
                 });
             } else {
                 logger.error("failed to load order books: skipping");

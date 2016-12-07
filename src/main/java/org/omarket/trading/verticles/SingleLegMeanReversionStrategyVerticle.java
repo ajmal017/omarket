@@ -46,7 +46,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
 
     @Override
     protected Integer getLookBackPeriod() {
-        return 200;
+        return 200 * 1000;
     }
 
     @Override
@@ -58,18 +58,18 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     }
 
     /**
-     * @param orderBook
+     * @param quote
      * @param isBacktest
      */
     @Override
-    public void processOrderBook(Quote orderBook, boolean isBacktest) {
-        BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
+    public void processQuote(Quote quote, boolean isBacktest) {
+        BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());
         message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
         logger.info("emitting: " + message);
-        List<Quote> pastOrderBooks = this.getPastOrderBooks();
-        logger.info("length of past order books: " + pastOrderBooks.size());
+        List<Quote> pastQuotes = this.getPastQuotes();
+        logger.info("length of past quotes: " + pastQuotes.size());
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }
 

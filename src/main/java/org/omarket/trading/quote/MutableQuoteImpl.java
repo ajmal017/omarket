@@ -4,7 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 
 /**
@@ -35,7 +36,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
             return false;
         }
         this.bestBidSize = size;
-        setLastModified(new Date());
+        setLastModified(ZonedDateTime.now(ZoneOffset.UTC));
         return true;
     }
 
@@ -45,7 +46,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
             return false;
         }
         this.bestAskSize = size;
-        setLastModified(new Date());
+        setLastModified(ZonedDateTime.now(ZoneOffset.UTC));
         return true;
     }
 
@@ -56,7 +57,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
             return false;
         }
         this.bestBidPrice = newBestBidPrice;
-        setLastModified(new Date());
+        setLastModified(ZonedDateTime.now(ZoneOffset.UTC));
         return true;
     }
 
@@ -67,11 +68,11 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
             return false;
         }
         this.bestAskPrice = newBestAskPrice;
-        setLastModified(new Date());
+        setLastModified(ZonedDateTime.now(ZoneOffset.UTC));
         return true;
     }
 
-    private void setLastModified(Date lastModified) {
+    private void setLastModified(ZonedDateTime lastModified) {
         this.lastModified = lastModified;
     }
 

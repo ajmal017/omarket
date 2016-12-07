@@ -9,7 +9,7 @@ import io.vertx.core.logging.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelQuote;
 
 
 /**
@@ -39,7 +39,7 @@ public class DummyStrategyVerticle extends AbstractVerticle {
                     logger.error("failed to subscribe to: " + ibCode);
                 }
             });
-            String channelProduct = createChannelOrderBookLevelOne(ibCode);
+            String channelProduct = createChannelQuote(ibCode);
             vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> orderBookReceived(ibCode, message.body()));
         }
     }

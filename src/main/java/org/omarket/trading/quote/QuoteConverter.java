@@ -1,10 +1,16 @@
 package org.omarket.trading.quote;
 
 import io.vertx.core.json.JsonObject;
+import sun.util.resources.cldr.af.LocaleNames_af;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.Date;
 import java.util.TimeZone;
 
@@ -18,11 +24,8 @@ public class QuoteConverter {
         millisFormat = new SimpleDateFormat("mm:ss.SSS");
         millisFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
-    protected final static SimpleDateFormat isoFormat;
-    static {
-        isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
-        isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private final static DateTimeFormatter isoFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
+
     public static String toPriceVolumeString(Quote quote) {
         return millisFormat.format(quote.getLastModified()) + "," + quote.getBestBidSize() + "," + quote.getBestBidPrice() + "," + quote.getBestAskPrice() + "," + quote.getBestAskSize();
     }
@@ -48,7 +51,8 @@ public class QuoteConverter {
     }
 
     public static QuoteImpl fromJSON(JsonObject json) throws ParseException {
-        Date lastModified = isoFormat.parse(json.getString("lastModified"));
+        LocalDateTime lastModifiedLocal = LocalDateTime.parse(json.getString("lastModified"), isoFormat);
+        ZonedDateTime lastModified = ZonedDateTime.of(lastModifiedLocal, ZoneOffset.UTC);
         BigDecimal bestBidPrice = BigDecimal.valueOf(json.getDouble("bestBidPrice"));
         BigDecimal bestAskPrice = BigDecimal.valueOf(json.getDouble("bestAskPrice"));
         Integer bestBidSize = json.getInteger("bestBidSize");

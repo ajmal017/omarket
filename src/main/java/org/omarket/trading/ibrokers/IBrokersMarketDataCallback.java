@@ -20,7 +20,7 @@ import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelQuote;
 
 
 /**
@@ -79,7 +79,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         int tickerId = newSubscriptionId();
         Files.createDirectories(storageDirPath);
-        Path productStorage = storageDirPath.resolve(createChannelOrderBookLevelOne(contract.conid()));
+        Path productStorage = storageDirPath.resolve(createChannelQuote(contract.conid()));
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         subscribed.put(contract.conid(), productStorage);
@@ -146,7 +146,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     }
 
     private void processOrderBook(Contract contract, Quote orderBook) {
-        String channel = createChannelOrderBookLevelOne(contract.conid());
+        String channel = createChannelQuote(contract.conid());
         try {
             Path rootDirectory = subscribed.get(contract.conid());
             Date now = new Date();

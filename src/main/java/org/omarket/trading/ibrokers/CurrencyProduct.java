@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
+import static org.omarket.trading.MarketData.createChannelQuote;
 
 /**
  * Created by Christophe on 05/11/2016.
@@ -114,7 +114,7 @@ public class CurrencyProduct {
         if (!IB_CODES.containsKey(cross)){
             logger.error("no channel for {} / {}", currency1, currency2);
         }
-        return createChannelOrderBookLevelOne(IB_CODES.get(cross));
+        return createChannelQuote(IB_CODES.get(cross));
     }
 
     public String getChannelDirect(String currency){

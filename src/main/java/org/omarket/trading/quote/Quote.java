@@ -1,13 +1,16 @@
 package org.omarket.trading.quote;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalUnit;
 
 /**
+ * Model of a quote (bid/ask with volume and timestamp).
+ *
  * Created by Christophe on 07/12/2016.
  */
 public interface Quote {
-    Date getLastModified();
+    ZonedDateTime getLastModified();
 
     BigDecimal getBestBidPrice();
 
@@ -19,9 +22,6 @@ public interface Quote {
 
     boolean isValid();
 
-    boolean sameSampledTime(Quote other, Quote.Sampling frequency);
+    boolean sameSampledTime(Quote other, TemporalUnit temporalUnit);
 
-    enum Sampling {
-        SECOND, MINUTE, HOUR
-    }
 }

@@ -5,6 +5,10 @@ import io.reactivex.schedulers.Schedulers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -64,6 +68,12 @@ public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
     public static void main(String[] args) throws InterruptedException {
+        DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+        String value = "2016-11-14 10:53:59.260";
+        System.out.println(LocalDateTime.parse(value, DATE_FORMAT));
+    }
+
+    public static void main2(String[] args) throws InterruptedException {
         Observable<Long> clock = Observable.interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
         final Random random = new Random();
