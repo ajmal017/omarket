@@ -11,7 +11,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.omarket.trading.OrderBookLevelOneImmutable;
+import org.omarket.trading.quote.QuoteConverter;
+import org.omarket.trading.quote.Quote;
 
 import java.util.*;
 
@@ -35,19 +36,19 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         List<String> dirs = storageDirs.getList();
         final String channel = createChannelOrderBookLevelOne(IB_CODE);
 
-        Stack<OrderBookLevelOneImmutable> orderBooks = new Stack<>();
+        Stack<Quote> orderBooks = new Stack<>();
         vertx.executeBlocking(future -> {
             try {
                 processContractRetrieve(vertx);
                 processBacktest(dirs, IB_CODE, new StrategyProcessor(){
 
                     @Override
-                    public void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+                    public void processOrderBook(Quote orderBook, boolean isBacktest) {
                         orderBooks.add(orderBook);
                     }
 
                     @Override
-                    public void updateOrderBooks(OrderBookLevelOneImmutable orderBookPrev) {
+                    public void updateOrderBooks(Quote orderBookPrev) {
 
                     }
                 });
@@ -61,9 +62,9 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
             if(completed.succeeded()) {
                 vertx.setPeriodic(1000, id -> {
                     // todo: test if stack is empty and interrupt timer
-                    OrderBookLevelOneImmutable orderBook = orderBooks.pop();
+                    Quote orderBook = orderBooks.pop();
                     logger.info("sending order book: " + orderBook);
-                    vertx.eventBus().send(channel, orderBook.asJSON());
+                    vertx.eventBus().send(channel, QuoteConverter.toJSON(orderBook));
                 });
             } else {
                 logger.error("failed to load order books: skipping");

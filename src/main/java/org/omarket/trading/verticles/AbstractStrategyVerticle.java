@@ -7,7 +7,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.MarketData;
-import org.omarket.trading.OrderBookLevelOneImmutable;
+import org.omarket.trading.quote.QuoteConverter;
+import org.omarket.trading.quote.Quote;
 
 import java.text.ParseException;
 import java.util.*;
@@ -22,7 +23,7 @@ import static org.omarket.trading.MarketData.createChannelOrderBookLevelOne;
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
 
-    private OrderBookLevelOneImmutable orderBook;
+    private Quote orderBook;
 
     private JsonObject parameters = new JsonObject();
 
@@ -42,16 +43,27 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
      */
     abstract protected void init(Integer lookbackPeriod);
 
-    public void updateOrderBooks(OrderBookLevelOneImmutable orderBookPrev){
-        // TODO
+    public void updateOrderBooks(Quote orderBook) throws ParseException {
+        List<JsonObject> orderBooks = this.getParameters().getJsonArray("pastOrderBooks").getList();
+        Date now = new Date();
+        Calendar expiration = Calendar.getInstance();
+        expiration.setTimeInMillis(now.getTime() - getLookBackPeriod());
+        this.getParameters().put("pastOrderBooks", new JsonArray());
+        for(JsonObject currentOrderBookJson: orderBooks){
+            Quote currentOrderBook = QuoteConverter.fromJSON(currentOrderBookJson);
+            if(currentOrderBook.getLastModified().after(expiration.getTime())) {
+                this.getParameters().getJsonArray("pastOrderBooks").add(QuoteConverter.toJSON(currentOrderBook));
+            }
+        }
+        this.getParameters().getJsonArray("pastOrderBooks").add(QuoteConverter.toJSON(orderBook));
     }
 
     protected JsonObject getParameters(){
         return parameters;
     }
-    protected List<OrderBookLevelOneImmutable> getPastOrderBooks(){
+    protected List<Quote> getPastOrderBooks(){
         JsonArray orderBooks = getParameters().getJsonArray("pastOrderBooks");
-        List<OrderBookLevelOneImmutable> orderBooksList = orderBooks.getList();
+        List<Quote> orderBooksList = orderBooks.getList();
         return orderBooksList;
     }
 
@@ -100,7 +112,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                             final String channelProduct = createChannelOrderBookLevelOne(ibCode);
                             vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> {
                                 try {
-                                    orderBook = OrderBookLevelOneImmutable.fromJSON(message.body());
+                                    orderBook = QuoteConverter.fromJSON(message.body());
                                     logger.info("updated order book: " + orderBook);
                                 } catch (ParseException e) {
                                     logger.error("failed to parse tick data for contract " + contract, e);
@@ -121,7 +133,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 // Sampling: calculates signal
                 logger.info("processing order book: " + orderBook);
                 processOrderBook(orderBook, false);
-                updateOrderBooks(orderBook);
+                try {
+                    updateOrderBooks(orderBook);
+                } catch (ParseException e) {
+                    logger.error("unable to update orderbook", e);
+                }
             });
         });
 

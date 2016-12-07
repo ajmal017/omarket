@@ -9,7 +9,7 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.OrderBookLevelOne;
+import org.omarket.trading.quote.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +32,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Integer lastRequestId = null;
     private Integer lastSubscriptionId = null;
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
-    private Map<Integer, Pair<OrderBookLevelOne, Contract>> orderBooks = new HashMap<>();
+    private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private final static int PRICE_BID = 1;
@@ -83,7 +83,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         subscribed.put(contract.conid(), productStorage);
-        orderBooks.put(tickerId, new ImmutablePair<>(new OrderBookLevelOne(minTick), contract));
+        orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick), contract));
         getClient().reqMktData(tickerId, contract, "", false, null);
     }
 
@@ -110,8 +110,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if (field != PRICE_BID && field != PRICE_ASK) {
             return;
         }
-        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
-        OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        Pair<MutableQuote, Contract> orderBookContract = orderBooks.get(tickerId);
+        MutableQuote orderBook = orderBookContract.getLeft();
         boolean modified;
         if (field == PRICE_BID) {
             modified = orderBook.updateBestBidPrice(price);
@@ -130,8 +130,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if (field != SIZE_BID && field != SIZE_ASK) {
             return;
         }
-        Pair<OrderBookLevelOne, Contract> orderBookContract = orderBooks.get(tickerId);
-        OrderBookLevelOne orderBook = orderBookContract.getLeft();
+        Pair<MutableQuote, Contract> orderBookContract = orderBooks.get(tickerId);
+        MutableQuote orderBook = orderBookContract.getLeft();
         boolean modified;
         if (field == SIZE_BID) {
             modified = orderBook.updateBestBidSize(size);
@@ -145,7 +145,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         processOrderBook(contract, orderBook);
     }
 
-    private void processOrderBook(Contract contract, OrderBookLevelOne orderBook) {
+    private void processOrderBook(Contract contract, Quote orderBook) {
         String channel = createChannelOrderBookLevelOne(contract.conid());
         try {
             Path rootDirectory = subscribed.get(contract.conid());
@@ -153,7 +153,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
             Path currentDirectory = rootDirectory.resolve(formatYearMonthDay.format(now));
             Files.createDirectories(currentDirectory);
             Path tickFilePath = currentDirectory.resolve(formatHour.format(now));
-            String content = orderBook.asPriceVolumeString();
+            String content = QuoteConverter.toPriceVolumeString(orderBook);
             if(!Files.exists(tickFilePath)){
                 Files.createFile(tickFilePath);
             }
@@ -161,7 +161,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
             writer.write(content);
             writer.newLine();
             writer.close();
-            this.eventBus.send(channel, orderBook.asJSON());
+            this.eventBus.send(channel, QuoteConverter.toJSON(orderBook));
         } catch (IOException e) {
             logger.error("unable to record order book: message not sent", e);
         }

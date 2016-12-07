@@ -2,6 +2,8 @@ package org.omarket.trading;
 
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.StrategyProcessor;
 
@@ -49,7 +51,7 @@ public class MarketData {
 
                 try (Scanner scanner = new Scanner(filePath, "utf-8")) {
                     scanner.useDelimiter("\n");
-                    OrderBookLevelOneImmutable orderBookPrev = null;
+                    Quote orderBookPrev = null;
                     while (scanner.hasNext()) {
                         String rawLine = scanner.next().trim();
                         if (!rawLine.equals("")) {
@@ -61,9 +63,9 @@ public class MarketData {
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
                             DateFormat isoFormat = new SimpleDateFormat("yyyyMMdd hh:mm:ss.SSS");
-                            OrderBookLevelOneImmutable orderBook = new OrderBookLevelOneImmutable(timestamp, volumeBid, priceBid, priceAsk, volumeAsk);
+                            Quote orderBook = QuoteFactory.create(timestamp, volumeBid, priceBid, priceAsk, volumeAsk);
                             logger.debug("current order book: " + orderBook + " (" + isoFormat.format(orderBook.getLastModified()) + ")");
-                            if (orderBookPrev != null && !orderBook.sameSampledTime(orderBookPrev, OrderBookLevelOneImmutable.Sampling.SECOND)){
+                            if (orderBookPrev != null && !orderBook.sameSampledTime(orderBookPrev, Quote.Sampling.SECOND)){
                                 processor.processOrderBook(orderBookPrev, true);
                                 processor.updateOrderBooks(orderBookPrev);
                             }

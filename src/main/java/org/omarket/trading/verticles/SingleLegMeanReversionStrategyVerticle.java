@@ -4,17 +4,15 @@ import com.jimmoores.quandl.DataSetRequest;
 import com.jimmoores.quandl.QuandlSession;
 import com.jimmoores.quandl.Row;
 import com.jimmoores.quandl.TabularResult;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
-import org.omarket.trading.OrderBookLevelOneImmutable;
+import org.omarket.trading.quote.Quote;
 import org.threeten.bp.LocalDate;
 
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.sqrt;
 
@@ -64,13 +62,14 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
      * @param isBacktest
      */
     @Override
-    public void processOrderBook(OrderBookLevelOneImmutable orderBook, boolean isBacktest) {
+    public void processOrderBook(Quote orderBook, boolean isBacktest) {
         BigDecimal midPrice = orderBook.getBestBidPrice().add(orderBook.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());
         message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
         logger.info("emitting: " + message);
-        List<OrderBookLevelOneImmutable> pastOrderBooks = this.getPastOrderBooks();
+        List<Quote> pastOrderBooks = this.getPastOrderBooks();
+        logger.info("length of past order books: " + pastOrderBooks.size());
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }
 
