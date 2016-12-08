@@ -1,7 +1,7 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.eventbus.Message;
+import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;

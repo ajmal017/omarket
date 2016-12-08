@@ -1,17 +1,18 @@
 package org.omarket.trading.verticles;
 
 import com.ib.client.*;
-import io.vertx.core.AbstractVerticle;
+import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.eventbus.Message;
+import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
-import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.Message;
-import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
+import org.omarket.trading.ibrokers.*;
+import rx.*;
+import rx.Observable;
 
 import java.io.*;
 import java.nio.file.FileSystems;
@@ -45,40 +46,6 @@ public class MarketDataVerticle extends AbstractVerticle {
         return subscribedProducts.keySet();
     }
 
-    static private IBrokersMarketDataCallback ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, EventBus eventBus, Path storageDirPath) {
-        final EReaderSignal readerSignal = new EJavaSignal();
-        final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(eventBus, storageDirPath);
-        final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
-        ewrapper.setClient(clientSocket);
-        clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
-        if(!clientSocket.isConnected()){
-            logger.error("failed to connect to IBrokers client");
-        } else {
-            /*
-            Launching IBrokers client thread
-             */
-            new Thread() {
-                public void run() {
-                    EReader reader = new EReader(clientSocket, readerSignal);
-                    reader.start();
-                    while (clientSocket.isConnected()) {
-                        readerSignal.waitForSignal();
-                        try {
-                            logger.debug("IBrokers thread waiting for signal");
-                            reader.processMsgs();
-                        } catch (Exception e) {
-                            logger.error("Exception", e);
-                        }
-                    }
-                    if (clientSocket.isConnected()) {
-                        clientSocket.eDisconnect();
-                    }
-                }
-            }.start();
-        }
-        return ewrapper;
-    }
-
     public void start() throws Exception {
         logger.info("starting market data");
         String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
@@ -90,7 +57,8 @@ public class MarketDataVerticle extends AbstractVerticle {
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
 
         vertx.executeBlocking(future -> {
-            ibrokers_client = ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, vertx.eventBus(), storageDirPath);
+            final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
+            org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, ewrapper);
             logger.info("starting market data verticle");
             processContractRetrieve(vertx);
             processSubscribeTick(vertx);
@@ -108,8 +76,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     private static void processSubscribeTick(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_SUBSCRIBE_TICK);
-        consumer.handler(message -> {
+        Observable<Message<JsonObject>> consumer = vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
+        consumer.subscribe(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
             String status = "failed";
@@ -137,8 +105,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     private static void processUnsubscribeTick(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_UNSUBSCRIBE_TICK);
-        consumer.handler(message -> {
+        Observable<Message<JsonObject>> consumer = vertx.eventBus().<JsonObject>consumer(ADDRESS_UNSUBSCRIBE_TICK).toObservable();
+        consumer.subscribe(message -> {
             final JsonObject contract = message.body();
             logger.info("received unsubscription request for: " + contract);
             String status = "failed";
@@ -156,8 +124,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     public static void processContractRetrieve(Vertx vertx) {
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
-        consumer.handler(message -> {
+        Observable<Message<JsonObject>> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_CONTRACT_RETRIEVE).toObservable();
+        contractStream.subscribe(message -> {
             final JsonObject body = message.body();
             logger.info("received: " + body);
             int productCode = Integer.parseInt(body.getString("conId"));
@@ -168,8 +136,8 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     private static void processAdminCommand(Vertx vertx) {
-        MessageConsumer<String> consumer = vertx.eventBus().consumer(ADDRESS_ADMIN_COMMAND);
-        consumer.handler(message -> {
+        Observable<Message<String>> consumer = vertx.eventBus().<String>consumer(ADDRESS_ADMIN_COMMAND).toObservable();
+        consumer.subscribe(message -> {
             final String commandLine = message.body();
             String[] fields = commandLine.split("\\s+");
             String command = fields[0];
