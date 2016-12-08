@@ -1,3 +1,4 @@
+Remove Backtest mode: replace by request to BacktestVerticle
 FakeMarketDataVerticle instead of paused replay
 Web UI: AngularJS + plotly?
 One Tab / Strategy

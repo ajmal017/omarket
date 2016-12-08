@@ -13,6 +13,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.ibrokers.*;
 import rx.*;
 import rx.Observable;
+import rx.Observer;
 
 import java.io.*;
 import java.nio.file.FileSystems;

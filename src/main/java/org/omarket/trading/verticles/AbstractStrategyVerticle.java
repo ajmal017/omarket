@@ -1,6 +1,8 @@
 package org.omarket.trading.verticles;
 
+import io.vertx.core.Handler;
 import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.Future;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -76,15 +78,18 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     @Override
     public void start() {
-        vertx.executeBlocking(future -> {
-            try {
-                JsonArray array = new JsonArray();
-                getParameters().put(PARAM_PAST_QUOTES, array);
-                init(getLookBackPeriod());
-                future.complete();
-            } catch (Exception e) {
-                logger.error("failed to initialize strategy", e);
-                future.fail(e);
+        vertx.executeBlocking(new Handler<Future<Object>>() {
+            @Override
+            public void handle(Future<Object> future) {
+                try {
+                    JsonArray array = new JsonArray();
+                    AbstractStrategyVerticle.this.getParameters().put(PARAM_PAST_QUOTES, array);
+                    AbstractStrategyVerticle.this.init(AbstractStrategyVerticle.this.getLookBackPeriod());
+                    future.complete();
+                } catch (Exception e) {
+                    logger.error("failed to initialize strategy", e);
+                    future.fail(e);
+                }
             }
         }, completed -> {
             logger.info("initialized strategy");

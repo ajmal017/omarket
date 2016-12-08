@@ -1,10 +1,13 @@
 package org.omarket.trading;
 
-import io.vertx.core.*;
-import io.vertx.core.eventbus.MessageConsumer;
+import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.RxHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
 
 class TestVerticle extends AbstractVerticle {
     final Logger logger = LoggerFactory.getLogger(TestVerticle.class.getName());
@@ -24,23 +27,21 @@ class TestVerticle extends AbstractVerticle {
         logger.info("started test verticle");
     }
 }
+
 public class VertxMain {
     private final static Logger logger = LoggerFactory.getLogger(VertxMain.class);
 
     public static void main(String[] args) throws InterruptedException {
         Vertx vertx = Vertx.vertx();
         logger.info("deploying test verticle");
-        Handler<AsyncResult<String>> completionHandler = result -> {
-            System.out.println("done");
-            if (result.succeeded()) {
-                logger.info("contract details deployment result: " + result.result());
-            } else {
-                logger.error("failed to deploy: " + result);
-            }
-        };
         TestVerticle testVerticle = new TestVerticle();
-        vertx.deployVerticle(testVerticle, completionHandler);
-
-        logger.info("deployment completed");
+        Observable<String> deployment = RxHelper.deployVerticle(vertx, testVerticle);
+        deployment.subscribe(id -> {
+            // Deployed
+            logger.info("deployment completed: " + id);
+        }, err -> {
+            // Could not deploy
+            logger.error("failed to deploy: " + err);
+        });
     }
 }
