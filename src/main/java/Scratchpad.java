@@ -1,33 +1,29 @@
-import io.reactivex.Observable;
-import io.reactivex.functions.BiFunction;
-import io.reactivex.functions.Function;
-import io.reactivex.schedulers.Schedulers;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.functions.Func1;
+import rx.Observable;
+import rx.schedulers.Schedulers;
 
 import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.ResolverStyle;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static io.reactivex.Observable.combineLatest;
-import static io.reactivex.Observable.merge;
 import static java.lang.Thread.sleep;
 
-class RandomWalk implements Function<Boolean, Double> {
+class RandomWalk implements Func1<Boolean, Double> {
     private final static Logger logger = LoggerFactory.getLogger(RandomWalk.class);
     private final Double step;
     private Double state = 0.;
 
-    public RandomWalk(Double initial, Double step) {
+    RandomWalk(Double initial, Double step) {
         this.step = step;
         this.state = initial;
     }
 
     @Override
-    public Double apply(Boolean upOrDown) throws Exception {
+    public Double call(Boolean upOrDown) {
         if(upOrDown){
             logger.info("up one tick");
         } else {
@@ -36,16 +32,17 @@ class RandomWalk implements Function<Boolean, Double> {
         state = upOrDown? state + step: state - step;
         return state;
     }
+
 }
 
-class Hysteresis implements Function<Double, Double> {
+class Hysteresis implements Func1<Double, Double> {
     private final Double outputLow;
     private final Double outputHigh;
     private final Double thresholdLow;
     private final Double thresholdHigh;
     private Double state;
 
-    public Hysteresis(Double outputLow, Double outputHigh, Double thresholdLow, Double thresholdHigh) {
+    Hysteresis(Double outputLow, Double outputHigh, Double thresholdLow, Double thresholdHigh) {
         this.outputLow = outputLow;
         this.outputHigh = outputHigh;
         this.thresholdLow = thresholdLow;
@@ -54,7 +51,7 @@ class Hysteresis implements Function<Double, Double> {
     }
 
     @Override
-    public Double apply(Double value) throws Exception {
+    public Double call(Double value) {
         if(value >= thresholdHigh){
             state = outputHigh;
         } else if (value <= thresholdLow){
@@ -67,13 +64,13 @@ class Hysteresis implements Function<Double, Double> {
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main2(String[] args) throws InterruptedException {
         DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
         String value = "2016-11-14 10:53:59.260";
         System.out.println(LocalDateTime.parse(value, DATE_FORMAT));
     }
 
-    public static void main2(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException {
         Observable<Long> clock = Observable.interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
         final Random random = new Random();
