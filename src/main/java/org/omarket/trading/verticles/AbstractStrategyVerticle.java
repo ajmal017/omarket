@@ -49,23 +49,28 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
      */
     abstract protected void init(Integer lookbackPeriod);
 
-    public void updateQuotes(Quote quote) throws ParseException {
-        List<JsonObject> quotes = this.getParameters().getJsonArray(PARAM_PAST_QUOTES).getList();
-        if (quotes.size() > 0) {
-            Quote firstQuote = QuoteConverter.fromJSON(quotes.get(0));
-            Quote lastQuote = QuoteConverter.fromJSON(quotes.get(quotes.size() - 1));
-            logger.info("quotes range before update: " + firstQuote.getLastModified() + " / " + lastQuote.getLastModified());
-        }
-        ZonedDateTime lastModified = quote.getLastModified();
-        ZonedDateTime expiry = lastModified.minus(getLookBackPeriod(), ChronoUnit.MILLIS);
-        this.getParameters().put(PARAM_PAST_QUOTES, new JsonArray());
-        for (JsonObject currentQuoteJson : quotes) {
-            Quote currentQuote = QuoteConverter.fromJSON(currentQuoteJson);
-            if (currentQuote.getLastModified().isAfter(expiry)) {
-                this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(currentQuote));
+    public void updateQuotes(Quote quote) {
+        try {
+            List<JsonObject> quotes = this.getParameters().getJsonArray(PARAM_PAST_QUOTES).getList();
+            if (quotes.size() > 0) {
+                Quote firstQuote = QuoteConverter.fromJSON(quotes.get(0));
+                Quote lastQuote = QuoteConverter.fromJSON(quotes.get(quotes.size() - 1));
+                logger.info("quotes range before update: " + firstQuote.getLastModified() + " / " + lastQuote.getLastModified());
             }
+            ZonedDateTime lastModified = quote.getLastModified();
+            ZonedDateTime expiry = lastModified.minus(getLookBackPeriod(), ChronoUnit.MILLIS);
+            this.getParameters().put(PARAM_PAST_QUOTES, new JsonArray());
+            for (JsonObject currentQuoteJson : quotes) {
+                Quote currentQuote = QuoteConverter.fromJSON(currentQuoteJson);
+                if (currentQuote.getLastModified().isAfter(expiry)) {
+                    this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(currentQuote));
+                }
+            }
+            this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(quote));
+            logger.info("updated quote: " + quote);
+        } catch (ParseException e) {
+            logger.error("unable to update quote", e);
         }
-        this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(quote));
     }
 
     protected JsonObject getParameters() {
@@ -129,17 +134,12 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                                     consumer.toObservable().subscribe(message -> {
                                         try {
                                             quote = QuoteConverter.fromJSON(message.body());
-                                            logger.info("updated quote: " + quote);
                                             if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
                                                 return;
                                             }
                                             logger.info("processing order book: " + quote);
                                             processQuote(quote, false);
-                                            try {
-                                                updateQuotes(quote);
-                                            } catch (ParseException e) {
-                                                logger.error("unable to update quotes", e);
-                                            }
+                                            updateQuotes(quote);
                                         } catch (ParseException e) {
                                             logger.error("failed to parse tick data for contract " + contract, e);
                                         }
