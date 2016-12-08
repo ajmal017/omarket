@@ -1,5 +1,6 @@
 package org.omarket.trading.verticles;
 
+import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
@@ -30,15 +31,16 @@ public class DummyStrategyVerticle extends AbstractVerticle {
         Integer[] ibCodes = {productCopperETF, productOilETF};
 
         for (Integer ibCode : ibCodes) {
-            MarketDataVerticle.subscribeProduct(vertx, ibCode, reply -> {
-                if (reply.succeeded()) {
+            ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.subscribeProduct(vertx, ibCode);
+            observable.subscribe(
+                    message -> {
                     logger.info("subscribed to:" + ibCode);
-                    JsonObject contractDetails = reply.result().body();
+                    JsonObject contractDetails = message.body();
                     contracts.put(ibCode, contractDetails);
-                } else {
+                }, failure-> {
                     logger.error("failed to subscribe to: " + ibCode);
                 }
-            });
+            );
             String channelProduct = createChannelQuote(ibCode);
             vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> orderBookReceived(ibCode, message.body()));
         }

@@ -6,25 +6,18 @@ import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
-import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.ibrokers.*;
-import org.omarket.trading.quote.QuoteConverter;
-import rx.*;
 import rx.Observable;
-import rx.Observer;
 
 import java.io.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.text.ParseException;
 import java.util.*;
-
-import static org.omarket.trading.MarketData.createChannelQuote;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -169,72 +162,12 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void subscribeProduct(Vertx vertx, Integer ibCode, Handler<AsyncResult<Message<JsonObject>>> replyHandler) {
+    public static ObservableFuture<Message<JsonObject>> subscribeProduct(Vertx vertx, Integer ibCode) {
         JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
-        /*
         ObservableFuture<Message<JsonObject>> observable = RxHelper.observableFuture();
-        observable.subscribe(
-                result -> {
-                    JsonObject contract = result.body();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
-                                logger.info("subscription result: " + mktDataReply.result());
-
-                        logger.info("subscription succeeded for product: " + ibCode);
-                        contracts.put(ibCode, contract);
-
-                        // forwards quotes to strategy processor
-                        final String channelProduct = createChannelQuote(ibCode);
-                        MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(channelProduct);
-                        consumer.toObservable().subscribe(message -> {
-                            try {
-                                quote = QuoteConverter.fromJSON(message.body());
-                                logger.info("updated quote: " + quote);
-                                if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
-                                    return;
-                                }
-                                logger.info("processing order book: " + quote);
-                                AbstractStrategyVerticle.this.processQuote(quote, false);
-                                try {
-                                    AbstractStrategyVerticle.this.updateQuotes(quote);
-                                } catch (ParseException e) {
-                                    logger.error("unable to update quotes", e);
-                                }
-                            } catch (ParseException e) {
-                                logger.error("failed to parse tick data for contract " + contract, e);
-                            }
-                        });
-                    });
-                },
-                failure -> {
-                    logger.error("failed to retrieve contract details: ", failure);
-                }
-        );
-
-        logger.info("subscription received for product: " + ibCode);
-        if (subscribeProductResult.succeeded()) {
-
-        } else {
-            logger.error("failed to subscribe to: " + ibCode);
-        }
+        logger.info("requesting subscription for product: " + ibCode);
         vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, observable.toHandler());
-        */
-
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, new Handler<AsyncResult<Message<JsonObject>>>() {
-            @Override
-            public void handle(AsyncResult<Message<JsonObject>> reply) {
-                if (reply.succeeded()) {
-                    JsonObject contractDetails = reply.result().body();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractDetails, mktDataReply -> {
-                        logger.info("subscription result: " + mktDataReply.result());
-                    });
-                } else {
-                    logger.error("failed to retrieve contract details: ", reply.cause());
-                }
-                if (replyHandler != null) {
-                    replyHandler.handle(reply);
-                }
-            }
-        });
+        return observable;
     }
 
     public static void adminCommand(Vertx vertx, String commandLine) {
