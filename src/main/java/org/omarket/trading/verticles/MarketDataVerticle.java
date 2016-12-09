@@ -102,6 +102,7 @@ public class MarketDataVerticle extends AbstractVerticle {
             final JsonObject reply = new JsonObject().put("status", status);
             message.reply(reply);
         });
+        logger.info("quotes subscription service deployed");
     }
 
     private static void processUnsubscribeTick(Vertx vertx) {

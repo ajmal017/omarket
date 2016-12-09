@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonArray;
@@ -30,7 +31,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
 
 
     @SuppressWarnings("unchecked")
-    public void start() throws Exception {
+    public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
@@ -60,6 +61,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
             }
         }, completed -> {
             if(completed.succeeded()) {
+                startFuture.complete();
                 vertx.setPeriodic(1000, id -> {
                     if(quotes.size() > 0) {
                         Quote quote = quotes.remove();
@@ -71,6 +73,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
                     }
                 });
             } else {
+                startFuture.fail("failed to load order books: skipping");
                 logger.error("failed to load order books: skipping");
             }
         }
