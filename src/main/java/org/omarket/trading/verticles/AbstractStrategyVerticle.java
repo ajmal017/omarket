@@ -13,6 +13,7 @@ import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
+import rx.functions.Action1;
 
 import java.text.ParseException;
 import java.time.ZonedDateTime;
@@ -121,31 +122,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 }, result -> {
                     logger.info("processing realtime quotes for " + ibCode);
                     // now processing realtime quotes
-                    ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.subscribeProduct(vertx, ibCode);
-                    observable.subscribe(contractMessage -> {
-                                JsonObject contract = contractMessage.body();
-                                vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
-                                    logger.info("subscription succeeded for product: " + ibCode);
-                                    contracts.put(ibCode, contract);
-
-                                    // forwards quotes to strategy processor
-                                    final String channelProduct = createChannelQuote(ibCode);
-                                    MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(channelProduct);
-                                    consumer.toObservable().subscribe(message -> {
-                                        try {
-                                            quote = QuoteConverter.fromJSON(message.body());
-                                            if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
-                                                return;
-                                            }
-                                            logger.info("processing order book: " + quote);
-                                            processQuote(quote, false);
-                                            updateQuotes(quote);
-                                        } catch (ParseException e) {
-                                            logger.error("failed to parse tick data for contract " + contract, e);
-                                        }
-                                    });
-                                });
-                            },
+                    ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.retrieveProduct(vertx, ibCode);
+                    observable.subscribe(new QuotesProcessor(ibCode),
                             failure -> {
                                 logger.error("failed to retrieve contract details: ", failure);
                             }
@@ -155,5 +133,38 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         });
     }
 
+    private class QuotesProcessor implements Action1<Message<JsonObject>> {
+        private final Integer ibCode;
+
+        QuotesProcessor(Integer ibCode) {
+            this.ibCode = ibCode;
+        }
+
+        @Override
+        public void call(Message<JsonObject> contractMessage) {
+            JsonObject contract = contractMessage.body();
+            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
+                logger.info("subscription succeeded for product: " + ibCode);
+                contracts.put(ibCode, contract);
+
+                // forwards quotes to strategy processor
+                final String channelProduct = createChannelQuote(ibCode);
+                MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(channelProduct);
+                consumer.toObservable().subscribe(message -> {
+                    try {
+                        quote = QuoteConverter.fromJSON(message.body());
+                        if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
+                            return;
+                        }
+                        logger.info("processing order book: " + quote);
+                        AbstractStrategyVerticle.this.processQuote(quote, false);
+                        AbstractStrategyVerticle.this.updateQuotes(quote);
+                    } catch (ParseException e) {
+                        logger.error("failed to parse tick data for contract " + contract, e);
+                    }
+                });
+            });
+        }
+    }
 }
 
