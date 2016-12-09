@@ -97,41 +97,6 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         initStream.subscribe(new BacktestProcessor());
     }
 
-    private class QuoteProcessor implements Action1<Message<JsonObject>> {
-
-        @Override
-        public void call(Message<JsonObject> message) {
-            try {
-                Quote quote = QuoteConverter.fromJSON(message.body());
-                if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
-                    return;
-                }
-                logger.info("processing order book: " + quote);
-                AbstractStrategyVerticle.this.processQuote(quote, false);
-                AbstractStrategyVerticle.this.updateQuotes(quote);
-            } catch (ParseException e) {
-                logger.error("failed to parse tick data from " + message.body(), e);
-            }
-        }
-    }
-
-    private class SubscriptionRequest implements Action1<Message<JsonObject>> {
-        private final Integer ibCode;
-
-        SubscriptionRequest(Integer ibCode) {
-            this.ibCode = ibCode;
-        }
-
-        @Override
-        public void call(Message<JsonObject> contractMessage) {
-            JsonObject contract = contractMessage.body();
-            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
-                logger.info("subscription succeeded for product: " + ibCode);
-                contracts.put(ibCode, contract);
-            });
-        }
-    }
-
     private class BacktestProcessor implements Action1<Object> {
         @Override
         public void call(Object onNext) {
@@ -165,12 +130,47 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 });
 
                 ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.createContractStream(vertx, ibCode);
-                contractStream.subscribe(new SubscriptionRequest(ibCode),
+                contractStream.subscribe(new RequestSubscription(ibCode),
                         onError -> {
                             logger.error("failed to retrieve contract details: ", onError);
                         }
                 );
             }
+        }
+    }
+
+    private class QuoteProcessor implements Action1<Message<JsonObject>> {
+
+        @Override
+        public void call(Message<JsonObject> message) {
+            try {
+                Quote quote = QuoteConverter.fromJSON(message.body());
+                if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
+                    return;
+                }
+                logger.info("processing order book: " + quote);
+                AbstractStrategyVerticle.this.processQuote(quote, false);
+                AbstractStrategyVerticle.this.updateQuotes(quote);
+            } catch (ParseException e) {
+                logger.error("failed to parse tick data from " + message.body(), e);
+            }
+        }
+    }
+
+    private class RequestSubscription implements Action1<Message<JsonObject>> {
+        private final Integer ibCode;
+
+        RequestSubscription(Integer ibCode) {
+            this.ibCode = ibCode;
+        }
+
+        @Override
+        public void call(Message<JsonObject> contractMessage) {
+            JsonObject contract = contractMessage.body();
+            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
+                logger.info("subscription succeeded for product: " + ibCode);
+                contracts.put(ibCode, contract);
+            });
         }
     }
 }
