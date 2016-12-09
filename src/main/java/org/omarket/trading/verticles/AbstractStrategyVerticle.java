@@ -1,7 +1,10 @@
 package org.omarket.trading.verticles;
 
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.rx.java.ObservableFuture;
+import io.vertx.rx.java.ObservableHandler;
+import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.Future;
 import io.vertx.rxjava.core.eventbus.Message;
@@ -20,6 +23,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+import static io.vertx.rx.java.RxHelper.observableHandler;
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
 
@@ -86,20 +90,18 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     @Override
     public void start() {
-        vertx.executeBlocking(new Handler<Future<Object>>() {
-            @Override
-            public void handle(Future<Object> future) {
-                try {
-                    JsonArray array = new JsonArray();
-                    AbstractStrategyVerticle.this.getParameters().put(PARAM_PAST_QUOTES, array);
-                    AbstractStrategyVerticle.this.init(AbstractStrategyVerticle.this.getLookBackPeriod());
-                    future.complete();
-                } catch (Exception e) {
-                    logger.error("failed to initialize strategy", e);
-                    future.fail(e);
-                }
+        Observable<Object> execStream = vertx.executeBlockingObservable(future -> {
+            try {
+                JsonArray array = new JsonArray();
+                AbstractStrategyVerticle.this.getParameters().put(PARAM_PAST_QUOTES, array);
+                AbstractStrategyVerticle.this.init(AbstractStrategyVerticle.this.getLookBackPeriod());
+                future.complete();
+            } catch (Exception e) {
+                logger.error("failed to initialize strategy", e);
+                future.fail(e);
             }
-        }, completed -> {
+        });
+        execStream.subscribe(onNext -> {
             logger.info("initialized strategy");
             for (Integer ibCode : getIBrokersCodes()) {
                 vertx.executeBlocking(future -> {
@@ -133,7 +135,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     quotesStream.subscribe(new QuoteProcessor());
                 });
             }
-        });
+        }
+        );
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
