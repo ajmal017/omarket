@@ -1,12 +1,7 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
 import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.ObservableHandler;
-import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.Future;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -23,7 +18,6 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-import static io.vertx.rx.java.RxHelper.observableHandler;
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
 
@@ -32,9 +26,8 @@ import static org.omarket.trading.MarketData.createChannelQuote;
  */
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
-    public static final String PARAM_PAST_QUOTES = "pastQuotes";
+    private static final String PARAM_PAST_QUOTES = "pastQuotes";
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
-    private Quote quote;
 
     private JsonObject parameters = new JsonObject();
 
@@ -78,11 +71,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         }
     }
 
-    protected JsonObject getParameters() {
+    JsonObject getParameters() {
         return parameters;
     }
 
-    protected List<Quote> getPastQuotes() {
+    List<Quote> getPastQuotes() {
         JsonArray quotes = getParameters().getJsonArray(PARAM_PAST_QUOTES);
         List<Quote> quotesList = quotes.getList();
         return quotesList;
@@ -90,18 +83,18 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     @Override
     public void start() {
-        Observable<Object> execStream = vertx.executeBlockingObservable(future -> {
+        Observable<Object> initStream = vertx.executeBlockingObservable(future -> {
             try {
                 JsonArray array = new JsonArray();
-                AbstractStrategyVerticle.this.getParameters().put(PARAM_PAST_QUOTES, array);
-                AbstractStrategyVerticle.this.init(AbstractStrategyVerticle.this.getLookBackPeriod());
+                getParameters().put(PARAM_PAST_QUOTES, array);
+                init(getLookBackPeriod());
                 future.complete();
             } catch (Exception e) {
                 logger.error("failed to initialize strategy", e);
                 future.fail(e);
             }
         });
-        execStream.subscribe(new BacktestProcessor());
+        initStream.subscribe(new BacktestProcessor());
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
@@ -109,7 +102,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         @Override
         public void call(Message<JsonObject> message) {
             try {
-                quote = QuoteConverter.fromJSON(message.body());
+                Quote quote = QuoteConverter.fromJSON(message.body());
                 if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
                     return;
                 }
@@ -162,19 +155,21 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                         future.complete();
                     }
                 });
+
                 backtestStream.subscribe(result -> {
                     logger.info("processing realtime quotes for " + ibCode);
-                    ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.retrieveContract(vertx, ibCode);
-                    contractStream.subscribe(new SubscriptionRequest(ibCode),
-                            failure -> {
-                                logger.error("failed to retrieve contract details: ", failure);
-                            }
-                    );
                     // forwards quotes to strategy processor
                     final String channelProduct = createChannelQuote(ibCode);
                     Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
                     quotesStream.subscribe(new QuoteProcessor());
                 });
+
+                ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.retrieveContract(vertx, ibCode);
+                contractStream.subscribe(new SubscriptionRequest(ibCode),
+                        failure -> {
+                            logger.error("failed to retrieve contract details: ", failure);
+                        }
+                );
             }
         }
     }
