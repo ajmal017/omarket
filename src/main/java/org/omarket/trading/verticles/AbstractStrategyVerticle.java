@@ -120,7 +120,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     }
                 }, result -> {
                     logger.info("processing realtime quotes for " + ibCode);
-                    // now launching realtime quotes
+                    // now processing realtime quotes
                     ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.subscribeProduct(vertx, ibCode);
                     observable.subscribe(contractMessage -> {
                                 JsonObject contract = contractMessage.body();
