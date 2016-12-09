@@ -31,7 +31,7 @@ public class DummyStrategyVerticle extends AbstractVerticle {
         Integer[] ibCodes = {productCopperETF, productOilETF};
 
         for (Integer ibCode : ibCodes) {
-            ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.retrieveProduct(vertx, ibCode);
+            ObservableFuture<Message<JsonObject>> observable = MarketDataVerticle.retrieveContract(vertx, ibCode);
             observable.subscribe(
                     message -> {
                     logger.info("subscribed to:" + ibCode);

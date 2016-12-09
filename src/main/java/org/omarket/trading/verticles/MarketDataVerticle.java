@@ -163,7 +163,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static ObservableFuture<Message<JsonObject>> retrieveProduct(Vertx vertx, Integer ibCode) {
+    public static ObservableFuture<Message<JsonObject>> retrieveContract(Vertx vertx, Integer ibCode) {
         JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
         ObservableFuture<Message<JsonObject>> observable = RxHelper.observableFuture();
         logger.info("requesting subscription for product: " + ibCode);
