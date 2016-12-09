@@ -163,12 +163,12 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static ObservableFuture<Message<JsonObject>> retrieveContract(Vertx vertx, Integer ibCode) {
+    public static ObservableFuture<Message<JsonObject>> createContractStream(Vertx vertx, Integer ibCode) {
         JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
-        ObservableFuture<Message<JsonObject>> observable = RxHelper.observableFuture();
+        ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
         logger.info("requesting subscription for product: " + ibCode);
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, observable.toHandler());
-        return observable;
+        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
+        return contractStream;
     }
 
     public static void adminCommand(Vertx vertx, String commandLine) {

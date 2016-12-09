@@ -77,7 +77,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     List<Quote> getPastQuotes() {
         JsonArray quotes = getParameters().getJsonArray(PARAM_PAST_QUOTES);
-        List<Quote> quotesList = quotes.getList();
+        List<Quote> quotesList = (List<Quote>)quotes.getList();
         return quotesList;
     }
 
@@ -164,10 +164,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     quotesStream.subscribe(new QuoteProcessor());
                 });
 
-                ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.retrieveContract(vertx, ibCode);
+                ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.createContractStream(vertx, ibCode);
                 contractStream.subscribe(new SubscriptionRequest(ibCode),
-                        failure -> {
-                            logger.error("failed to retrieve contract details: ", failure);
+                        onError -> {
+                            logger.error("failed to retrieve contract details: ", onError);
                         }
                 );
             }
