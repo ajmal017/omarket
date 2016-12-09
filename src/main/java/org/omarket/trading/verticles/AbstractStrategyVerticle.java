@@ -101,42 +101,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 future.fail(e);
             }
         });
-        execStream.subscribe(onNext -> {
-            logger.info("initialized strategy");
-            for (Integer ibCode : getIBrokersCodes()) {
-                vertx.executeBlocking(future -> {
-                    boolean runBacktest = config().getBoolean("runBacktestFlag", true);
-                    if (runBacktest) {
-                        logger.info("executing backtest");
-                        JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
-                        List<String> dirs = storageDirs.getList();
-                        try {
-                            MarketData.processBacktest(dirs, ibCode, this);
-                            future.complete();
-                        } catch (Exception e) {
-                            logger.error("backtest failed", e);
-                            future.fail(e);
-                        }
-                    } else {
-                        logger.info("skipping backtest");
-                        future.complete();
-                    }
-                }, result -> {
-                    logger.info("processing realtime quotes for " + ibCode);
-                    ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.retrieveContract(vertx, ibCode);
-                    contractStream.subscribe(new SubscriptionRequest(ibCode),
-                            failure -> {
-                                logger.error("failed to retrieve contract details: ", failure);
-                            }
-                    );
-                    // forwards quotes to strategy processor
-                    final String channelProduct = createChannelQuote(ibCode);
-                    Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
-                    quotesStream.subscribe(new QuoteProcessor());
-                });
-            }
-        }
-        );
+        execStream.subscribe(new BacktestProcessor());
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
@@ -171,6 +136,46 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 logger.info("subscription succeeded for product: " + ibCode);
                 contracts.put(ibCode, contract);
             });
+        }
+    }
+
+    private class BacktestProcessor implements Action1<Object> {
+        @Override
+        public void call(Object onNext) {
+            logger.info("initialized strategy");
+            for (Integer ibCode : AbstractStrategyVerticle.this.getIBrokersCodes()) {
+                Observable<Object> backtestStream = vertx.executeBlockingObservable(future -> {
+                    boolean runBacktest = AbstractStrategyVerticle.this.config().getBoolean("runBacktestFlag", true);
+                    if (runBacktest) {
+                        logger.info("executing backtest");
+                        JsonArray storageDirs = AbstractStrategyVerticle.this.config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
+                        List<String> dirs = storageDirs.getList();
+                        try {
+                            MarketData.processBacktest(dirs, ibCode, AbstractStrategyVerticle.this);
+                            future.complete();
+                        } catch (Exception e) {
+                            logger.error("backtest failed", e);
+                            future.fail(e);
+                        }
+                    } else {
+                        logger.info("skipping backtest");
+                        future.complete();
+                    }
+                });
+                backtestStream.subscribe(result -> {
+                    logger.info("processing realtime quotes for " + ibCode);
+                    ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.retrieveContract(vertx, ibCode);
+                    contractStream.subscribe(new SubscriptionRequest(ibCode),
+                            failure -> {
+                                logger.error("failed to retrieve contract details: ", failure);
+                            }
+                    );
+                    // forwards quotes to strategy processor
+                    final String channelProduct = createChannelQuote(ibCode);
+                    Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
+                    quotesStream.subscribe(new QuoteProcessor());
+                });
+            }
         }
     }
 }
