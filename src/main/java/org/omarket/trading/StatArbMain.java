@@ -1,14 +1,14 @@
 package org.omarket.trading;
 
-import io.vertx.core.AsyncResult;
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
+import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.RxHelper;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.omarket.trading.verticles.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
 
 import java.util.Arrays;
 
@@ -33,23 +33,17 @@ public class StatArbMain {
 
         final Vertx vertx = Vertx.vertx();
 
-        final Handler<AsyncResult<String>> marketDataCompletionHandler = result -> {
-            if (result.succeeded()) {
-                //
-                // Main code - begin
-                //
-                vertx.deployVerticle(SingleLegMeanReversionStrategyVerticle.class.getName(), options);
-                //
-                // Main code - end
-                //
-            } else {
-                logger.error("failed to deploy", result.cause());
-            }
-        };
-        vertx.deployVerticle(FakeMarketDataVerticle.class.getName(), options, marketDataCompletionHandler);
-        //vertx.deployVerticle(MonitorVerticle.class.getName(), options);
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new FakeMarketDataVerticle(), options);
 
-        logger.info("deployment completed");
-
+        marketDataDeployment.take(1).map(marketDataId -> {
+            logger.info("market data verticle deployed as " + marketDataId);
+            return RxHelper.deployVerticle(vertx, new SingleLegMeanReversionStrategyVerticle(), options);
+        }).doOnNext(strategyId -> {
+            logger.info("strategy verticle deployed as " + strategyId);
+        }).subscribe(onNext -> {
+            logger.info("all verticles deployed");
+        }, onError -> {
+            logger.error("failed deploying verticles", onError);
+        });
     }
 }

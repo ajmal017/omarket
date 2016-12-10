@@ -1,6 +1,7 @@
 package org.omarket.trading.verticles;
 
 import com.ib.client.*;
+import io.vertx.core.Future;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
@@ -46,7 +47,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return subscribedProducts.keySet();
     }
 
-    public void start() throws Exception {
+    public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
         String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
@@ -68,8 +69,10 @@ public class MarketDataVerticle extends AbstractVerticle {
         }, result -> {
             if (result.succeeded()) {
                 logger.info("started market data verticle");
+                startFuture.complete();
             } else {
                 logger.info("failed to start market data verticle");
+                startFuture.fail("failed to start market data verticle");
             }
         }
         );

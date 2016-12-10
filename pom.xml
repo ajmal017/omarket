@@ -8,30 +8,31 @@
 
     <properties>
         <slf4jVersion>1.6.1</slf4jVersion>
+        <vertxVersion>3.3.3</vertxVersion>
     </properties>
 
-    <version>3.3.3</version>
+    <version>1.0</version>
     <dependencies>
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>
-            <version>${project.version}</version>
+            <version>${vertxVersion}</version>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-web</artifactId>
-            <version>${project.version}</version>
+            <version>${vertxVersion}</version>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-unit</artifactId>
-            <version>${project.version}</version>
+            <version>${vertxVersion}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-rx-java</artifactId>
-            <version>${project.version}</version>
+            <version>${vertxVersion}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
