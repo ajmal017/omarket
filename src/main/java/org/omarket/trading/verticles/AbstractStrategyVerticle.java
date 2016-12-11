@@ -9,6 +9,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import javafx.util.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
@@ -111,20 +112,15 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 })
                 .zipWith(Observable.from(getIBrokersCodes()), (contractMessage, ibCode) -> {
                     JsonObject contract = contractMessage.body();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
-                        logger.info("subscription succeeded for product: " + ibCode);
-                        contracts.put(ibCode, contract);
-                        logger.info("processing realtime quotes for " + ibCode);
-                        // forwards quotes to strategy processor
-                        final String channelProduct = createChannelQuote(ibCode);
-                        Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
-                        quotesStream.subscribe(new QuoteProcessor());
-                    });
-                    logger.info("test1 " + contract);
-                    logger.info("test2 " + ibCode);
-                    return null;
+                    contracts.put(ibCode, contract);
+                    final String channelProduct = createChannelQuote(ibCode);
+                    return vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
                 })
-                .subscribe();
+                .flatMap(quote -> {
+                    logger.info("flatmap: " + quote);
+                    return quote;
+                })
+                .subscribe(new QuoteProcessor());
     }
 
     private class BacktestProcessor implements Action1<Object> {
@@ -171,21 +167,5 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         }
     }
 
-    private class RequestSubscription implements Action1<Message<JsonObject>> {
-        private final Integer ibCode;
-
-        RequestSubscription(Integer ibCode) {
-            this.ibCode = ibCode;
-        }
-
-        @Override
-        public void call(Message<JsonObject> contractMessage) {
-            JsonObject contract = contractMessage.body();
-            vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
-                logger.info("subscription succeeded for product: " + ibCode);
-                contracts.put(ibCode, contract);
-            });
-        }
-    }
 }
 

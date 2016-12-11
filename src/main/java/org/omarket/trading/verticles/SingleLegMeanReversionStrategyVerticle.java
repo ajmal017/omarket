@@ -22,7 +22,8 @@ import static java.lang.Math.sqrt;
 public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
     private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
     final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.singleLeg";
-    private final static Integer IB_CODE = 12087817;
+    private final static Integer IB_CODE_EUR_CHF = 12087817;
+    private final static Integer IB_CODE_USD_CHF = 12087820;
 
     private static DataFrame<Double> loadQuandlInstrument(String quandlCode, int samples) {
         DataFrame<Double> dataFrame = null;
@@ -47,7 +48,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
 
     @Override
     protected Integer[] getIBrokersCodes(){
-        return new Integer[]{IB_CODE};
+        return new Integer[]{IB_CODE_EUR_CHF, IB_CODE_USD_CHF};
     }
 
     @Override

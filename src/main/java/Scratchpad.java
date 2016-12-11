@@ -1,4 +1,5 @@
 
+import javafx.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
@@ -70,7 +71,7 @@ public class Scratchpad {
         System.out.println(LocalDateTime.parse(value, DATE_FORMAT));
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main3(String[] args) throws InterruptedException {
         Observable<Long> clock = Observable.interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
         final Random random = new Random();
@@ -96,6 +97,20 @@ public class Scratchpad {
             logger.info("filtered value = " + value);
         });
         sleep(10000);
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Double[] numbers = new Double[]{1.0, 2.0, 3.0};
+        String[] letters = new String[]{"a", "b", "c", "d"};
+        Observable<Double> stream1 = Observable.from(numbers);
+        Observable<String> stream2 = Observable.from(letters);
+        stream2.zipWith(stream1, (x, y) ->{
+            return new Pair<String, Double>(x, y);
+        }).flatMap(x -> {
+            return Observable.just(new Pair<String, Double>(x.getKey(), x.getValue() * 2.0));
+        }).subscribe(x -> {
+            logger.info("result: " + x);
+        });
     }
 
 }
