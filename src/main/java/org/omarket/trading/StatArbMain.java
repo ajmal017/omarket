@@ -35,12 +35,16 @@ public class StatArbMain {
 
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new FakeMarketDataVerticle(), options);
 
-        marketDataDeployment.take(1).map(marketDataId -> {
-            logger.info("market data verticle deployed as " + marketDataId);
-            return RxHelper.deployVerticle(vertx, new SingleLegMeanReversionStrategyVerticle(), options);
-        }).doOnNext(strategyId -> {
-            logger.info("strategy verticle deployed as " + strategyId);
-        }).subscribe(onNext -> {
+        marketDataDeployment
+                .take(1)
+                .map(marketDataId -> {
+                    logger.info("market data verticle deployed as " + marketDataId);
+                    return RxHelper.deployVerticle(vertx, new SingleLegMeanReversionStrategyVerticle(), options);
+                })
+                .flatMap(strategyId -> strategyId)
+                .doOnNext(strategyId -> {
+                    logger.info("strategy verticle deployed as " + strategyId);
+                }).subscribe(onNext -> {
             logger.info("all verticles deployed");
         }, onError -> {
             logger.error("failed deploying verticles", onError);

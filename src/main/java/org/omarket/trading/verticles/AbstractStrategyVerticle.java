@@ -8,6 +8,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import javafx.util.Pair;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
@@ -21,7 +22,6 @@ import java.util.*;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
-import static rx.Observable.from;
 
 /**
  * Created by Christophe on 18/11/2016.
@@ -98,31 +98,31 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         });
         Observable<Integer> ibCodes = initStream
                 .doOnNext(new BacktestProcessor())
-                .ignoreElements() // waits for backtest to complete
+                .ignoreElements()  // waits for backtest to complete
                 .concatWith(Observable.from(getIBrokersCodes()));
-        /*
-        JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
-        ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
-        logger.info("requesting subscription for product: " + ibCode);
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
-        */
+
         ibCodes
-                .map(ibCode -> {
-                    ObservableFuture<Message<JsonObject>> contractStream = MarketDataVerticle.createContractStream(vertx, (Integer) ibCode);
-                    contractStream.subscribe(new RequestSubscription((Integer) ibCode),
-                            onError -> {
-                                logger.error("failed to retrieve contract details: ", onError);
-                            }
-                    );
-                    return ibCode;
+                .flatMap(ibCode -> {
+                    JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
+                    ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
+                    logger.info("requesting subscription for product: " + ibCode);
+                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
+                    return contractStream;
                 })
-                .map(ibCode -> {
-                    logger.info("processing realtime quotes for " + ibCode);
-                    // forwards quotes to strategy processor
-                    final String channelProduct = createChannelQuote((Integer) ibCode);
-                    Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
-                    quotesStream.subscribe(new QuoteProcessor());
-                    return ibCode;
+                .zipWith(Observable.from(getIBrokersCodes()), (contractMessage, ibCode) -> {
+                    JsonObject contract = contractMessage.body();
+                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, mktDataReply -> {
+                        logger.info("subscription succeeded for product: " + ibCode);
+                        contracts.put(ibCode, contract);
+                        logger.info("processing realtime quotes for " + ibCode);
+                        // forwards quotes to strategy processor
+                        final String channelProduct = createChannelQuote(ibCode);
+                        Observable<Message<JsonObject>> quotesStream = vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
+                        quotesStream.subscribe(new QuoteProcessor());
+                    });
+                    logger.info("test1 " + contract);
+                    logger.info("test2 " + ibCode);
+                    return null;
                 })
                 .subscribe();
     }
@@ -132,10 +132,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         public void call(Object onNext) {
             boolean runBacktest = config().getBoolean("runBacktestFlag", true);
             if (runBacktest) {
-                for (Integer ibCode : AbstractStrategyVerticle.this.getIBrokersCodes()) {
+                for (Integer ibCode : getIBrokersCodes()) {
                     Observable<Object> backtestStream = vertx.executeBlockingObservable(future -> {
                         logger.info("executing backtest");
-                        JsonArray storageDirs = AbstractStrategyVerticle.this.config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
+                        JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
                         List<String> dirs = storageDirs.getList();
                         try {
                             MarketData.processBacktest(dirs, ibCode, AbstractStrategyVerticle.this);
@@ -145,6 +145,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                             future.fail(e);
                         }
                     });
+                    backtestStream.subscribe();
                 }
             } else {
                 logger.info("skipping backtest");
@@ -158,12 +159,12 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         public void call(Message<JsonObject> message) {
             try {
                 Quote quote = QuoteConverter.fromJSON(message.body());
-                if (contracts.size() != AbstractStrategyVerticle.this.getIBrokersCodes().length || quote == null) {
+                if (contracts.size() != getIBrokersCodes().length || quote == null) {
                     return;
                 }
                 logger.info("processing order book: " + quote);
-                AbstractStrategyVerticle.this.processQuote(quote, false);
-                AbstractStrategyVerticle.this.updateQuotes(quote);
+                processQuote(quote, false);
+                updateQuotes(quote);
             } catch (ParseException e) {
                 logger.error("failed to parse tick data from " + message.body(), e);
             }
