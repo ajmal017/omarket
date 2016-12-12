@@ -15,6 +15,7 @@ import rx.Observable;
 
 import java.io.*;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.*;
@@ -31,7 +32,6 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
-    private static IBrokersMarketDataCallback ibrokers_client;
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     private static String getProductAsString(String ibCode) {
@@ -56,14 +56,12 @@ public class MarketDataVerticle extends AbstractVerticle {
         String ibrokersHost = config().getString("ibrokers.host");
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
-
+        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
         vertx.executeBlocking(future -> {
-                    final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
                     try {
-                        org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, ewrapper);
-                        logger.info("starting market data verticle");
-                        processContractRetrieve(vertx);
-                        processSubscribeTick(vertx);
+                        org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, ibrokersClient);
+                        processContractRetrieve(vertx, ibrokersClient);
+                        processSubscribeTick(vertx, ibrokersClient);
                         processUnsubscribeTick(vertx);
                         processAdminCommand(vertx);
                         future.complete();
@@ -83,32 +81,47 @@ public class MarketDataVerticle extends AbstractVerticle {
         );
     }
 
-    private static void processSubscribeTick(Vertx vertx) {
+    private static void processSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         Observable<Message<JsonObject>> consumer = vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
-            String status = "failed";
             JsonObject contract_json = contractDetails.getJsonObject("m_contract");
-            int productCode = contract_json.getInteger("m_conid");
+            Integer productCode = contract_json.getInteger("m_conid");
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
                 Contract contract = new Contract();
                 contract.conid(productCode);
                 contract.currency(contract_json.getString("m_currency"));
                 contract.exchange(contract_json.getString("m_exchange"));
                 contract.secType(contract_json.getString("m_sectype"));
-                try {
-                    ibrokers_client.subscribe(contract, new BigDecimal(contractDetails.getString("m_minTick")));
-                    subscribedProducts.put(Integer.toString(productCode), contractDetails);
-                    status = "registered";
-                } catch (IOException e) {
-                    logger.error("failed to subscribe product: '" + productCode + "'", e);
-                }
+                vertx.executeBlocking(future -> {
+                    try {
+                        logger.info("subscribing: " + productCode.toString());
+                        Double minTick = contractDetails.getDouble("m_minTick");
+                        ibrokersClient.subscribe(contract, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
+                        subscribedProducts.put(Integer.toString(productCode), contractDetails);
+                        future.complete(productCode);
+                    } catch (Exception e) {
+                        logger.error("failed to subscribe product: '" + productCode.toString() + "'", e);
+                        future.fail(e);
+                    }
+                }, result -> {
+                    logger.info("raw result: " + result.result());
+                    String status = "failed";
+                    if (result.succeeded()) {
+                        logger.info("subscription succeeded for " + productCode.toString());
+                        status = "registered";
+                    } else {
+                        logger.info("subscription failed for " + productCode.toString());
+                    }
+                    final JsonObject reply = new JsonObject().put("status", status);
+                    message.reply(reply);
+                });
             } else {
-                status = "already_registered";
+                logger.info("already registered: " + productCode.toString());
+                final JsonObject reply = new JsonObject().put("status", "already_registered");
+                message.reply(reply);
             }
-            final JsonObject reply = new JsonObject().put("status", status);
-            message.reply(reply);
         });
         logger.info("quotes subscription service deployed");
     }
@@ -132,15 +145,15 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void processContractRetrieve(Vertx vertx) {
+    public static void processContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         Observable<Message<JsonObject>> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_CONTRACT_RETRIEVE).toObservable();
         contractStream.subscribe(message -> {
             final JsonObject body = message.body();
-            logger.info("received: " + body);
+            logger.info("registering contract: " + body);
             int productCode = Integer.parseInt(body.getString("conId"));
             Contract contract = new Contract();
             contract.conid(productCode);
-            ibrokers_client.request(contract, message);
+            ibrokersClient.request(contract, message);
         });
     }
 

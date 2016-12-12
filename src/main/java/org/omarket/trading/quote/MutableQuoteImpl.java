@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Locale;
 
 /**
  * Created by Christophe on 04/11/2016.
@@ -47,7 +46,6 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     @Override
     public boolean updateBestBidPrice(double price) {
-        //BigDecimal newBestBidPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
         BigDecimal newBestBidPrice = BigDecimal.valueOf(Double.valueOf(price / minTick.doubleValue()).intValue()).multiply(minTick);
         if (newBestBidPrice.equals(this.getBestBidPrice())){
             return false;

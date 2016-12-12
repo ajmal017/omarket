@@ -14,7 +14,7 @@ public class Util {
 
     private static Logger logger = LoggerFactory.getLogger(Util.class);
 
-    public static void ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, IBrokersMarketDataCallback ewrapper) throws IBrokersConnectionFailure {
+    public static EClientSocket ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, IBrokersMarketDataCallback ewrapper) throws IBrokersConnectionFailure {
         final EReaderSignal readerSignal = new EJavaSignal();
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
@@ -42,5 +42,6 @@ public class Util {
                 }
             }).start();
         }
+        return clientSocket;
     }
 }

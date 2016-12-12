@@ -81,6 +81,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         int tickerId = newSubscriptionId();
         Files.createDirectories(storageDirPath);
         Path productStorage = storageDirPath.resolve(createChannelQuote(contract.conid()));
+        logger.info("min tick for contract " + contract.conid() + ": " + minTick);
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         subscribed.put(contract.conid(), productStorage);

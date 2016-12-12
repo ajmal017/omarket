@@ -1,33 +1,29 @@
 package org.omarket.trading.quote;
 
 import io.vertx.core.json.JsonObject;
-import sun.util.resources.cldr.af.LocaleNames_af;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
-import java.util.Date;
-import java.util.TimeZone;
 
 /**
  * Created by Christophe on 07/12/2016.
  */
 public class QuoteConverter {
 
-    private final static SimpleDateFormat millisFormat;
-    static {
-        millisFormat = new SimpleDateFormat("mm:ss.SSS");
-        millisFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
+    private final static DateTimeFormatter millisFormat = DateTimeFormatter.ofPattern("mm:ss.SSS");
     private final static DateTimeFormatter isoFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
 
     public static String toPriceVolumeString(Quote quote) {
-        return millisFormat.format(quote.getLastModified()) + "," + quote.getBestBidSize() + "," + quote.getBestBidPrice() + "," + quote.getBestAskPrice() + "," + quote.getBestAskSize();
+        String timestamp = millisFormat.format(quote.getLastModified());
+        BigDecimal bidPrice = quote.getBestBidPrice();
+        BigDecimal askPrice = quote.getBestAskPrice();
+        return timestamp + "," + quote.getBestBidSize() + "," + bidPrice + "," + askPrice + "," + quote.getBestAskSize();
     }
 
     public static JsonObject toJSON(Quote quote) {
