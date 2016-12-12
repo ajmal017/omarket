@@ -14,13 +14,13 @@ public class Util {
 
     private static Logger logger = LoggerFactory.getLogger(Util.class);
 
-    public static void ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, IBrokersMarketDataCallback ewrapper) {
+    public static void ibrokers_connect(String ibrokersHost, int ibrokersPort, int ibrokersClientId, IBrokersMarketDataCallback ewrapper) throws IBrokersConnectionFailure {
         final EReaderSignal readerSignal = new EJavaSignal();
         final EClientSocket clientSocket = new EClientSocket(ewrapper, readerSignal);
         ewrapper.setClient(clientSocket);
         clientSocket.eConnect(ibrokersHost, ibrokersPort, ibrokersClientId);
         if(!clientSocket.isConnected()){
-            logger.error("failed to connect to IBrokers client");
+            throw new IBrokersConnectionFailure(ibrokersHost, ibrokersPort);
         } else {
             /*
             Launching IBrokers client thread

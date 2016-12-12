@@ -34,15 +34,16 @@ public class MarketDataVerticle extends AbstractVerticle {
     private static IBrokersMarketDataCallback ibrokers_client;
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
-    private static String getProductAsString(String ibCode){
+    private static String getProductAsString(String ibCode) {
         JsonObject product = subscribedProducts.get(ibCode);
-        if (product == null){
+        if (product == null) {
             logger.error("product not found for : " + ibCode);
             return null;
         }
         return product.toString();
     }
-    private static Set<String> getSubscribedProducts(){
+
+    private static Set<String> getSubscribedProducts() {
         return subscribedProducts.keySet();
     }
 
@@ -57,23 +58,28 @@ public class MarketDataVerticle extends AbstractVerticle {
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
 
         vertx.executeBlocking(future -> {
-            final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
-            org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, ewrapper);
-            logger.info("starting market data verticle");
-            processContractRetrieve(vertx);
-            processSubscribeTick(vertx);
-            processUnsubscribeTick(vertx);
-            processAdminCommand(vertx);
-            future.succeeded();
-        }, result -> {
-            if (result.succeeded()) {
-                logger.info("started market data verticle");
-                startFuture.complete();
-            } else {
-                logger.info("failed to start market data verticle");
-                startFuture.fail("failed to start market data verticle");
-            }
-        }
+                    final IBrokersMarketDataCallback ewrapper = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
+                    try {
+                        org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId, ewrapper);
+                        logger.info("starting market data verticle");
+                        processContractRetrieve(vertx);
+                        processSubscribeTick(vertx);
+                        processUnsubscribeTick(vertx);
+                        processAdminCommand(vertx);
+                        future.complete();
+                    } catch (IBrokersConnectionFailure iBrokersConnectionFailure) {
+                        logger.error("connection failed", iBrokersConnectionFailure);
+                        future.fail(iBrokersConnectionFailure);
+                    }
+                }, result -> {
+                    if (result.succeeded()) {
+                        logger.info("started market data verticle");
+                        startFuture.complete();
+                    } else {
+                        logger.info("failed to start market data verticle");
+                        startFuture.fail("failed to start market data verticle");
+                    }
+                }
         );
     }
 

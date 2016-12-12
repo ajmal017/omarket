@@ -3,8 +3,10 @@ package org.omarket.trading;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.eventbus.Message;
 import org.omarket.trading.verticles.FakeMarketDataVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.SingleLegMeanReversionStrategyVerticle;
@@ -20,7 +22,6 @@ public class RecorderMain {
     private final static Logger logger = LoggerFactory.getLogger(RecorderMain.class);
 
     public static void main(String[] args) throws InterruptedException {
-
         JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         int defaultClientId = 1;
         String defaultHost = "127.0.0.1";
@@ -40,9 +41,19 @@ public class RecorderMain {
         marketDataDeployment
                 .take(1)
                 .subscribe(onNext -> {
-            logger.info("all verticles deployed");
-        }, onError -> {
-            logger.error("failed deploying verticles", onError);
-        });
+                    logger.info("all verticles deployed");
+                    Observable.from(new Integer[]{12087817, 12087820, 37893488, 28027110})
+                            .flatMap(ibCode -> {
+                                JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
+                                ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
+                                logger.info("requesting subscription for product: " + ibCode);
+                                vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
+                                return contractStream;
+                            }).subscribe();
+                }, onError -> {
+                    logger.error("failed deploying verticles", onError);
+                    vertx.close();
+                });
+
     }
 }
