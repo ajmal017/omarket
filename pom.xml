@@ -12,6 +12,12 @@
     </properties>
 
     <version>1.0</version>
+
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+
     <dependencies>
         <dependency>
             <groupId>io.vertx</groupId>
