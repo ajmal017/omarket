@@ -74,6 +74,11 @@
             <version>9.72.05</version>
         </dependency>
         <dependency>
+            <groupId>com.github.chris-ch</groupId>
+            <artifactId>joinery</artifactId>
+            <version>v1.8.2</version>
+        </dependency>
+        <dependency>
             <groupId>com.jimmoores</groupId>
             <artifactId>quandl</artifactId>
             <version>1.4.0</version>
