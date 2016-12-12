@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
@@ -73,7 +74,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return lastSubscriptionId;
     }
 
-    public void subscribe(Contract contract, double minTick) throws IOException {
+    public void subscribe(Contract contract, BigDecimal minTick) throws IOException {
         if (subscribed.containsKey(contract.conid())) {
             logger.info("already subscribed: " + contract.conid());
         }

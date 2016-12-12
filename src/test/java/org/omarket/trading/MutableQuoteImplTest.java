@@ -32,17 +32,17 @@ public class MutableQuoteImplTest {
 
     @Test
     public void basicUsagePrecision2() throws Exception {
-        MutableQuote orderBook = QuoteFactory.createMutable(0.01);
+        MutableQuote orderBook = QuoteFactory.createMutable("0.02");
         orderBook.updateBestBidPrice(10.125);
-        orderBook.updateBestAskPrice(10.139);
-        assertEquals("unexpected order book", "< null 10.13 / 10.14 null >", orderBook.toString());
+        orderBook.updateBestAskPrice(10.159);
+        assertEquals("unexpected order book", "< null 10.12 / 10.14 null >", orderBook.toString().substring(0, 27));
     }
 
     @Test
     public void basicUsagePrecision0() throws Exception {
-        MutableQuote orderBook = QuoteFactory.createMutable(1);
+        MutableQuote orderBook = QuoteFactory.createMutable("1");
         orderBook.updateBestBidPrice(10.125);
         orderBook.updateBestAskPrice(10.139);
-        assertEquals("unexpected order book", "< null 10 / 10 null >", orderBook.toString());
+        assertEquals("unexpected order book", "< null 10 / 10 null >", orderBook.toString().substring(0, 21));
     }
 }

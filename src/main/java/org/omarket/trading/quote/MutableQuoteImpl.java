@@ -18,16 +18,11 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     private static Logger logger = LoggerFactory.getLogger(MutableQuoteImpl.class);
 
-    private int decimalPrecision;
+    private BigDecimal minTick;
 
-    MutableQuoteImpl(double minTick) {
+    MutableQuoteImpl(BigDecimal minTick) {
         super(null, null, null, null, null);
-        String[] parts = String.format(Locale.ROOT,"%f", minTick).split("\\.");
-        if (parts[0].equals("0")) {
-            decimalPrecision = parts[parts.length - 1].length();
-        } else {
-            decimalPrecision = 0;
-        }
+        this.minTick = minTick;
     }
 
     @Override
@@ -52,7 +47,8 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     @Override
     public boolean updateBestBidPrice(double price) {
-        BigDecimal newBestBidPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
+        //BigDecimal newBestBidPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
+        BigDecimal newBestBidPrice = BigDecimal.valueOf(Double.valueOf(price / minTick.doubleValue()).intValue()).multiply(minTick);
         if (newBestBidPrice.equals(this.getBestBidPrice())){
             return false;
         }
@@ -63,7 +59,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     @Override
     public boolean updateBestAskPrice(double price) {
-        BigDecimal newBestAskPrice = BigDecimal.valueOf(price).setScale(decimalPrecision, BigDecimal.ROUND_HALF_UP);
+        BigDecimal newBestAskPrice = BigDecimal.valueOf(Double.valueOf(price / minTick.doubleValue()).intValue()).multiply(minTick);
         if (newBestAskPrice.equals(this.getBestAskPrice())){
             return false;
         }

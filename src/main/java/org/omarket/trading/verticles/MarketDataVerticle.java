@@ -14,6 +14,7 @@ import org.omarket.trading.ibrokers.*;
 import rx.Observable;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.*;
@@ -91,7 +92,7 @@ public class MarketDataVerticle extends AbstractVerticle {
                 contract.exchange(contract_json.getString("m_exchange"));
                 contract.secType(contract_json.getString("m_sectype"));
                 try {
-                    ibrokers_client.subscribe(contract, contractDetails.getDouble("m_minTick"));
+                    ibrokers_client.subscribe(contract, new BigDecimal(contractDetails.getString("m_minTick")));
                     subscribedProducts.put(Integer.toString(productCode), contractDetails);
                     status = "registered";
                 } catch (IOException e) {
