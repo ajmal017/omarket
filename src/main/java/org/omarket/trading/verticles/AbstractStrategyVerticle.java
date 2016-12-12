@@ -8,8 +8,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import javafx.util.Pair;
-import org.apache.commons.lang3.tuple.Triple;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
