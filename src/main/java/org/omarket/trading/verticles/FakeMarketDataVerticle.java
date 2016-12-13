@@ -31,9 +31,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
     private final static Integer[] IB_CODES = new Integer[]{12087817, 12087820, 28027110, 37893488};
     public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
 
-
-    @SuppressWarnings("unchecked")
-    public void start(Future<Void> startFuture) throws Exception {
+    public void start() throws Exception {
         logger.info("starting market data");
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
@@ -65,14 +63,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
             }
         });
         x.subscribe(y -> {
-                        /*
-                        Observable.from(IB_CODES)
-                                .map(MarketData::createChannelQuote)
-                                .zipWith(Observable.from(IB_CODES), (channel, ibCode) -> {
-                                    return ibCode;
-                                })
-                                .subscribe(value -> logger.info("value:" + value));
-                        */
+            logger.info("subscribing: " + y);
             for (Integer ibCode : IB_CODES) {
                 final String channel = createChannelQuote(ibCode);
                 vertx.periodicStream(1000).
@@ -85,9 +76,9 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
                                 }
                         );
             }
-            startFuture.complete();
+            //startFuture.complete();
         }, err -> {
-            startFuture.fail("failed to load order books: skipping");
+            //startFuture.fail("failed to load order books: skipping");
             logger.error("failed to load order books: skipping");
         });
     }
