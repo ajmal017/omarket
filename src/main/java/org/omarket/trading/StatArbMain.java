@@ -33,7 +33,8 @@ public class StatArbMain {
 
         final Vertx vertx = Vertx.vertx();
 
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new FakeMarketDataVerticle(), options);
+        FakeMarketDataVerticle marketDataVerticle = new FakeMarketDataVerticle();
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
 
         marketDataDeployment
                 .take(1)
@@ -44,10 +45,12 @@ public class StatArbMain {
                 .flatMap(strategyId -> strategyId)
                 .doOnNext(strategyId -> {
                     logger.info("strategy verticle deployed as " + strategyId);
-                }).subscribe(onNext -> {
-            logger.info("all verticles deployed");
-        }, onError -> {
-            logger.error("failed deploying verticles", onError);
-        });
+                })
+                .subscribe(
+                        onNext -> {
+                            logger.info("all verticles deployed");
+                        }, onError -> {
+                            logger.error("failed deploying verticles", onError);
+                        });
     }
 }
