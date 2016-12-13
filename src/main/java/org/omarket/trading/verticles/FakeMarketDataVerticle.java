@@ -26,7 +26,7 @@ import static org.omarket.trading.MarketData.processBacktest;
 public class FakeMarketDataVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(FakeMarketDataVerticle.class.getName());
 
-    private final static Integer IB_CODE = 12087817;
+    private final static Integer[] IB_CODES = new Integer[]{12087817, 12087820, 28027110, 37893488};
     public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
 
 
@@ -35,48 +35,54 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         logger.info("starting market data");
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
-        final String channel = createChannelQuote(IB_CODE);
 
-        Queue<Quote> quotes = new LinkedList<>();
+        Map<Integer, Queue<Quote>> quotes = new HashMap<>();
         vertx.executeBlocking(future -> {
-            try {
-                processContractRetrieve(vertx);
-                processBacktest(dirs, IB_CODE, new StrategyProcessor(){
+                    try {
+                        processContractRetrieve(vertx);
 
-                    @Override
-                    public void processQuote(Quote quote, boolean isBacktest) {
-                        quotes.add(quote);
+                        for (Integer ibCode : IB_CODES) {
+                            quotes.put(ibCode, new LinkedList<>());
+                            processBacktest(dirs, ibCode, new StrategyProcessor() {
+
+                                @Override
+                                public void processQuote(Quote quote, boolean isBacktest) {
+                                    quotes.get(ibCode).add(quote);
+                                }
+
+                                @Override
+                                public void updateQuotes(Quote quotePrev) {
+
+                                }
+                            });
+                        }
+                        future.complete();
+                    } catch (Exception e) {
+                        logger.error("failed to initialize strategy", e);
+                        future.fail(e);
                     }
 
-                    @Override
-                    public void updateQuotes(Quote quotePrev) {
-
-                    }
-                });
-                future.complete();
-
-            } catch (Exception e) {
-                logger.error("failed to initialize strategy", e);
-                future.fail(e);
-            }
-        }, completed -> {
-            if(completed.succeeded()) {
-                startFuture.complete();
-                vertx.setPeriodic(1000, id -> {
-                    if(quotes.size() > 0) {
-                        Quote quote = quotes.remove();
-                        logger.info("sending quote: " + quote);
-                        vertx.eventBus().send(channel, QuoteConverter.toJSON(quote));
+                }, completed -> {
+                    if (completed.succeeded()) {
+                        for (Integer ibCode : IB_CODES) {
+                            final String channel = createChannelQuote(ibCode);
+                            vertx.setPeriodic(1000, id -> {
+                                if (quotes.size() > 0) {
+                                    Quote quote = quotes.get(ibCode).remove();
+                                    logger.info("sending quote: " + quote);
+                                    vertx.eventBus().send(channel, QuoteConverter.toJSON(quote));
+                                } else {
+                                    // todo: interrupt timer
+                                    logger.info("queue empty: skipping");
+                                }
+                            });
+                        }
+                        startFuture.complete();
                     } else {
-                        // todo: interrupt timer
-                        logger.info("queue empty: skipping");
+                        startFuture.fail("failed to load order books: skipping");
+                        logger.error("failed to load order books: skipping");
                     }
-                });
-            } else {
-                startFuture.fail("failed to load order books: skipping");
-                logger.error("failed to load order books: skipping");
-            }
-        }
+                }
         );
     }
 
@@ -85,7 +91,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         consumer.handler(message -> {
             logger.info("faking contract retrieve: " + message.body());
             Contract contract = new Contract();
-            contract.conid(IB_CODE);
+            contract.conid(Integer.valueOf(message.body().getString("conId")));
             ContractDetails details = new ContractDetails();
             details.contract(contract);
             Gson gson = new GsonBuilder().create();

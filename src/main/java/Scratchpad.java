@@ -12,6 +12,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
+import static rx.Observable.combineLatest;
 
 class RandomWalk implements Func1<Boolean, Double> {
     private final static Logger logger = LoggerFactory.getLogger(RandomWalk.class);
@@ -86,7 +87,7 @@ public class Scratchpad {
                 .map(tick -> random.nextBoolean())
                 .map(new RandomWalk(mean, step));
 
-        Observable<Double> signal = Observable.combineLatest(randomWalk1, randomWalk2, (value1, value2) -> value2 - value1);
+        Observable<Double> signal = combineLatest(randomWalk1, randomWalk2, (value1, value2) -> value2 - value1);
         Observable<Double> filtered = signal.map(new Hysteresis(-1., 1., -1., 1.));
 
         signal.subscribe(value -> {
@@ -104,12 +105,11 @@ public class Scratchpad {
         String[] letters = new String[]{"a", "b", "c", "d"};
         Observable<Double> stream1 = Observable.from(numbers);
         Observable<String> stream2 = Observable.from(letters);
-        stream2.zipWith(stream1, (x, y) ->{
-            return new Pair<String, Double>(x, y);
-        }).flatMap(x -> {
-            return Observable.just(new Pair<String, Double>(x.getKey(), x.getValue() * 2.0));
+        combineLatest(stream1.first(), stream2, (x, y) -> {
+            logger.info("level1=" + x + ", " + y);
+            return y;
         }).subscribe(x -> {
-            logger.info("result: " + x);
+            logger.info("level2:" + x);
         });
     }
 
