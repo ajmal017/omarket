@@ -86,20 +86,15 @@ public class MarketDataVerticle extends AbstractVerticle {
         consumer.subscribe(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
-            JsonObject contract_json = contractDetails.getJsonObject("m_contract");
-            Integer productCode = contract_json.getInteger("m_conid");
+            JsonObject contractJson = contractDetails.getJsonObject("m_contract");
+            Integer productCode = contractJson.getInteger("m_conid");
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
-                Contract contract = new Contract();
-                contract.conid(productCode);
-                contract.currency(contract_json.getString("m_currency"));
-                contract.exchange(contract_json.getString("m_exchange"));
-                contract.secType(contract_json.getString("m_sectype"));
                 vertx.executeBlocking(future -> {
                     try {
                         logger.info("subscribing: " + productCode.toString());
                         Double minTick = contractDetails.getDouble("m_minTick");
-                        ibrokersClient.subscribe(contract, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
                         subscribedProducts.put(Integer.toString(productCode), contractDetails);
+                        ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
                         future.complete(productCode);
                     } catch (Exception e) {
                         logger.error("failed to subscribe product: '" + productCode.toString() + "'", e);

@@ -2,7 +2,7 @@ package org.omarket.trading.ibrokers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.stream.JsonWriter;
+import com.google.gson.TypeAdapter;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.eventbus.EventBus;
@@ -75,24 +75,31 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return lastSubscriptionId;
     }
 
-    public void subscribe(Contract contract, BigDecimal minTick) throws IOException {
-        if (subscribed.containsKey(contract.conid())) {
-            logger.info("already subscribed: " + contract.conid());
+    public void subscribe(JsonObject contractDetails, BigDecimal minTick) throws IOException {
+        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
+        Contract contract = new Contract();
+        contract.conid(ibCode);
+        contract.currency(contractDetails.getString("m_currency"));
+        contract.exchange(contractDetails.getString("m_exchange"));
+        contract.secType(contractDetails.getString("m_sectype"));
+        if (subscribed.containsKey(ibCode)) {
+            logger.info("already subscribed: " + ibCode);
         }
         int tickerId = newSubscriptionId();
         Files.createDirectories(storageDirPath);
-        Path productStorage = storageDirPath.resolve(createChannelQuote(contract.conid()));
-        logger.info("min tick for contract " + contract.conid() + ": " + minTick);
+        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode));
+        logger.info("min tick for contract " + ibCode + ": " + minTick);
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
 
         Path descriptionFilePath = productStorage.resolve("description.json");
-        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
-        Gson gson = new GsonBuilder().create();
-        gson.toJson(contract, writer);
+        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        Gson gson = gsonBuilder.create();
+        gson.toJson(contractDetails.getMap(), writer);
         writer.close();
 
-        subscribed.put(contract.conid(), productStorage);
+        subscribed.put(ibCode, productStorage);
         orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick), contract));
         getClient().reqMktData(tickerId, contract, "", false, null);
     }
