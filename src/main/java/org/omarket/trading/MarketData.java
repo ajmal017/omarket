@@ -28,6 +28,7 @@ import java.util.stream.Stream;
  * Created by christophe on 30/11/16.
  */
 public class MarketData {
+    public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
     private final static Logger logger = LoggerFactory.getLogger(MarketData.class);
 
     static public String createChannelQuote(Integer ibCode) {

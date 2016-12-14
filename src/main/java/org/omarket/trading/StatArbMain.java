@@ -12,7 +12,7 @@ import rx.Observable;
 
 import java.util.Arrays;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 
 public class StatArbMain {
     private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);

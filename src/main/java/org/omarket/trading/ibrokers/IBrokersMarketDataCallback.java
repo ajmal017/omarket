@@ -2,6 +2,7 @@ package org.omarket.trading.ibrokers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.stream.JsonWriter;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.eventbus.EventBus;
@@ -84,6 +85,13 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("min tick for contract " + contract.conid() + ": " + minTick);
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
+
+        Path descriptionFilePath = productStorage.resolve("description.json");
+        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
+        Gson gson = new GsonBuilder().create();
+        gson.toJson(contract, writer);
+        writer.close();
+
         subscribed.put(contract.conid(), productStorage);
         orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick), contract));
         getClient().reqMktData(tickerId, contract, "", false, null);

@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.Future;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
@@ -18,6 +17,7 @@ import rx.Observable;
 
 import java.util.*;
 
+import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.MarketData.processBacktest;
 import static org.omarket.trading.verticles.MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE;
@@ -29,7 +29,6 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(FakeMarketDataVerticle.class.getName());
 
     private final static Integer[] IB_CODES = new Integer[]{12087817, 12087820, 28027110, 37893488};
-    public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
 
     public void start() throws Exception {
         logger.info("starting market data");

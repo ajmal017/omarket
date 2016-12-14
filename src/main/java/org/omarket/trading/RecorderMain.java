@@ -1,6 +1,5 @@
 package org.omarket.trading;
 
-import com.ib.client.Contract;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -8,16 +7,14 @@ import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
-import org.omarket.trading.verticles.FakeMarketDataVerticle;
 import org.omarket.trading.verticles.MarketDataVerticle;
-import org.omarket.trading.verticles.SingleLegMeanReversionStrategyVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
 
 import java.util.Arrays;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static rx.Observable.combineLatest;
 
 public class RecorderMain {

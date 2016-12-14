@@ -19,7 +19,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-import static org.omarket.trading.verticles.MarketDataVerticle.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
 
 /**
