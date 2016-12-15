@@ -44,6 +44,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
             final Integer ibCode = ibCodeJson.getInteger("ibCode");
             logger.info("registering contract: " + ibCode);
         });
+        startFuture.complete();
     }
 
 }

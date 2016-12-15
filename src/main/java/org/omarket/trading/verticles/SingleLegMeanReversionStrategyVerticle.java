@@ -41,7 +41,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
                 dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
             }
         } catch(javax.ws.rs.ProcessingException e){
-            logger.error("unable to access Quandl", e);
+            logger.error("unable to access Quandl");
         }
         return dataFrame;
     }

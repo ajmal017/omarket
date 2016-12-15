@@ -12,7 +12,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
-import static rx.Observable.combineLatest;
+import static rx.Observable.*;
 
 class RandomWalk implements Func1<Boolean, Double> {
     private final static Logger logger = LoggerFactory.getLogger(RandomWalk.class);
@@ -73,7 +73,7 @@ public class Scratchpad {
     }
 
     public static void main3(String[] args) throws InterruptedException {
-        Observable<Long> clock = Observable.interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
+        Observable<Long> clock = interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
         final Random random = new Random();
 
@@ -101,16 +101,27 @@ public class Scratchpad {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        Double[] numbers = new Double[]{1.0, 2.0, 3.0};
+        Long[] numbers1 = new Long[]{1L, 2L, 3L};
+        Long[] numbers2 = new Long[]{11L, 22L, 33L};
         String[] letters = new String[]{"a", "b", "c", "d"};
-        Observable<Double> stream1 = Observable.from(numbers);
-        Observable<String> stream2 = Observable.from(letters);
+        //Observable<Long> stream1 = interval(1000, TimeUnit.MILLISECONDS);
+        Observable<Long> stream2 = interval(1000, TimeUnit.MILLISECONDS);
+        Observable<Long> stream1 = Observable.from(numbers1);
+        //Observable<Long> stream2 = Observable.from(numbers2);
+        Observable<String> stream3 = Observable.from(letters);
+
+        Observable<Long> loggedStream1 = stream1.doOnNext(x -> logger.info("x=" + x));
+        Observable<Long> loggedStream2 = stream2.doOnNext(x -> logger.info("x=" + x));
+        concat(loggedStream1, loggedStream2).subscribe();
+
+        sleep(5000);
+        /*
         combineLatest(stream1.first(), stream2, (x, y) -> {
             logger.info("level1=" + x + ", " + y);
             return y;
         }).subscribe(x -> {
             logger.info("level2:" + x);
-        });
+        });*/
     }
 
 }
