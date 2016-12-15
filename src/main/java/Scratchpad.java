@@ -1,5 +1,11 @@
 
-import javafx.util.Pair;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Verticle;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+import io.vertx.rxjava.core.RxHelper;
+import io.vertx.rxjava.core.Vertx;
+import org.omarket.trading.verticles.HistoricalDataVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
@@ -8,10 +14,12 @@ import rx.schedulers.Schedulers;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
+import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static rx.Observable.*;
 
 class RandomWalk implements Func1<Boolean, Double> {
@@ -101,27 +109,59 @@ public class Scratchpad {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        Long[] numbers1 = new Long[]{1L, 2L, 3L};
-        Long[] numbers2 = new Long[]{11L, 22L, 33L};
-        String[] letters = new String[]{"a", "b", "c", "d"};
-        //Observable<Long> stream1 = interval(1000, TimeUnit.MILLISECONDS);
-        Observable<Long> stream2 = interval(1000, TimeUnit.MILLISECONDS);
-        Observable<Long> stream1 = Observable.from(numbers1);
-        //Observable<Long> stream2 = Observable.from(numbers2);
-        Observable<String> stream3 = Observable.from(letters);
 
-        Observable<Long> loggedStream1 = stream1.doOnNext(x -> logger.info("x=" + x));
-        Observable<Long> loggedStream2 = stream2.doOnNext(x -> logger.info("x=" + x));
-        concat(loggedStream1, loggedStream2).subscribe();
+        JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
+        int defaultClientId = 1;
+        String defaultHost = "127.0.0.1";
+        int defaultPort = 7497;
+        JsonObject jsonConfig = new JsonObject()
+                .put(IBROKERS_TICKS_STORAGE_PATH, defaultStoragePath)
+                .put("ibrokers.clientId", defaultClientId)
+                .put("ibrokers.host", defaultHost)
+                .put("ibrokers.port", defaultPort)
+                .put("runBacktestFlag", false);
+        DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
 
-        sleep(5000);
-        /*
-        combineLatest(stream1.first(), stream2, (x, y) -> {
-            logger.info("level1=" + x + ", " + y);
-            return y;
-        }).subscribe(x -> {
-            logger.info("level2:" + x);
-        });*/
+        final Vertx vertx = Vertx.vertx();
+        Verticle historicalDataVerticle = new HistoricalDataVerticle();
+        Observable<String> historicalDataDeployment = RxHelper.deployVerticle(vertx, historicalDataVerticle, options);
+        historicalDataDeployment.subscribe(x -> {
+            JsonObject historyRequest = new JsonObject();
+            historyRequest.put("productCode", 12087817);
+            historyRequest.put("replyTo", "TEST");
+            logger.info("sending hist data feed request");
+            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, historyRequest);
+        });
+
+    }
+
+    /**
+     * Emits all elements from stream1 before emitting elemets from stream2.
+     * Similar to concat but with no need for both streams to return identical types.
+     *
+     *     Observable<Integer> stream1 = Observable.from(new Integer[]{1,2,3,4});
+     *     Observable<String> stream2 = Observable.from(new String[]{"a","b","c","d", "e"});
+     *     chain(stream1.doOnNext(System.out::println), stream2).subscribe(System.out::println);
+     *     > 1
+     *     > 2
+     *     > 3
+     *     > 4
+     *     > a
+     *     > b
+     *     > c
+     *     > d
+     *     > e
+     *
+     * @param stream1
+     * @param stream2
+     * @param <T1>
+     * @param <T2>
+     * @return Observable emitting elements from stream2 only after stream1 completion
+     */
+    private static <T1, T2> Observable<T2> chain(Observable<T1> stream1, Observable<T2> stream2) {
+        Observable<T1> last = stream1
+                .last();
+        return combineLatest(last, stream2, (x, y) -> y);
     }
 
 }
