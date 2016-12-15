@@ -157,7 +157,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     return;
                 }
                 logger.info("processing order book: " + quote);
-                processQuote(quote, false);
+                processQuote(quote);
                 updateQuotes(quote);
             } catch (ParseException e) {
                 logger.error("failed to parse tick data from " + message.body(), e);

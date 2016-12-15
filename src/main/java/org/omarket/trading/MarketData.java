@@ -5,6 +5,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.omarket.trading.verticles.QuoteProcessor;
 import org.omarket.trading.verticles.StrategyProcessor;
 
 import java.io.File;
@@ -37,7 +38,7 @@ public class MarketData {
 
     static private final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
 
-    static public void processBacktest(List<String> dirs, Integer ibCode, StrategyProcessor processor) {
+    static public void processBacktest(List<String> dirs, Integer ibCode, QuoteProcessor processor) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode));
@@ -67,8 +68,7 @@ public class MarketData {
                             Quote quote = QuoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk);
                             logger.debug("current quote: " + quote + " (" + quote.getLastModified() + ")");
                             if (quotePrev != null && !quote.sameSampledTime(quotePrev, ChronoUnit.SECONDS)){
-                                processor.processQuote(quotePrev, true);
-                                processor.updateQuotes(quotePrev);
+                                processor.processQuote(quotePrev);
                             }
                             quotePrev = quote;
                         }
@@ -76,8 +76,6 @@ public class MarketData {
                     scanner.close();
                 } catch (IOException e) {
                     logger.error("unable to access tick file: " + filePath, e);
-                } catch (ParseException e) {
-                    logger.error("unable to parse line: " + fullLine, e);
                 }
             }
         } else {

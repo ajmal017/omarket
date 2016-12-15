@@ -71,10 +71,9 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
 
     /**
      * @param quote
-     * @param isBacktest
      */
     @Override
-    public void processQuote(Quote quote, boolean isBacktest) {
+    public void processQuote(Quote quote) {
         BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());

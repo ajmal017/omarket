@@ -45,7 +45,7 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
                     processBacktest(dirs, ibCode, new StrategyProcessor() {
 
                         @Override
-                        public void processQuote(Quote quote, boolean isBacktest) {
+                        public void processQuote(Quote quote) {
                             quotes.get(ibCode).add(quote);
                         }
 

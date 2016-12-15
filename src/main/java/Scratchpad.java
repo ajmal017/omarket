@@ -136,7 +136,7 @@ public class Scratchpad {
     }
 
     /**
-     * Emits all elements from stream1 before emitting elemets from stream2.
+     * Waits for emission of all elements from stream1 before emitting elements from stream2.
      * Similar to concat but with no need for both streams to return identical types.
      *
      *     Observable<Integer> stream1 = Observable.from(new Integer[]{1,2,3,4});
