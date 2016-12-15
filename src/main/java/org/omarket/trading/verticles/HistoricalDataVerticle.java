@@ -1,5 +1,7 @@
 package org.omarket.trading.verticles;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -14,9 +16,11 @@ import io.vertx.rxjava.core.eventbus.Message;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
 import rx.Observable;
 
 import java.io.File;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.nio.file.FileSystems;
@@ -52,7 +56,9 @@ public class HistoricalDataVerticle extends AbstractVerticle {
 
                 @Override
                 public void processQuote(Quote quote) {
-                    logger.info("processing: " + quote);
+                    logger.info("sending: " + quote);
+                    JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
                 }
 
             });
