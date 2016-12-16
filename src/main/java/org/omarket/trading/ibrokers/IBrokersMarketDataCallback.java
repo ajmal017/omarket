@@ -93,6 +93,9 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         Files.createDirectories(productStorage);
 
         Path descriptionFilePath = productStorage.resolve("description.json");
+        if(!Files.exists(descriptionFilePath)){
+            Files.createFile(descriptionFilePath);
+        }
         BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
