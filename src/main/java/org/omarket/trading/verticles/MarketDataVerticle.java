@@ -10,6 +10,7 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.omarket.trading.MarketData;
 import org.omarket.trading.ibrokers.*;
 import rx.Observable;
 
@@ -31,7 +32,6 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
-    public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
 
     private static String getProductAsString(String ibCode) {
@@ -49,7 +49,7 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
-        String storageDirPathName = String.join(File.separator, config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH).getList());
+        String storageDirPathName = String.join(File.separator, config().getJsonArray(MarketData.IBROKERS_TICKS_STORAGE_PATH).getList());
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
 
         logger.info("ticks data storage set to '" + storageDirPath + "'");
@@ -86,20 +86,15 @@ public class MarketDataVerticle extends AbstractVerticle {
         consumer.subscribe(message -> {
             final JsonObject contractDetails = message.body();
             logger.info("received subscription request for: " + contractDetails);
-            JsonObject contract_json = contractDetails.getJsonObject("m_contract");
-            Integer productCode = contract_json.getInteger("m_conid");
+            JsonObject contractJson = contractDetails.getJsonObject("m_contract");
+            Integer productCode = contractJson.getInteger("m_conid");
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
-                Contract contract = new Contract();
-                contract.conid(productCode);
-                contract.currency(contract_json.getString("m_currency"));
-                contract.exchange(contract_json.getString("m_exchange"));
-                contract.secType(contract_json.getString("m_sectype"));
                 vertx.executeBlocking(future -> {
                     try {
                         logger.info("subscribing: " + productCode.toString());
                         Double minTick = contractDetails.getDouble("m_minTick");
-                        ibrokersClient.subscribe(contract, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
                         subscribedProducts.put(Integer.toString(productCode), contractDetails);
+                        ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
                         future.complete(productCode);
                     } catch (Exception e) {
                         logger.error("failed to subscribe product: '" + productCode.toString() + "'", e);

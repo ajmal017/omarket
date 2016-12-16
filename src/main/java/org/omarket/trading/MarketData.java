@@ -5,6 +5,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.omarket.trading.verticles.QuoteProcessor;
 import org.omarket.trading.verticles.StrategyProcessor;
 
 import java.io.File;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
  * Created by christophe on 30/11/16.
  */
 public class MarketData {
+    public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
     private final static Logger logger = LoggerFactory.getLogger(MarketData.class);
 
     static public String createChannelQuote(Integer ibCode) {
@@ -36,7 +38,7 @@ public class MarketData {
 
     static private final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
 
-    static public void processBacktest(List<String> dirs, Integer ibCode, StrategyProcessor processor) {
+    static public void processBacktest(List<String> dirs, Integer ibCode, QuoteProcessor processor) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode));
@@ -66,8 +68,7 @@ public class MarketData {
                             Quote quote = QuoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk);
                             logger.debug("current quote: " + quote + " (" + quote.getLastModified() + ")");
                             if (quotePrev != null && !quote.sameSampledTime(quotePrev, ChronoUnit.SECONDS)){
-                                processor.processQuote(quotePrev, true);
-                                processor.updateQuotes(quotePrev);
+                                processor.processQuote(quotePrev);
                             }
                             quotePrev = quote;
                         }
@@ -75,12 +76,10 @@ public class MarketData {
                     scanner.close();
                 } catch (IOException e) {
                     logger.error("unable to access tick file: " + filePath, e);
-                } catch (ParseException e) {
-                    logger.error("unable to parse line: " + fullLine, e);
                 }
             }
         } else {
-            logger.info("Storage data not found: " + productStorage);
+            logger.info("storage data not found: " + productStorage);
         }
     }
 
@@ -96,12 +95,12 @@ public class MarketData {
         try (Stream<Path> paths = Files.walk(productStorage)) {
             paths.forEach(filePath -> {
                 if (Files.isRegularFile(filePath)) {
-                    logger.info("regular file detected: " + filePath.toAbsolutePath());
+                    logger.debug("regular file detected: " + filePath.toAbsolutePath());
                     Pattern yyyymmddhhURIEnding = Pattern.compile(".*([0-9]{8})\\/([0-9]{2})$");
                     Matcher matcher = yyyymmddhhURIEnding.matcher(filePath.toUri().toString());
                     if (matcher.matches()) {
                         String yyyymmddhh = matcher.group(1) + " " + matcher.group(2);
-                        logger.info("will be processing recorded ticks: " + yyyymmddhh);
+                        logger.debug("will be processing recorded ticks: " + yyyymmddhh);
                         tickFiles.put(yyyymmddhh, filePath);
                     }
                 }

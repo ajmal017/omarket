@@ -41,7 +41,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
                 dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
             }
         } catch(javax.ws.rs.ProcessingException e){
-            logger.error("unable to access Quandl", e);
+            logger.error("unable to access Quandl");
         }
         return dataFrame;
     }
@@ -71,10 +71,9 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
 
     /**
      * @param quote
-     * @param isBacktest
      */
     @Override
-    public void processQuote(Quote quote, boolean isBacktest) {
+    public void processQuote(Quote quote) {
         BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
         JsonObject message = new JsonObject();
         message.put("signal", midPrice.doubleValue());

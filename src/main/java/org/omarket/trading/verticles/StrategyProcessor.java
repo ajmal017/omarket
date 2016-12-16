@@ -6,7 +6,7 @@ import java.text.ParseException;
 /**
  * Created by christophe on 30/11/16.
  */
-public interface StrategyProcessor {
-    void processQuote(Quote quote, boolean isBacktest);
+public interface StrategyProcessor extends QuoteProcessor {
+    void processQuote(Quote quote);
     void updateQuotes(Quote quote) throws ParseException;
 }
