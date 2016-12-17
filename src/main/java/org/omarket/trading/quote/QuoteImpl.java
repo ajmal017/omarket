@@ -1,6 +1,5 @@
 package org.omarket.trading.quote;
 
-import org.omarket.trading.verticles.StrategyProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +23,7 @@ class QuoteImpl implements Quote {
     BigDecimal bestAskPrice = null;
     Integer bestBidSize = null;
     Integer bestAskSize = null;
-    String productCode = null;
+    private String productCode = null;
 
     QuoteImpl(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode) {
         this.lastModified = lastModified;
