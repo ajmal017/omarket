@@ -112,7 +112,7 @@ public class Scratchpad {
         sleep(10000);
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws Exception {
 
         JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         int defaultClientId = 1;
