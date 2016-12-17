@@ -90,12 +90,23 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 JsonArray array = new JsonArray();
                 getParameters().put(PARAM_PAST_QUOTES, array);
                 init(getLookBackPeriod());
+                logger.info("initialization completed");
                 future.complete();
             } catch (Exception e) {
                 logger.error("failed to initialize strategy", e);
                 future.fail(e);
             }
         });
+        Observable<String> productCodes = chain(initStream, Observable.from(getProductCodes()));
+        productCodes
+                .forEach(productCode -> {
+                    JsonObject request = new JsonObject();
+                    request.put("productCode", productCode);
+                    request.put("replyTo", "historical");
+                    logger.info("requesting historical data for product: " + productCode);
+                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
+                });
+        /*
         Observable<String> productCodes = chain(initStream, Observable.from(getProductCodes()));
         productCodes
                 .flatMap(productCode -> {
@@ -116,6 +127,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     return quote;
                 })
                 .subscribe(new QuoteProcessor());
+                */
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {

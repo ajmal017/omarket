@@ -35,31 +35,21 @@ public class StatArbMain {
 
         final Vertx vertx = Vertx.vertx();
 
-        Verticle marketDataVerticle = new FakeMarketDataVerticle();
+        //Verticle marketDataVerticle = new FakeMarketDataVerticle();
         Verticle historicalDataVerticle = new HistoricalDataVerticle();
         Verticle singleLegMeanReversionStrategyVerticle = new SingleLegMeanReversionStrategyVerticle();
 
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
-        Observable<String> historicalDataDeployment = RxHelper.deployVerticle(vertx, historicalDataVerticle, options);
-        Observable<String> singleLegMeanReversionStrategyDeployment = RxHelper.deployVerticle(vertx, singleLegMeanReversionStrategyVerticle, options);
-
-        Observable<String> loggedMarketDataDeployment = marketDataDeployment
-                .doOnNext(marketDataId -> logger.info("market data verticle deployed as " + marketDataId))
-                .doOnError(logger::error);
-        Observable<String> loggedHistoricalDataDeployment = historicalDataDeployment
-                .doOnNext(historicalDataId -> logger.info("historical data verticle deployed as " + historicalDataId))
-                .doOnError(logger::error);
-        Observable<String> loggedSingleLegMeanReversionStrategyDeployment = singleLegMeanReversionStrategyDeployment
-                .doOnNext(strategyId -> {
-                logger.info("strategy verticle deployed as " + strategyId); })
-                .doOnError(logger::error);
-
-        Observable<String> dataDeployment = merge(loggedMarketDataDeployment, loggedHistoricalDataDeployment);
-        Observable
-                .concat(dataDeployment, loggedSingleLegMeanReversionStrategyDeployment)
-                .last()
-                .doOnError(onError -> logger.error("failed deploying verticles", onError))
-                .doOnNext(onNext -> logger.info("all verticles deployed"))
-                .subscribe();
+        //Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
+        RxHelper.deployVerticle(vertx, historicalDataVerticle, options)
+                .subscribe(historicalDataId -> {
+                    logger.info("historical data verticle deployed as " + historicalDataId);
+                    RxHelper.deployVerticle(vertx, singleLegMeanReversionStrategyVerticle, options)
+                            .doOnNext(strategyId -> {
+                                logger.info("strategy verticle deployed as " + strategyId);
+                            })
+                            .doOnError(logger::error);
+                })
+                ;
     }
+
 }

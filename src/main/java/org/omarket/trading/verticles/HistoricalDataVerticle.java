@@ -7,10 +7,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.Vertx;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
+import org.omarket.trading.util.OperatorMergeSorted;
 import rx.Observable;
 
 import java.io.*;
@@ -44,21 +44,29 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         List<String> dirs = storageDirs.getList();
 
         Observable<JsonObject> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_PROVIDE_HISTORY).bodyStream().toObservable();
-        contractStream.subscribe(message -> {
-            final String productCode = message.getString("productCode");
-            final String address = message.getString("replyTo");
-            logger.info("data for contract " + productCode + " will be sent to " + address);
-
-            try {
-                processHistoricalQuotes(dirs, productCode);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+        contractStream
+                .doOnNext(message -> {
+                    final String productCode = message.getString("productCode");
+                    final String address = message.getString("replyTo");
+                    logger.info("data for contract " + productCode + " will be sent to " + address);
+                    try {
+                        getHistoricalQuoteStream(dirs, productCode)
+                                .forEach(
+                                        quote -> {
+                                            logger.info("sending: " + quote);
+                                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                                            vertx.eventBus().send(address, quoteJson);
+                                        });
+                    } catch (IOException e) {
+                        logger.error("failed while accessing historical data", e);
+                        startFuture.fail(e);
+                    }
+                });
+        logger.info("ready to provide historical data");
         startFuture.complete();
     }
 
-    static public Observable<Quote> processHistoricalQuotes(final List<String> dirs, final String productCode) throws IOException {
+    static public Observable<Quote> getHistoricalQuoteStream(final List<String> dirs, final String productCode) throws IOException {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
@@ -78,12 +86,10 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         } else {
             logger.info("storage data not found: " + productStorage);
         }
-        return quotesStream.map(row -> {
-            return createQuote(row, productCode);
-        });
+        return quotesStream.map(row -> createQuote(row, productCode));
     }
 
-    public static Quote createQuote(String[] fields, String productCode) {
+    private static Quote createQuote(String[] fields, String productCode) {
         Quote quote = null;
         if (fields.length > 0) {
             LocalDateTime timestamp = LocalDateTime.parse(fields[0], DATE_FORMAT);
@@ -97,5 +103,17 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         return quote;
     }
 
+    public static Observable<Quote> mergeQuoteStreams(List<Observable<Quote>> quoteStreams){
+        return Observable.from(quoteStreams)
+                .lift(new OperatorMergeSorted<>((x, y) -> {
+                    if(x.getLastModified().equals(y.getLastModified())){
+                        return 0;
+                    } else if (x.getLastModified().isBefore(y.getLastModified())){
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                }));
+    }
 
 }

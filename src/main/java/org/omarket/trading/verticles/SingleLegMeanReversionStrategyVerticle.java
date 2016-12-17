@@ -25,27 +25,6 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     private final static String IB_CODE_EUR_CHF = "12087817";
     private final static String IB_CODE_USD_CHF = "12087820";
 
-    private static DataFrame<Double> loadQuandlInstrument(String quandlCode, int samples) {
-        DataFrame<Double> dataFrame = null;
-        try {
-            logger.info("accessing Quandl data");
-            QuandlSession session = QuandlSession.create();
-            DataSetRequest.Builder requestBuilder = DataSetRequest.Builder.of(quandlCode).withMaxRows(samples);
-            TabularResult tabularResult = session.getDataSet(requestBuilder.build());
-            Collection<String> columnNames = tabularResult.getHeaderDefinition().getColumnNames();
-            dataFrame = new DataFrame<>(columnNames);
-            for (Row row : tabularResult) {
-                LocalDate date = row.getLocalDate("Date");
-                Double value = row.getDouble("Value");
-                Calendar calendar = new GregorianCalendar(date.getYear(), date.getMonthValue() + 1, date.getDayOfMonth());
-                dataFrame.append(calendar.getTime(), Arrays.asList(new Double[]{value}));
-            }
-        } catch(javax.ws.rs.ProcessingException e){
-            logger.error("unable to access Quandl");
-        }
-        return dataFrame;
-    }
-
     @Override
     protected String[] getProductCodes(){
         return new String[]{IB_CODE_EUR_CHF, IB_CODE_USD_CHF};
@@ -59,14 +38,8 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     @Override
     protected void init(Integer lookBackPeriod){
         logger.info("starting single leg mean reversion strategy verticle");
-        DataFrame<Double> eurchfDaily = loadQuandlInstrument("ECB/EURCHF", 200);
-        if(eurchfDaily != null) {
-            Double thresholdStep = eurchfDaily.percentChange().stddev().get(0, 1) / sqrt(24 * 60 * 60);
-            getParameters().put("thresholdStep", thresholdStep);
-        } else {
-            logger.info("using default paramater for thresholdStep");
-            getParameters().put("thresholdStep", 0.1);
-        }
+        logger.info("using default paramater for thresholdStep");
+        getParameters().put("thresholdStep", 0.1);
     }
 
     /**
