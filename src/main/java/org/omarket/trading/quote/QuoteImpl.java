@@ -1,5 +1,6 @@
 package org.omarket.trading.quote;
 
+import org.omarket.trading.verticles.StrategyProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,13 +24,15 @@ class QuoteImpl implements Quote {
     BigDecimal bestAskPrice = null;
     Integer bestBidSize = null;
     Integer bestAskSize = null;
+    String productCode = null;
 
-    QuoteImpl(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize) {
+    QuoteImpl(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode) {
         this.lastModified = lastModified;
         this.bestBidPrice = bestBidPrice;
         this.bestAskPrice = bestAskPrice;
         this.bestBidSize = bestBidSize;
         this.bestAskSize = bestAskSize;
+        this.productCode = productCode;
     }
 
     @Override
@@ -57,11 +60,6 @@ class QuoteImpl implements Quote {
         return bestAskSize;
     }
 
-    public String toString() {
-        String timestamp = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(getLastModified());
-        return "< " + getBestBidSize() + " " + getBestBidPrice() + " / " + getBestAskPrice() + " " + getBestAskSize() + " > (" + timestamp + ")";
-    }
-
     @Override
     public boolean isValid() {
         boolean isNull = bestBidPrice == null || bestAskPrice == null|| bestBidSize == null|| bestAskSize == null;
@@ -71,6 +69,16 @@ class QuoteImpl implements Quote {
     @Override
     public boolean sameSampledTime(Quote other, TemporalUnit temporalUnit){
         return getLastModified().truncatedTo(temporalUnit).equals(other.getLastModified().truncatedTo(temporalUnit));
+    }
+
+    @Override
+    public String getProductCode() {
+        return productCode;
+    }
+
+    public String toString() {
+        String timestamp = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(getLastModified());
+        return "< " + getBestBidSize() + " " + getBestBidPrice() + " / " + getBestAskPrice() + " " + getBestAskSize() + " > (" + timestamp + " - " + getProductCode() + ")";
     }
 
 }

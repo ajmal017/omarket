@@ -114,7 +114,7 @@ public class CurrencyProduct {
         if (!IB_CODES.containsKey(cross)){
             logger.error("no channel for {} / {}", currency1, currency2);
         }
-        return createChannelQuote(IB_CODES.get(cross));
+        return createChannelQuote(IB_CODES.get(cross).toString());
     }
 
     public String getChannelDirect(String currency){

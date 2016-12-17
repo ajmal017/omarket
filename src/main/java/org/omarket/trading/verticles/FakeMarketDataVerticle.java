@@ -28,25 +28,25 @@ import static org.omarket.trading.verticles.MarketDataVerticle.ADDRESS_CONTRACT_
 public class FakeMarketDataVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(FakeMarketDataVerticle.class.getName());
 
-    private final static Integer[] IB_CODES = new Integer[]{12087817, 12087820, 28027110, 37893488};
+    private final static String[] IB_CODES = new String[]{"12087817", "12087820", "28027110", "37893488"};
 
     public void start() throws Exception {
         logger.info("starting market data");
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
 
-        Map<Integer, Queue<Quote>> quotes = new HashMap<>();
+        Map<String, Queue<Quote>> quotes = new HashMap<>();
         Observable<Object> x = vertx.executeBlockingObservable(future -> {
             try {
                 processContractRetrieve(vertx);
 
-                for (Integer ibCode : IB_CODES) {
-                    quotes.put(ibCode, new LinkedList<>());
-                    processBacktest(dirs, ibCode, new StrategyProcessor() {
+                for (String productCode : IB_CODES) {
+                    quotes.put(productCode, new LinkedList<>());
+                    processBacktest(dirs, productCode, new StrategyProcessor() {
 
                         @Override
                         public void processQuote(Quote quote) {
-                            quotes.get(ibCode).add(quote);
+                            quotes.get(productCode).add(quote);
                         }
 
                         @Override
@@ -63,13 +63,13 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
         });
         x.subscribe(y -> {
             logger.info("subscribing: " + y);
-            for (Integer ibCode : IB_CODES) {
-                final String channel = createChannelQuote(ibCode);
+            for (String productCode : IB_CODES) {
+                final String channel = createChannelQuote(productCode);
                 vertx.periodicStream(1000).
                         toObservable().
                         subscribe(
                                 id -> {
-                                    Quote quote = quotes.get(ibCode).remove();
+                                    Quote quote = quotes.get(productCode).remove();
                                     logger.info("sending quote: " + quote);
                                     vertx.eventBus().send(channel, QuoteConverter.toJSON(quote));
                                 }

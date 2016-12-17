@@ -10,6 +10,9 @@ import java.time.temporal.TemporalUnit;
  * Created by Christophe on 07/12/2016.
  */
 public interface Quote {
+
+    String getProductCode();
+
     ZonedDateTime getLastModified();
 
     BigDecimal getBestBidPrice();

@@ -21,6 +21,7 @@ import java.util.*;
 
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.MarketData.createChannelQuote;
+import static org.omarket.trading.Util.chain;
 
 /**
  * Created by Christophe on 18/11/2016.
@@ -32,9 +33,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     private JsonObject parameters = new JsonObject();
 
-    private Map<Integer, JsonObject> contracts = new HashMap<>();
+    private Map<String, JsonObject> contracts = new HashMap<>();
 
-    abstract protected Integer[] getIBrokersCodes();
+    abstract protected String[] getProductCodes();
 
     /**
      * For how long back the verticle needs to keep past order books.
@@ -95,23 +96,19 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 future.fail(e);
             }
         });
-        Observable<Integer> ibCodes = initStream
-                .doOnNext(new BacktestProcessor())
-                .ignoreElements()  // waits for backtest to complete
-                .concatWith(Observable.from(getIBrokersCodes()));
-
-        ibCodes
-                .flatMap(ibCode -> {
-                    JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
+        Observable<String> productCodes = chain(initStream, Observable.from(getProductCodes()));
+        productCodes
+                .flatMap(productCode -> {
+                    JsonObject product = new JsonObject().put("conId", productCode);
                     ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
-                    logger.info("requesting subscription for product: " + ibCode);
+                    logger.info("requesting subscription for product: " + productCode);
                     vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
                     return contractStream;
                 })
-                .zipWith(Observable.from(getIBrokersCodes()), (contractMessage, ibCode) -> {
+                .zipWith(Observable.from(getProductCodes()), (contractMessage, productCode) -> {
                     JsonObject contract = contractMessage.body();
-                    contracts.put(ibCode, contract);
-                    final String channelProduct = createChannelQuote(ibCode);
+                    contracts.put(productCode, contract);
+                    final String channelProduct = createChannelQuote(productCode);
                     return vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
                 })
                 .flatMap(quote -> {
@@ -121,39 +118,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 .subscribe(new QuoteProcessor());
     }
 
-    private class BacktestProcessor implements Action1<Object> {
-        @Override
-        public void call(Object onNext) {
-            boolean runBacktest = config().getBoolean("runBacktestFlag", true);
-            if (runBacktest) {
-                for (Integer ibCode : getIBrokersCodes()) {
-                    Observable<Object> backtestStream = vertx.executeBlockingObservable(future -> {
-                        logger.info("executing backtest");
-                        JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
-                        List<String> dirs = storageDirs.getList();
-                        try {
-                            MarketData.processBacktest(dirs, ibCode, AbstractStrategyVerticle.this);
-                            future.complete();
-                        } catch (Exception e) {
-                            logger.error("backtest failed", e);
-                            future.fail(e);
-                        }
-                    });
-                    backtestStream.subscribe();
-                }
-            } else {
-                logger.info("skipping backtest");
-            }
-        }
-    }
-
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
 
         @Override
         public void call(Message<JsonObject> message) {
             try {
                 Quote quote = QuoteConverter.fromJSON(message.body());
-                if (contracts.size() != getIBrokersCodes().length || quote == null) {
+                if (contracts.size() != getProductCodes().length || quote == null) {
                     return;
                 }
                 logger.info("processing order book: " + quote);

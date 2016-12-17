@@ -2,7 +2,6 @@ package org.omarket.trading.ibrokers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.eventbus.EventBus;
@@ -87,7 +86,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         int tickerId = newSubscriptionId();
         Files.createDirectories(storageDirPath);
-        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode));
+        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
         logger.info("min tick for contract " + ibCode + ": " + minTick);
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
@@ -103,7 +102,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         writer.close();
 
         subscribed.put(ibCode, productStorage);
-        orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick), contract));
+        orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
         getClient().reqMktData(tickerId, contract, "", false, null);
     }
 
@@ -166,7 +165,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     }
 
     private void processOrderBook(Contract contract, Quote orderBook) {
-        String channel = createChannelQuote(contract.conid());
+        String channel = createChannelQuote(String.valueOf(contract.conid()));
         try {
             Path rootDirectory = subscribed.get(contract.conid());
             Date now = new Date();

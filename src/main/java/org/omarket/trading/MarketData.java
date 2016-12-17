@@ -32,19 +32,19 @@ public class MarketData {
     public static final String IBROKERS_TICKS_STORAGE_PATH = "ibrokers.ticks.storagePath";
     private final static Logger logger = LoggerFactory.getLogger(MarketData.class);
 
-    static public String createChannelQuote(Integer ibCode) {
-        return MarketDataVerticle.ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
+    static public String createChannelQuote(String productCode) {
+        return MarketDataVerticle.ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + productCode;
     }
 
     public static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
 
-    static public void processBacktest(List<String> dirs, Integer ibCode, QuoteProcessor processor) {
+    static public void processBacktest(List<String> dirs, String productCode, QuoteProcessor processor) {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode));
+        Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
         logger.info("accessing storage: " + productStorage);
         if (Files.exists(productStorage)) {
-            Map<String, Path> tickFiles = getTickFiles(ibCode, productStorage);
+            Map<String, Path> tickFiles = getTickFiles(productCode, productStorage);
             // TODO: swap for / while loops
 
             for (Map.Entry<String, Path> entry : tickFiles.entrySet()) {
@@ -66,7 +66,7 @@ public class MarketData {
                             BigDecimal priceBid = new BigDecimal(fields[2]);
                             BigDecimal priceAsk = new BigDecimal(fields[3]);
                             Integer volumeAsk = Integer.valueOf(fields[4]);
-                            Quote quote = QuoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk);
+                            Quote quote = QuoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk, productCode);
                             logger.debug("current quote: " + quote + " (" + quote.getLastModified() + ")");
                             if (quotePrev != null && !quote.sameSampledTime(quotePrev, ChronoUnit.SECONDS)){
                                 processor.processQuote(quotePrev);
@@ -87,11 +87,11 @@ public class MarketData {
     /**
      * Detects tick files from local drive.
      *
-     * @param ibCode
+     * @param productCode
      * @param productStorage
      * @return
      */
-    public static Map<String, Path> getTickFiles(Integer ibCode, Path productStorage) {
+    public static Map<String, Path> getTickFiles(String productCode, Path productStorage) {
         Map<String, Path> tickFiles = new TreeMap<>();
         try (Stream<Path> paths = Files.walk(productStorage)) {
             paths.forEach(filePath -> {
@@ -107,7 +107,7 @@ public class MarketData {
                 }
             });
         } catch (IOException e) {
-            logger.error("failed to access recorded ticks for product " + ibCode, e);
+            logger.error("failed to access recorded ticks for product " + productCode, e);
         }
         return tickFiles;
     }

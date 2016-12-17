@@ -19,8 +19,8 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     private BigDecimal minTick;
 
-    MutableQuoteImpl(BigDecimal minTick) {
-        super(null, null, null, null, null);
+    MutableQuoteImpl(BigDecimal minTick, String productCode) {
+        super(null, null, null, null, null, productCode);
         this.minTick = minTick;
     }
 

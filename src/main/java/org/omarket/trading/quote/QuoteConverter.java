@@ -53,6 +53,7 @@ public class QuoteConverter {
         BigDecimal bestAskPrice = BigDecimal.valueOf(json.getDouble("bestAskPrice"));
         Integer bestBidSize = json.getInteger("bestBidSize");
         Integer bestAskSize = json.getInteger("bestAskSize");
-        return QuoteFactory.create(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize);
+        String productCode = json.getString("productCode");
+        return QuoteFactory.create(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 }

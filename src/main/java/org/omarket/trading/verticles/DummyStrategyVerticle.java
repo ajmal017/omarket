@@ -41,7 +41,7 @@ public class DummyStrategyVerticle extends AbstractVerticle {
                     logger.error("failed to subscribe to: " + ibCode);
                 }
             );
-            String channelProduct = createChannelQuote(ibCode);
+            String channelProduct = createChannelQuote(ibCode.toString());
             vertx.eventBus().consumer(channelProduct, (Message<JsonObject> message) -> orderBookReceived(ibCode, message.body()));
         }
     }

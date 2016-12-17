@@ -1,9 +1,7 @@
 
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Verticle;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
@@ -15,8 +13,6 @@ import rx.functions.Func1;
 import rx.Observable;
 import rx.schedulers.Schedulers;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -79,12 +75,6 @@ class Hysteresis implements Func1<Double, Double> {
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
-    public static void main2(String[] args) throws InterruptedException {
-        DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-        String value = "2016-11-14 10:53:59.260";
-        System.out.println(LocalDateTime.parse(value, DATE_FORMAT));
-    }
-
     public static void main3(String[] args) throws InterruptedException {
         Observable<Long> clock = interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
@@ -113,8 +103,18 @@ public class Scratchpad {
         sleep(10000);
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main0(String[] args) throws Exception {
+        Observable<Integer> stream1 = Observable.from(new Integer[]{1,2,3,4});
+        Observable<String> stream2 = Observable.from(new String[]{"a","b","c","d", "e"});
+        String value = "x"; //Observable.just("x");
+        stream1.map(y -> value + ", " + y).subscribe(
+                x -> {
+                    logger.info("got " + x);
+                }
+        );
+    }
 
+    public static void main(String[] args) throws Exception {
         JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         int defaultClientId = 1;
         String defaultHost = "127.0.0.1";
@@ -133,56 +133,15 @@ public class Scratchpad {
         storageDirs.add("data");
         storageDirs.add("ticks");
         List<String> dirs = storageDirs.getList();
-        processHistoricalQuotes(vertx, dirs, 12087817, new QuoteProcessor(){
-            @Override
-            public void processQuote(Quote quote) {
-                logger.info("sending: " + quote);
-                JsonObject quoteJson = QuoteConverter.toJSON(quote);
-                vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
-            }
-        });
-
-        /*
-        Verticle historicalDataVerticle = new HistoricalDataVerticle();
-        Observable<String> historicalDataDeployment = RxHelper.deployVerticle(vertx, historicalDataVerticle, options);
-        historicalDataDeployment.subscribe(x -> {
-            JsonObject historyRequest = new JsonObject();
-            historyRequest.put("productCode", 12087817);
-            historyRequest.put("replyTo", "TEST");
-            logger.info("sending hist data feed request");
-            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, historyRequest);
-        });
-        */
-
-    }
-
-    /**
-     * Waits for emission of all elements from stream1 before emitting elements from stream2.
-     * Similar to concat but with no need for both streams to return identical types.
-     *
-     *     Observable<Integer> stream1 = Observable.from(new Integer[]{1,2,3,4});
-     *     Observable<String> stream2 = Observable.from(new String[]{"a","b","c","d", "e"});
-     *     chain(stream1.doOnNext(System.out::println), stream2).subscribe(System.out::println);
-     *     > 1
-     *     > 2
-     *     > 3
-     *     > 4
-     *     > a
-     *     > b
-     *     > c
-     *     > d
-     *     > e
-     *
-     * @param stream1
-     * @param stream2
-     * @param <T1>
-     * @param <T2>
-     * @return Observable emitting elements from stream2 only after stream1 completion
-     */
-    private static <T1, T2> Observable<T2> chain(Observable<T1> stream1, Observable<T2> stream2) {
-        Observable<T1> last = stream1
-                .last();
-        return combineLatest(last, stream2, (x, y) -> y);
+        Observable<Quote> stream1 = processHistoricalQuotes(dirs, "12087817");
+        Observable<Quote> stream2 = processHistoricalQuotes(dirs, "12087820");
+        Observable.merge(stream1, stream2).forEach(
+                quote -> {
+                    logger.info("sending: " + quote);
+                    JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
+                }
+        );
     }
 
 }
