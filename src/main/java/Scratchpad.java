@@ -5,8 +5,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
+import org.omarket.trading.util.OperatorMergeSorted;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
-import org.omarket.trading.verticles.QuoteProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
@@ -35,12 +35,12 @@ class RandomWalk implements Func1<Boolean, Double> {
 
     @Override
     public Double call(Boolean upOrDown) {
-        if(upOrDown){
+        if (upOrDown) {
             logger.info("up one tick");
         } else {
             logger.info("down one tick");
         }
-        state = upOrDown? state + step: state - step;
+        state = upOrDown ? state + step : state - step;
         return state;
     }
 
@@ -63,9 +63,9 @@ class Hysteresis implements Func1<Double, Double> {
 
     @Override
     public Double call(Double value) {
-        if(value >= thresholdHigh){
+        if (value >= thresholdHigh) {
             state = outputHigh;
-        } else if (value <= thresholdLow){
+        } else if (value <= thresholdLow) {
             state = outputLow;
         }
         return state;
@@ -104,8 +104,8 @@ public class Scratchpad {
     }
 
     public static void main0(String[] args) throws Exception {
-        Observable<Integer> stream1 = Observable.from(new Integer[]{1,2,3,4});
-        Observable<String> stream2 = Observable.from(new String[]{"a","b","c","d", "e"});
+        Observable<Integer> stream1 = Observable.from(new Integer[]{1, 2, 3, 4});
+        Observable<String> stream2 = Observable.from(new String[]{"a", "b", "c", "d", "e"});
         String value = "x"; //Observable.just("x");
         stream1.map(y -> value + ", " + y).subscribe(
                 x -> {
@@ -135,13 +135,42 @@ public class Scratchpad {
         List<String> dirs = storageDirs.getList();
         Observable<Quote> stream1 = processHistoricalQuotes(dirs, "12087817");
         Observable<Quote> stream2 = processHistoricalQuotes(dirs, "12087820");
-        Observable.merge(stream1, stream2).forEach(
-                quote -> {
-                    logger.info("sending: " + quote);
-                    JsonObject quoteJson = QuoteConverter.toJSON(quote);
-                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
-                }
-        );
+        List<Observable<Quote>> quoteStreams = Arrays.asList(stream1, stream2);
+        Observable.from(quoteStreams)
+                .lift(new OperatorMergeSorted<>((x, y) -> {
+                    if(x.getLastModified().equals(y.getLastModified())){
+                        return 0;
+                    } else if (x.getLastModified().isBefore(y.getLastModified())){
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                }))
+                .forEach(
+                        quote -> {
+                            logger.info("sending: " + quote);
+                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
+                        }
+                );
+        /*
+        Observable
+                .combineLatest(stream1, stream2, (x, y) -> {
+                    if (x.getLastModified().isBefore(y.getLastModified())) {
+                        return x;
+                    } else {
+                        return y;
+                    }
+                })
+                .take(10)
+                .forEach(
+                        quote -> {
+                            logger.info("sending: " + quote);
+                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
+                        }
+                );
+                */
     }
 
 }
