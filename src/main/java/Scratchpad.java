@@ -6,6 +6,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
 import org.omarket.trading.verticles.QuoteProcessor;
 import org.slf4j.Logger;
@@ -133,10 +134,11 @@ public class Scratchpad {
         storageDirs.add("ticks");
         List<String> dirs = storageDirs.getList();
         processHistoricalQuotes(vertx, dirs, 12087817, new QuoteProcessor(){
-
             @Override
             public void processQuote(Quote quote) {
-
+                logger.info("sending: " + quote);
+                JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
             }
         });
 
