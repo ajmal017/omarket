@@ -36,7 +36,7 @@ public class MarketData {
         return MarketDataVerticle.ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + ibCode;
     }
 
-    static private final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
+    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
 
     static public void processBacktest(List<String> dirs, Integer ibCode, QuoteProcessor processor) {
         String storageDirPathName = String.join(File.separator, dirs);
@@ -46,6 +46,7 @@ public class MarketData {
         if (Files.exists(productStorage)) {
             Map<String, Path> tickFiles = getTickFiles(ibCode, productStorage);
             // TODO: swap for / while loops
+
             for (Map.Entry<String, Path> entry : tickFiles.entrySet()) {
                 String yyyymmddhh = entry.getKey();
                 Path filePath = entry.getValue();
@@ -90,7 +91,7 @@ public class MarketData {
      * @param productStorage
      * @return
      */
-    private static Map<String, Path> getTickFiles(Integer ibCode, Path productStorage) {
+    public static Map<String, Path> getTickFiles(Integer ibCode, Path productStorage) {
         Map<String, Path> tickFiles = new TreeMap<>();
         try (Stream<Path> paths = Files.walk(productStorage)) {
             paths.forEach(filePath -> {

@@ -5,7 +5,9 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
+import org.omarket.trading.quote.Quote;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
+import org.omarket.trading.verticles.QuoteProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
@@ -15,11 +17,13 @@ import rx.schedulers.Schedulers;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.verticles.HistoricalDataVerticle.processHistoricalQuotes;
 import static rx.Observable.*;
 
 class RandomWalk implements Func1<Boolean, Double> {
@@ -123,6 +127,20 @@ public class Scratchpad {
         DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
 
         final Vertx vertx = Vertx.vertx();
+
+        JsonArray storageDirs = new JsonArray();
+        storageDirs.add("data");
+        storageDirs.add("ticks");
+        List<String> dirs = storageDirs.getList();
+        processHistoricalQuotes(vertx, dirs, 12087817, new QuoteProcessor(){
+
+            @Override
+            public void processQuote(Quote quote) {
+
+            }
+        });
+
+        /*
         Verticle historicalDataVerticle = new HistoricalDataVerticle();
         Observable<String> historicalDataDeployment = RxHelper.deployVerticle(vertx, historicalDataVerticle, options);
         historicalDataDeployment.subscribe(x -> {
@@ -132,6 +150,7 @@ public class Scratchpad {
             logger.info("sending hist data feed request");
             vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, historyRequest);
         });
+        */
 
     }
 
