@@ -31,12 +31,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     }
 
     @Override
-    protected Integer getLookBackPeriod() {
-        return 200 * 1000;
-    }
-
-    @Override
-    protected void init(Integer lookBackPeriod){
+    protected void init(){
         logger.info("starting single leg mean reversion strategy verticle");
         logger.info("using default paramater for thresholdStep");
         getParameters().put("thresholdStep", 0.1);
@@ -52,8 +47,6 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
         message.put("signal", midPrice.doubleValue());
         message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
         logger.info("emitting: " + message);
-        List<Quote> pastQuotes = this.getPastQuotes();
-        logger.info("length of past quotes: " + pastQuotes.size());
         vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
     }
 

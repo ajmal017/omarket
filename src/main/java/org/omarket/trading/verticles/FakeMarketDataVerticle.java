@@ -49,10 +49,6 @@ public class FakeMarketDataVerticle extends AbstractVerticle {
                             quotes.get(productCode).add(quote);
                         }
 
-                        @Override
-                        public void updateQuotes(Quote quotePrev) {
-
-                        }
                     });
                 }
                 future.complete();

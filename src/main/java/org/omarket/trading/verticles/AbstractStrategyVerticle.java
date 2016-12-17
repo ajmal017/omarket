@@ -28,60 +28,21 @@ import static org.omarket.trading.Util.chain;
  */
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
-    private static final String PARAM_PAST_QUOTES = "pastQuotes";
+
     private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
 
     private JsonObject parameters = new JsonObject();
 
-    private Map<String, JsonObject> contracts = new HashMap<>();
-
     abstract protected String[] getProductCodes();
-
-    /**
-     * For how long back the verticle needs to keep past order books.
-     *
-     * @return lookback period in milliseconds
-     */
-    abstract protected Integer getLookBackPeriod();
 
     /*
      *
      */
-    abstract protected void init(Integer lookbackPeriod);
-
-    public void updateQuotes(Quote quote) {
-        try {
-            List<JsonObject> quotes = this.getParameters().getJsonArray(PARAM_PAST_QUOTES).getList();
-            if (quotes.size() > 0) {
-                Quote firstQuote = QuoteConverter.fromJSON(quotes.get(0));
-                Quote lastQuote = QuoteConverter.fromJSON(quotes.get(quotes.size() - 1));
-                logger.info("quotes range before update: " + firstQuote.getLastModified() + " / " + lastQuote.getLastModified());
-            }
-            ZonedDateTime lastModified = quote.getLastModified();
-            ZonedDateTime expiry = lastModified.minus(getLookBackPeriod(), ChronoUnit.MILLIS);
-            this.getParameters().put(PARAM_PAST_QUOTES, new JsonArray());
-            for (JsonObject currentQuoteJson : quotes) {
-                Quote currentQuote = QuoteConverter.fromJSON(currentQuoteJson);
-                if (currentQuote.getLastModified().isAfter(expiry)) {
-                    this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(currentQuote));
-                }
-            }
-            this.getParameters().getJsonArray(PARAM_PAST_QUOTES).add(QuoteConverter.toJSON(quote));
-            logger.info("updated quote: " + quote);
-        } catch (ParseException e) {
-            logger.error("unable to update quote", e);
-        }
-    }
+    abstract protected void init();
 
     JsonObject getParameters() {
         return parameters;
-    }
-
-    List<Quote> getPastQuotes() {
-        JsonArray quotes = getParameters().getJsonArray(PARAM_PAST_QUOTES);
-        List<Quote> quotesList = (List<Quote>) quotes.getList();
-        return quotesList;
     }
 
     public String getHistoricalQuotesAddress(){
@@ -92,11 +53,16 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
     public void start() {
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
             try {
-                JsonArray array = new JsonArray();
-                getParameters().put(PARAM_PAST_QUOTES, array);
-                init(getLookBackPeriod());
+                init();
                 Observable<Message<JsonObject>> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).toObservable();
-                historicalDataStream.subscribe(new QuoteProcessor());
+                historicalDataStream.subscribe(
+                        new QuoteProcessor(),
+                        error->{
+                            logger.error("error occured during backtest");
+                        },
+                        () -> {
+                            logger.info("completed backtest");
+                        });
                 logger.info("initialization completed");
                 future.complete();
             } catch (Exception e) {
@@ -104,15 +70,19 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 future.fail(e);
             }
         });
-        Observable<String> productCodes = chain(initStream, Observable.from(getProductCodes()));
-        productCodes
-                .forEach(productCode -> {
-                    JsonObject request = new JsonObject();
-                    request.put("productCode", productCode);
-                    request.put("replyTo", getHistoricalQuotesAddress());
-                    logger.info("requesting historical data for product: " + productCode + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
-                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
-                });
+        initStream
+                .doOnCompleted(() -> {
+                Observable.from(getProductCodes())
+                        .forEach(productCode -> {
+                            JsonObject request = new JsonObject();
+                            request.put("productCode", productCode);
+                            request.put("replyTo", getHistoricalQuotesAddress());
+                            logger.info("requesting historical data for product: " + productCode + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
+                            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
+                        });
+                }
+                )
+                .subscribe();
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
@@ -121,7 +91,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         public void call(Message<JsonObject> message) {
             try {
                 Quote quote = QuoteConverter.fromJSON(message.body());
-                logger.info("processing order book: " + quote);
+                logger.info("forwarding order book to implementing strategy: " + quote);
                 processQuote(quote);
             } catch (ParseException e) {
                 logger.error("failed to parse tick data from " + message.body(), e);

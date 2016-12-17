@@ -8,5 +8,4 @@ import java.text.ParseException;
  */
 public interface StrategyProcessor extends QuoteProcessor {
     void processQuote(Quote quote);
-    void updateQuotes(Quote quote) throws ParseException;
 }
