@@ -43,6 +43,7 @@ public class QuoteConverter {
             asJSON.put("bestAskPrice", (Enum)null);
         }
         asJSON.put("bestAskSize", quote.getBestAskSize());
+        asJSON.put("productCode", quote.getProductCode());
         return asJSON;
     }
 

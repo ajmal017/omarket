@@ -3,6 +3,9 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.omarket.trading.Util;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
@@ -10,18 +13,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
 import rx.Observable;
+import rx.internal.operators.OperatorBufferWithSize;
 import rx.schedulers.Schedulers;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 import static org.omarket.trading.verticles.HistoricalDataVerticle.mergeQuoteStreams;
 import static org.omarket.trading.verticles.HistoricalDataVerticle.getHistoricalQuoteStream;
-import static rx.Observable.*;
+import static rx.Observable.combineLatest;
+import static rx.Observable.interval;
 
 class RandomWalk implements Func1<Boolean, Double> {
     private final static Logger logger = LoggerFactory.getLogger(RandomWalk.class);
@@ -35,11 +38,6 @@ class RandomWalk implements Func1<Boolean, Double> {
 
     @Override
     public Double call(Boolean upOrDown) {
-        if (upOrDown) {
-            logger.info("up one tick");
-        } else {
-            logger.info("down one tick");
-        }
         state = upOrDown ? state + step : state - step;
         return state;
     }
@@ -75,6 +73,38 @@ class Hysteresis implements Func1<Double, Double> {
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
+    public static void main(String[] args) throws InterruptedException {
+        Observable<Long> clock = interval(1000, TimeUnit.MILLISECONDS, Schedulers.computation());
+
+        final Random random = new Random();
+
+        Double mean = 100.;
+        Double step = 0.5;
+        Observable<Double> randomWalk1 = clock.take(10)
+                .map(tick -> random.nextBoolean())
+                .map(new RandomWalk(mean, step));
+
+        Observable<Double> randomWalk2 = clock
+                .map(tick -> random.nextBoolean())
+                .map(new RandomWalk(mean, step));
+
+        //Observable<Double> signal = combineLatest(randomWalk1, randomWalk2, (value1, value2) -> value2 - value1);
+        Observable<Double> signal = clock
+                .map(tick -> random.nextBoolean())
+                .map(new RandomWalk(mean, step));
+        Util.shift(signal.doOnNext(value -> logger.info("raw value: " + value)), 3)
+                .zipWith(signal, (x, y) -> {
+                    logger.info("zipped: " + x + ", " + y);
+                    return new ImmutablePair<>(x, y);
+                })
+                .forEach(value -> {
+                    logger.info("shifted value = " + value);
+                });
+        signal.doOnNext(value -> logger.info("raw value: " + value))
+                .lift(new OperatorBufferWithSize<>(2, 1));
+        sleep(12000);
+    }
+
     public static void main3(String[] args) throws InterruptedException {
         Observable<Long> clock = interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
@@ -86,7 +116,7 @@ public class Scratchpad {
                 .map(tick -> random.nextBoolean())
                 .map(new RandomWalk(mean, step));
 
-        Observable<Double> randomWalk2 = clock
+        Observable<Double> randomWalk2 = clock.buffer(1)
                 .map(tick -> random.nextBoolean())
                 .map(new RandomWalk(mean, step));
 
@@ -114,7 +144,7 @@ public class Scratchpad {
         );
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main1(String[] args) throws Exception {
         JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         int defaultClientId = 1;
         String defaultHost = "127.0.0.1";

@@ -29,6 +29,7 @@ import static org.omarket.trading.Util.chain;
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
     private static final String PARAM_PAST_QUOTES = "pastQuotes";
+    private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
 
     private JsonObject parameters = new JsonObject();
@@ -83,6 +84,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         return quotesList;
     }
 
+    public String getHistoricalQuotesAddress(){
+        return ADDRESS_HISTORICAL_QUOTES_PREFIX + "." + this.getClass().getSimpleName();
+    }
+
     @Override
     public void start() {
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
@@ -90,6 +95,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 JsonArray array = new JsonArray();
                 getParameters().put(PARAM_PAST_QUOTES, array);
                 init(getLookBackPeriod());
+                Observable<Message<JsonObject>> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).toObservable();
+                historicalDataStream.subscribe(new QuoteProcessor());
                 logger.info("initialization completed");
                 future.complete();
             } catch (Exception e) {
@@ -102,32 +109,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 .forEach(productCode -> {
                     JsonObject request = new JsonObject();
                     request.put("productCode", productCode);
-                    request.put("replyTo", "historical");
-                    logger.info("requesting historical data for product: " + productCode);
+                    request.put("replyTo", getHistoricalQuotesAddress());
+                    logger.info("requesting historical data for product: " + productCode + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
                     vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
                 });
-        /*
-        Observable<String> productCodes = chain(initStream, Observable.from(getProductCodes()));
-        productCodes
-                .flatMap(productCode -> {
-                    JsonObject product = new JsonObject().put("conId", productCode);
-                    ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
-                    logger.info("requesting subscription for product: " + productCode);
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
-                    return contractStream;
-                })
-                .zipWith(Observable.from(getProductCodes()), (contractMessage, productCode) -> {
-                    JsonObject contract = contractMessage.body();
-                    contracts.put(productCode, contract);
-                    final String channelProduct = createChannelQuote(productCode);
-                    return vertx.eventBus().<JsonObject>consumer(channelProduct).toObservable();
-                })
-                .flatMap(quote -> {
-                    logger.info("flatmap: " + quote);
-                    return quote;
-                })
-                .subscribe(new QuoteProcessor());
-                */
     }
 
     private class QuoteProcessor implements Action1<Message<JsonObject>> {
@@ -136,12 +121,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         public void call(Message<JsonObject> message) {
             try {
                 Quote quote = QuoteConverter.fromJSON(message.body());
-                if (contracts.size() != getProductCodes().length || quote == null) {
-                    return;
-                }
                 logger.info("processing order book: " + quote);
                 processQuote(quote);
-                updateQuotes(quote);
             } catch (ParseException e) {
                 logger.error("failed to parse tick data from " + message.body(), e);
             }

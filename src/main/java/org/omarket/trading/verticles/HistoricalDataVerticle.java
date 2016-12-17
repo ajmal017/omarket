@@ -45,15 +45,15 @@ public class HistoricalDataVerticle extends AbstractVerticle {
 
         Observable<JsonObject> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_PROVIDE_HISTORY).bodyStream().toObservable();
         contractStream
-                .doOnNext(message -> {
+                .subscribe(message -> {
                     final String productCode = message.getString("productCode");
                     final String address = message.getString("replyTo");
                     logger.info("data for contract " + productCode + " will be sent to " + address);
                     try {
-                        getHistoricalQuoteStream(dirs, productCode)
+                        getHistoricalQuoteStream(dirs, productCode).take(10)
                                 .forEach(
                                         quote -> {
-                                            logger.info("sending: " + quote);
+                                            logger.info("sending: " + quote + " on address " + address);
                                             JsonObject quoteJson = QuoteConverter.toJSON(quote);
                                             vertx.eventBus().send(address, quoteJson);
                                         });
@@ -62,7 +62,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                         startFuture.fail(e);
                     }
                 });
-        logger.info("ready to provide historical data");
+        logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
         startFuture.complete();
     }
 

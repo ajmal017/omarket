@@ -36,4 +36,12 @@ public class Util {
                 .last();
         return combineLatest(last, stream2, (x, y) -> y);
     }
+
+    public static <T> Observable<T> shift(Observable<T> stream, Integer count){
+        return stream.buffer(count + 1, 1).map(x -> x.get(0));
+    }
+
+    public static <T> Observable<T> shift(Observable<T> stream){
+        return stream.buffer(2, 1).map(x -> x.get(0));
+    }
 }
