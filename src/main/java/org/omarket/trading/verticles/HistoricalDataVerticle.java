@@ -46,21 +46,26 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         Observable<JsonObject> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_PROVIDE_HISTORY).bodyStream().toObservable();
         contractStream
                 .subscribe(message -> {
-                    final String productCode = message.getString("productCode");
+                    final JsonArray productCodes = message.getJsonArray("productCodes");
                     final String address = message.getString("replyTo");
-                    logger.info("data for contract " + productCode + " will be sent to " + address);
+                    logger.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
+                    List<Observable<Quote>> quoteStreams = new LinkedList<>();
                     try {
-                        getHistoricalQuoteStream(dirs, productCode).take(10)
-                                .forEach(
-                                        quote -> {
-                                            logger.info("sending: " + quote + " on address " + address);
-                                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
-                                            vertx.eventBus().send(address, quoteJson);
-                                        });
+                        for (Object productCode : productCodes.getList()) {
+                            Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode).take(10);
+                            quoteStreams.add(stream);
+                        }
                     } catch (IOException e) {
                         logger.error("failed while accessing historical data", e);
                         startFuture.fail(e);
                     }
+                    mergeQuoteStreams(quoteStreams)
+                            .forEach(
+                                    quote -> {
+                                        logger.info("sending: " + quote + " on address " + address);
+                                        JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                                        vertx.eventBus().send(address, quoteJson);
+                                    });
                 });
         logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
         startFuture.complete();
@@ -103,12 +108,12 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         return quote;
     }
 
-    public static Observable<Quote> mergeQuoteStreams(List<Observable<Quote>> quoteStreams){
+    public static Observable<Quote> mergeQuoteStreams(List<Observable<Quote>> quoteStreams) {
         return Observable.from(quoteStreams)
                 .lift(new OperatorMergeSorted<>((x, y) -> {
-                    if(x.getLastModified().equals(y.getLastModified())){
+                    if (x.getLastModified().equals(y.getLastModified())) {
                         return 0;
-                    } else if (x.getLastModified().isBefore(y.getLastModified())){
+                    } else if (x.getLastModified().isBefore(y.getLastModified())) {
                         return -1;
                     } else {
                         return 1;

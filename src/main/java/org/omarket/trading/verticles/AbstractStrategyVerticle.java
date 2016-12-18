@@ -1,27 +1,18 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
 import rx.functions.Action1;
 
 import java.text.ParseException;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-
-import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
-import static org.omarket.trading.MarketData.createChannelQuote;
-import static org.omarket.trading.Util.chain;
 
 /**
  * Created by Christophe on 18/11/2016.
@@ -45,7 +36,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         return parameters;
     }
 
-    public String getHistoricalQuotesAddress(){
+    public String getHistoricalQuotesAddress() {
         return ADDRESS_HISTORICAL_QUOTES_PREFIX + "." + this.getClass().getSimpleName();
     }
 
@@ -57,7 +48,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 Observable<Message<JsonObject>> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).toObservable();
                 historicalDataStream.subscribe(
                         new QuoteProcessor(),
-                        error->{
+                        error -> {
                             logger.error("error occured during backtest");
                         },
                         () -> {
@@ -72,15 +63,17 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         });
         initStream
                 .doOnCompleted(() -> {
-                Observable.from(getProductCodes())
-                        .forEach(productCode -> {
                             JsonObject request = new JsonObject();
-                            request.put("productCode", productCode);
+                            String[] productCodes = getProductCodes();
+                            JsonArray codes = new JsonArray();
+                            for(String code: productCodes){
+                                codes.add(code);
+                            }
+                            request.put("productCodes", codes);
                             request.put("replyTo", getHistoricalQuotesAddress());
-                            logger.info("requesting historical data for product: " + productCode + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
+                            logger.info("requesting historical data for products: " + Arrays.asList(productCodes) + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
                             vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
-                        });
-                }
+                        }
                 )
                 .subscribe();
     }
