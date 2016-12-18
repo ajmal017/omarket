@@ -54,8 +54,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 init();
                 MessageConsumer<JsonObject> historicalDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
                 Observable<JsonObject> historicalDataStream = historicalDataConsumer.bodyStream().toObservable();
+                final QuoteProcessor quoteProcessor = new QuoteProcessor();
                 historicalDataStream.subscribe(
-                        new QuoteProcessor(historicalDataConsumer),
+                        quoteProcessor,
                         error -> {
                             logger.error("error occured during backtest", error);
                         });
@@ -65,7 +66,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     logger.info("unregistering historical data consumer");
                     historicalDataConsumer.unregister();
                     logger.info("starting realtime processing");
-                    // TODO - enable realtime processing: subscribe to market data
+                    // TODO - enable realtime processing: subscribe to market data using quoteProcessor
                 });
                 logger.info("initialization completed");
                 future.complete();
@@ -96,11 +97,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
     private class QuoteProcessor implements Action1<JsonObject> {
 
-        final MessageConsumer<JsonObject> consumer;
         final Map<String, Quote> quotes;
 
-        QuoteProcessor(MessageConsumer<JsonObject> consumer) {
-            this.consumer = consumer;
+        QuoteProcessor() {
             this.quotes = new HashMap<>();
         }
 
@@ -110,7 +109,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                     Quote quote = QuoteConverter.fromJSON(quoteJson);
                     String productCode = quote.getProductCode();
                     quotes.put(productCode, quote);
-                    logger.debug("forwarding order book to implementing strategy: " + quote);
+                    logger.debug("forwarding order book to concrete strategy: " + quote);
                     processQuotes(quotes);
                 } catch (ParseException e) {
                     logger.error("failed to parse tick data from " + quoteJson, e);
