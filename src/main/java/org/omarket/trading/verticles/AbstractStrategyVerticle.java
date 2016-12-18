@@ -36,8 +36,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         return parameters;
     }
 
-    public String getHistoricalQuotesAddress() {
-        return ADDRESS_HISTORICAL_QUOTES_PREFIX + "." + this.getClass().getSimpleName();
+    private String getHistoricalQuotesAddress() {
+        return ADDRESS_HISTORICAL_QUOTES_PREFIX + "." + this.deploymentID();
     }
 
     @Override

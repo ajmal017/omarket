@@ -65,7 +65,14 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                                         logger.info("sending: " + quote + " on address " + address);
                                         JsonObject quoteJson = QuoteConverter.toJSON(quote);
                                         vertx.eventBus().send(address, quoteJson);
-                                    });
+                                    },
+                                    error -> {
+                                        logger.error("failed to send historical data", error);
+                                    },
+                                    () -> {
+                                        logger.info("completed historical data");
+                                    }
+                                    );
                 });
         logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
         startFuture.complete();
