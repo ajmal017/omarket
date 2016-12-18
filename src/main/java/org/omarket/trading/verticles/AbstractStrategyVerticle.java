@@ -62,10 +62,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 MessageConsumer<JsonObject> realtimeStartConsumer = vertx.eventBus().consumer(getRealtimeQuotesAddress());
                 Observable<JsonObject> realtimeStartStream = realtimeStartConsumer.bodyStream().toObservable();
                 realtimeStartStream.subscribe(message -> {
-                    // TODO - enable realtime processing
                     logger.info("unregistering historical data consumer");
                     historicalDataConsumer.unregister();
                     logger.info("starting realtime processing");
+                    // TODO - enable realtime processing: subscribe to market data
                 });
                 logger.info("initialization completed");
                 future.complete();
