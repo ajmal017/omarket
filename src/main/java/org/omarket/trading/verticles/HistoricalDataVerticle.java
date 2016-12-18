@@ -51,6 +51,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                     Observable<Object> execStream = vertx.executeBlockingObservable(future -> {
                         final JsonArray productCodes = message.getJsonArray(AbstractStrategyVerticle.KEY_PRODUCT_CODES);
                         final String address = message.getString(AbstractStrategyVerticle.KEY_REPLY_TO);
+                        final String completionAddress = message.getString(AbstractStrategyVerticle.KEY_COMPLETION_ADDRESS);
                         logger.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
                         List<Observable<Quote>> quoteStreams = new LinkedList<>();
                         try {
@@ -69,20 +70,22 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                                             JsonObject quoteJson = QuoteConverter.toJSON(quote);
                                             vertx.eventBus().send(address, quoteJson);
                                         },
-                                        error -> {
-                                            future.fail(error);
-                                        },
+                                        future::fail,
                                         () -> {
                                             JsonObject empty = new JsonObject();
-                                            vertx.eventBus().send(AbstractStrategyVerticle.KEY_COMPLETION_ADDRESS, empty);
+                                            logger.info("notifying completion on " + completionAddress);
+                                            vertx.eventBus().send(completionAddress, empty);
                                             future.complete();
                                         }
                                 );
                     });
                     execStream
-                            .doOnCompleted(() -> { logger.info("completed historical data");})
+                            .doOnCompleted(() -> {
+                                logger.info("completed historical data");
+                            })
                             .doOnError(error -> {
-                                logger.error("failed to send historical data", error);})
+                                logger.error("failed to send historical data", error);
+                            })
                             .subscribe();
                 });
         logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
