@@ -45,7 +45,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
             try {
                 init();
-                Observable<Message<JsonObject>> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).toObservable();
+                Observable<JsonObject> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).bodyStream().toObservable();
                 historicalDataStream.subscribe(
                         new QuoteProcessor(),
                         error -> {
@@ -78,16 +78,16 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 .subscribe();
     }
 
-    private class QuoteProcessor implements Action1<Message<JsonObject>> {
+    private class QuoteProcessor implements Action1<JsonObject> {
 
         @Override
-        public void call(Message<JsonObject> message) {
+        public void call(JsonObject quoteJson) {
             try {
-                Quote quote = QuoteConverter.fromJSON(message.body());
+                Quote quote = QuoteConverter.fromJSON(quoteJson);
                 logger.info("forwarding order book to implementing strategy: " + quote);
                 processQuote(quote);
             } catch (ParseException e) {
-                logger.error("failed to parse tick data from " + message.body(), e);
+                logger.error("failed to parse tick data from " + quoteJson, e);
             }
         }
     }

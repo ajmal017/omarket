@@ -1,20 +1,11 @@
 package org.omarket.trading.verticles;
 
-import com.jimmoores.quandl.DataSetRequest;
-import com.jimmoores.quandl.QuandlSession;
-import com.jimmoores.quandl.Row;
-import com.jimmoores.quandl.TabularResult;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import joinery.DataFrame;
 import org.omarket.trading.quote.Quote;
-import org.threeten.bp.LocalDate;
 
 import java.math.BigDecimal;
-import java.util.*;
-
-import static java.lang.Math.sqrt;
 
 /**
  * Created by Christophe on 01/11/2016.

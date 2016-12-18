@@ -7,11 +7,13 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.util.OperatorMergeSorted;
 import rx.Observable;
+import rx.Scheduler;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -43,7 +45,8 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         JsonArray storageDirs = config().getJsonArray(IBROKERS_TICKS_STORAGE_PATH);
         List<String> dirs = storageDirs.getList();
 
-        Observable<JsonObject> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_PROVIDE_HISTORY).bodyStream().toObservable();
+        final MessageConsumer<JsonObject> provideRequest = vertx.eventBus().consumer(ADDRESS_PROVIDE_HISTORY);
+        Observable<JsonObject> contractStream = provideRequest.bodyStream().toObservable();
         contractStream
                 .subscribe(message -> {
                     final JsonArray productCodes = message.getJsonArray("productCodes");
@@ -71,6 +74,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                                     },
                                     () -> {
                                         logger.info("completed historical data");
+                                        provideRequest.unregisterObservable();
                                     }
                                     );
                 });
