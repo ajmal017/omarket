@@ -48,35 +48,42 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         Observable<JsonObject> contractStream = provideRequest.bodyStream().toObservable();
         contractStream
                 .subscribe(message -> {
-                    final JsonArray productCodes = message.getJsonArray("productCodes");
-                    final String address = message.getString("replyTo");
-                    logger.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
-                    List<Observable<Quote>> quoteStreams = new LinkedList<>();
-                    try {
-                        for (Object productCode : productCodes.getList()) {
-                            Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode);
-                            quoteStreams.add(stream);
+                    Observable<Object> execStream = vertx.executeBlockingObservable(future -> {
+                        final JsonArray productCodes = message.getJsonArray(AbstractStrategyVerticle.KEY_PRODUCT_CODES);
+                        final String address = message.getString(AbstractStrategyVerticle.KEY_REPLY_TO);
+                        logger.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
+                        List<Observable<Quote>> quoteStreams = new LinkedList<>();
+                        try {
+                            for (Object productCode : productCodes.getList()) {
+                                Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode);
+                                quoteStreams.add(stream);
+                            }
+                        } catch (IOException e) {
+                            logger.error("failed while accessing historical data", e);
+                            future.fail(e);
                         }
-                    } catch (IOException e) {
-                        logger.error("failed while accessing historical data", e);
-                        startFuture.fail(e);
-                    }
-                    mergeQuoteStreams(quoteStreams)
-                            .forEach(
-                                    quote -> {
-                                        logger.debug("sending: " + quote + " on address " + address);
-                                        JsonObject quoteJson = QuoteConverter.toJSON(quote);
-                                        vertx.eventBus().send(address, quoteJson);
-                                    },
-                                    error -> {
-                                        logger.error("failed to send historical data", error);
-                                    },
-                                    () -> {
-                                        logger.info("completed historical data");
-                                        JsonObject empty = new JsonObject();
-                                        vertx.eventBus().send(address, empty);
-                                    }
-                                    );
+                        mergeQuoteStreams(quoteStreams)
+                                .forEach(
+                                        quote -> {
+                                            logger.debug("sending: " + quote + " on address " + address);
+                                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                                            vertx.eventBus().send(address, quoteJson);
+                                        },
+                                        error -> {
+                                            future.fail(error);
+                                        },
+                                        () -> {
+                                            JsonObject empty = new JsonObject();
+                                            vertx.eventBus().send(AbstractStrategyVerticle.KEY_COMPLETION_ADDRESS, empty);
+                                            future.complete();
+                                        }
+                                );
+                    });
+                    execStream
+                            .doOnCompleted(() -> { logger.info("completed historical data");})
+                            .doOnError(error -> {
+                                logger.error("failed to send historical data", error);})
+                            .subscribe();
                 });
         logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
         startFuture.complete();

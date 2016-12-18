@@ -21,7 +21,11 @@ import java.util.*;
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements StrategyProcessor {
 
     private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
+    private static final String ADDRESS_REALTIME_START_PREFIX = "oot.realtime.start";
     private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
+    public static final String KEY_PRODUCT_CODES = "productCodes";
+    public static final String KEY_REPLY_TO = "replyTo";
+    public static final String KEY_COMPLETION_ADDRESS = "completionAddress";
 
     private JsonObject parameters = new JsonObject();
 
@@ -39,19 +43,30 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
     private String getHistoricalQuotesAddress() {
         return ADDRESS_HISTORICAL_QUOTES_PREFIX + "." + this.deploymentID();
     }
+    private String getRealtimeQuotesAddress() {
+        return ADDRESS_REALTIME_START_PREFIX + "." + this.deploymentID();
+    }
 
     @Override
     public void start() {
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
             try {
                 init();
-                MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
-                Observable<JsonObject> historicalDataStream = consumer.bodyStream().toObservable();
+                MessageConsumer<JsonObject> historicalDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
+                Observable<JsonObject> historicalDataStream = historicalDataConsumer.bodyStream().toObservable();
                 historicalDataStream.subscribe(
-                        new QuoteProcessor(consumer),
+                        new QuoteProcessor(historicalDataConsumer),
                         error -> {
                             logger.error("error occured during backtest", error);
                         });
+                MessageConsumer<JsonObject> realtimeStartConsumer = vertx.eventBus().consumer(getRealtimeQuotesAddress());
+                Observable<JsonObject> realtimeStartStream = realtimeStartConsumer.bodyStream().toObservable();
+                realtimeStartStream.subscribe(message -> {
+                    // TODO - enable realtime processing
+                    logger.info("unregistering historical data consumer");
+                    historicalDataConsumer.unregister();
+                    logger.info("starting realtime processing");
+                });
                 logger.info("initialization completed");
                 future.complete();
             } catch (Exception e) {
@@ -67,8 +82,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                             for(String code: productCodes){
                                 codes.add(code);
                             }
-                            request.put("productCodes", codes);
-                            request.put("replyTo", getHistoricalQuotesAddress());
+                            request.put(KEY_PRODUCT_CODES, codes);
+                            request.put(KEY_REPLY_TO, getHistoricalQuotesAddress());
+                            request.put(KEY_COMPLETION_ADDRESS, getRealtimeQuotesAddress());
                             logger.info("requesting historical data for products: " + Arrays.asList(productCodes) + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
                             vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
                         })
@@ -90,10 +106,6 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
 
         @Override
         public void call(JsonObject quoteJson) {
-            if(quoteJson.size() == 0){
-                logger.info("unregistering historical data consumer");
-                this.consumer.unregister();
-            } else {
                 try {
                     Quote quote = QuoteConverter.fromJSON(quoteJson);
                     String productCode = quote.getProductCode();
@@ -103,7 +115,6 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                 } catch (ParseException e) {
                     logger.error("failed to parse tick data from " + quoteJson, e);
                 }
-            }
         }
     }
 

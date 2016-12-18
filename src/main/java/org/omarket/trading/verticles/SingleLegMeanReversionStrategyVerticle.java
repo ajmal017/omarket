@@ -40,7 +40,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
             JsonObject message = new JsonObject();
             message.put("signal", midPrice.doubleValue());
             message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
-            logger.info("emitting: " + message + " (timestamp: " + quote.getLastModified() + ")");
+            logger.debug("emitting: " + message + " (timestamp: " + quote.getLastModified() + ")");
             vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
         }
     }
