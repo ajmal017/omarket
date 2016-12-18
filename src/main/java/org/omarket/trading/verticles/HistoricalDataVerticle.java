@@ -13,7 +13,6 @@ import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.util.OperatorMergeSorted;
 import rx.Observable;
-import rx.Scheduler;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -55,7 +54,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                     List<Observable<Quote>> quoteStreams = new LinkedList<>();
                     try {
                         for (Object productCode : productCodes.getList()) {
-                            Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode).take(10);
+                            Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode);
                             quoteStreams.add(stream);
                         }
                     } catch (IOException e) {
@@ -65,7 +64,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                     mergeQuoteStreams(quoteStreams)
                             .forEach(
                                     quote -> {
-                                        logger.info("sending: " + quote + " on address " + address);
+                                        logger.debug("sending: " + quote + " on address " + address);
                                         JsonObject quoteJson = QuoteConverter.toJSON(quote);
                                         vertx.eventBus().send(address, quoteJson);
                                     },
@@ -74,7 +73,8 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                                     },
                                     () -> {
                                         logger.info("completed historical data");
-                                        provideRequest.unregisterObservable();
+                                        JsonObject empty = new JsonObject();
+                                        vertx.eventBus().send(address, empty);
                                     }
                                     );
                 });

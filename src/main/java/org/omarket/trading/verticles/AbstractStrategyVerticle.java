@@ -1,11 +1,11 @@
 package org.omarket.trading.verticles;
 
 import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
@@ -45,14 +45,12 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
             try {
                 init();
-                Observable<JsonObject> historicalDataStream = vertx.eventBus().<JsonObject>consumer(getHistoricalQuotesAddress()).bodyStream().toObservable();
+                MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
+                Observable<JsonObject> historicalDataStream = consumer.bodyStream().toObservable();
                 historicalDataStream.subscribe(
-                        new QuoteProcessor(),
+                        new QuoteProcessor(consumer),
                         error -> {
-                            logger.error("error occured during backtest");
-                        },
-                        () -> {
-                            logger.info("completed backtest");
+                            logger.error("error occured during backtest", error);
                         });
                 logger.info("initialization completed");
                 future.complete();
@@ -62,7 +60,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
             }
         });
         initStream
-                .doOnCompleted(() -> {
+                .doOnCompleted(() -> { // requesting historical data
                             JsonObject request = new JsonObject();
                             String[] productCodes = getProductCodes();
                             JsonArray codes = new JsonArray();
@@ -73,21 +71,38 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Stra
                             request.put("replyTo", getHistoricalQuotesAddress());
                             logger.info("requesting historical data for products: " + Arrays.asList(productCodes) + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
                             vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
-                        }
-                )
+                        })
+                .doOnError(error -> {
+                    logger.error("initialization step failed for " + this.deploymentID());
+                })
                 .subscribe();
     }
 
     private class QuoteProcessor implements Action1<JsonObject> {
 
+        final MessageConsumer<JsonObject> consumer;
+        final Map<String, Quote> quotes;
+
+        QuoteProcessor(MessageConsumer<JsonObject> consumer) {
+            this.consumer = consumer;
+            this.quotes = new HashMap<>();
+        }
+
         @Override
         public void call(JsonObject quoteJson) {
-            try {
-                Quote quote = QuoteConverter.fromJSON(quoteJson);
-                logger.info("forwarding order book to implementing strategy: " + quote);
-                processQuote(quote);
-            } catch (ParseException e) {
-                logger.error("failed to parse tick data from " + quoteJson, e);
+            if(quoteJson.size() == 0){
+                logger.info("unregistering historical data consumer");
+                this.consumer.unregister();
+            } else {
+                try {
+                    Quote quote = QuoteConverter.fromJSON(quoteJson);
+                    String productCode = quote.getProductCode();
+                    quotes.put(productCode, quote);
+                    logger.debug("forwarding order book to implementing strategy: " + quote);
+                    processQuotes(quotes);
+                } catch (ParseException e) {
+                    logger.error("failed to parse tick data from " + quoteJson, e);
+                }
             }
         }
     }

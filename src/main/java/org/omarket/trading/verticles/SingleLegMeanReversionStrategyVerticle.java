@@ -6,6 +6,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -29,16 +30,19 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     }
 
     /**
-     * @param quote
+     * @param quotes current quotes for each product
      */
     @Override
-    public void processQuote(Quote quote) {
-        BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
-        JsonObject message = new JsonObject();
-        message.put("signal", midPrice.doubleValue());
-        message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
-        logger.info("emitting: " + message + " (timestamp: " + quote.getLastModified() +  ")");
-        vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
+    public void processQuotes(Map<String, Quote> quotes) {
+        Quote quote = quotes.get(IB_CODE_EUR_CHF);
+        if(quote != null) {
+            BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
+            JsonObject message = new JsonObject();
+            message.put("signal", midPrice.doubleValue());
+            message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
+            logger.info("emitting: " + message + " (timestamp: " + quote.getLastModified() + ")");
+            vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
+        }
     }
 
 }
