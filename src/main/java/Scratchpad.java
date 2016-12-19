@@ -129,10 +129,11 @@ public class Scratchpad {
         Observable<Quote> stream1 = getHistoricalQuoteStream(dirs, "12087817");
         Observable<Quote> stream2 = getHistoricalQuoteStream(dirs, "12087820");
         List<Observable<Quote>> quoteStreams = Arrays.asList(stream1, stream2);
-        mergeQuoteStreams(quoteStreams).forEach(
-                        quote -> {
-                            logger.info("sending: " + quote);
-                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+        mergeQuoteStreams(quoteStreams)
+                .map(QuoteConverter::toJSON)
+                .forEach(
+                        quoteJson -> {
+                            logger.info("sending: " + quoteJson);
                             vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
                         }
                 );

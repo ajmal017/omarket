@@ -2,6 +2,7 @@ package org.omarket.trading.verticles;
 
 import org.omarket.trading.quote.Quote;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -9,5 +10,5 @@ import java.util.Map;
  */
 public interface QuoteProcessor {
 
-    void processQuotes(Map<String, Quote> quotes);
+    void processQuotes(Map<String, List<Quote>> quotes);
 }

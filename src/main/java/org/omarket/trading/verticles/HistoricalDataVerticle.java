@@ -64,10 +64,10 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                             future.fail(e);
                         }
                         mergeQuoteStreams(quoteStreams)
+                                .map(QuoteConverter::toJSON)
                                 .forEach(
-                                        quote -> {
-                                            logger.debug("sending: " + quote + " on address " + address);
-                                            JsonObject quoteJson = QuoteConverter.toJSON(quote);
+                                        quoteJson -> {
+                                            logger.debug("sending: " + quoteJson + " on address " + address);
                                             vertx.eventBus().send(address, quoteJson);
                                         },
                                         future::fail,

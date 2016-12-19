@@ -6,6 +6,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,13 +30,19 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
         getParameters().put("thresholdStep", 0.1);
     }
 
+    @Override
+    protected Integer getHistorySize() {
+        return 10;
+    }
+
     /**
-     * @param quotes current quotes for each product
+     * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, Quote> quotes) {
-        Quote quote = quotes.get(IB_CODE_EUR_CHF);
-        if(quote != null) {
+    public void processQuotes(Map<String, List<Quote>> quoteRecordsByProduct) {
+        List<Quote> quoteRecords = quoteRecordsByProduct.get(IB_CODE_EUR_CHF);
+        if(quoteRecords != null) {
+            Quote quote = quoteRecords.get(quoteRecords.size() - 1);
             BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
             JsonObject message = new JsonObject();
             message.put("signal", midPrice.doubleValue());

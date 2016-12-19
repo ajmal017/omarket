@@ -47,7 +47,7 @@ public class QuoteConverter {
         return asJSON;
     }
 
-    public static QuoteImpl fromJSON(JsonObject json) throws ParseException {
+    public static Quote fromJSON(JsonObject json) throws ParseException {
         LocalDateTime lastModifiedLocal = LocalDateTime.parse(json.getString("lastModified"), isoFormat);
         ZonedDateTime lastModified = ZonedDateTime.of(lastModifiedLocal, ZoneOffset.UTC);
         BigDecimal bestBidPrice = BigDecimal.valueOf(json.getDouble("bestBidPrice"));
