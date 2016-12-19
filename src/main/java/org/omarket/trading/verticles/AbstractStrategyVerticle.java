@@ -39,7 +39,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     abstract protected Integer getHistorySize();
 
     protected Observable<List<Quote>> bufferize(Observable<Quote> quoteStream){
-        return quoteStream.buffer(getHistorySize());
+        return quoteStream.buffer(getHistorySize(), 1);
     }
 
     JsonObject getParameters() {

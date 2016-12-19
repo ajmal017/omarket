@@ -41,6 +41,14 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     @Override
     public void processQuotes(Map<String, List<Quote>> quoteRecordsByProduct) {
         List<Quote> quoteRecords = quoteRecordsByProduct.get(IB_CODE_EUR_CHF);
+        int count = 1;
+        for(String product: quoteRecordsByProduct.keySet()){
+            List<Quote> currentRecords = quoteRecordsByProduct.get(product);
+            logger.info("records length for product " + count + " (" + product + "): " + currentRecords.size());
+            String fromThrough = "" + currentRecords.get(0) + " -> " + currentRecords.get(currentRecords.size() - 1);
+            logger.info("records: " + fromThrough);
+            count += 1;
+        }
         if(quoteRecords != null) {
             Quote quote = quoteRecords.get(quoteRecords.size() - 1);
             BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
