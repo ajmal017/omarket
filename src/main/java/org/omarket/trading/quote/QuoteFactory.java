@@ -13,7 +13,11 @@ public class QuoteFactory {
     }
 
     public static QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit){
-        ZonedDateTime lastModified = quote.getLastModified().truncatedTo(sampleUnit).plus(1, sampleUnit);
+        return createFrom(quote, sampleUnit, 0);
+    }
+
+    public static QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit, Integer sampleDelay){
+        ZonedDateTime lastModified = quote.getLastModified().truncatedTo(sampleUnit).plus(sampleDelay + 1, sampleUnit);
         Integer bestBidSize = quote.getBestBidSize();
         BigDecimal bestBidPrice = quote.getBestBidPrice();
         BigDecimal bestAskPrice = quote.getBestAskPrice();

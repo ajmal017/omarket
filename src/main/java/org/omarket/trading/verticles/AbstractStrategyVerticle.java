@@ -14,6 +14,7 @@ import rx.exceptions.Exceptions;
 import rx.functions.Action1;
 
 import java.text.ParseException;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -140,7 +141,16 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             latestQuotesByProductCode.put(productCode, quote);
             if (!quote.sameSampledTime(prevQuote, samplingUnit)){
                 Queue<Quote> sampledQuotes = sampledQuotesByProductCode.getOrDefault(productCode, new CircularFifoQueue<>(getSampledDataSize()));
-                sampledQuotes.add(createFrom(prevQuote, samplingUnit));
+                Quote newQuote = createFrom(prevQuote, samplingUnit);
+                ZonedDateTime endDateTime = newQuote.getLastModified().minus(1, samplingUnit);
+                if (sampledQuotes.peek() != null){
+                    logger.info("filling samples from " + sampledQuotes.peek().getLastModified() + " to " + endDateTime);
+                    while(sampledQuotes.peek().getLastModified().isBefore(endDateTime)){
+                        Quote fillQuote = createFrom(sampledQuotes.peek(), samplingUnit, 1);
+                        sampledQuotes.add(fillQuote);
+                    }
+                }
+                sampledQuotes.add(newQuote);
                 sampledQuotesByProductCode.put(productCode, sampledQuotes);
             }
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);

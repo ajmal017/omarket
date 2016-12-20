@@ -24,7 +24,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
 
     @Override
     protected String[] getProductCodes(){
-        return new String[]{IB_CODE_EUR_CHF, IB_CODE_USD_CHF};
+        return new String[]{IB_CODE_EUR_CHF};
     }
 
     @Override
