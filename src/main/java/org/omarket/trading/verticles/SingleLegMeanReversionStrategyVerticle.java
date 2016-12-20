@@ -7,8 +7,10 @@ import org.omarket.trading.quote.Quote;
 import rx.Observable;
 
 import java.math.BigDecimal;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -32,36 +34,30 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     }
 
     @Override
-    protected Integer getTickHistorySize() {
-        return 10;
+    protected Integer getSampledDataSize() {
+        return 5;
     }
 
     /**
      * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, List<Quote>> quoteRecordsByProduct) {
-        List<Quote> quoteRecords = quoteRecordsByProduct.get(IB_CODE_EUR_CHF);
-        if(quoteRecords == null){
+    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Queue<Quote>> sampledQuotes) {
+        if (sampledQuotes.get(IB_CODE_EUR_CHF) == null) {
             return;
         }
-        Observable<Quote> quotesStream = Observable.from(quoteRecords);
+        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_EUR_CHF));
         Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
         Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
         Observable<BigDecimal> midStream = askStream.zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2)));
         Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).map(x -> x.get(1));
 
-
-        int count = 1;
-        for(String product: quoteRecordsByProduct.keySet()){
-            List<Quote> currentRecords = quoteRecordsByProduct.get(product);
-            logger.info("records length for product " + count + " (" + product + "): " + currentRecords.size());
-            String fromThrough = "" + currentRecords.get(0) + " -> " + currentRecords.get(currentRecords.size() - 1);
-            logger.info("records: " + fromThrough);
-            count += 1;
-        }
-        if(quoteRecords != null) {
-            Quote quote = quoteRecords.get(quoteRecords.size() - 1);
+        for(String productCode: sampledQuotes.keySet()){
+            Queue<Quote> currentRecords = sampledQuotes.get(productCode);
+            List<Quote> quotes = new LinkedList<>(currentRecords);
+            String fromThrough = "" + quotes.get(0) + " -> " + quotes.get(quotes.size() - 1);
+            logger.info("sampled records for product " + productCode + ": " + fromThrough);
+            Quote quote = quoteRecordsByProduct.get(productCode);
             BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
             JsonObject message = new JsonObject();
             message.put("signal", midPrice.doubleValue());

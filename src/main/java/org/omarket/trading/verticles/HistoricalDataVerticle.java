@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 
+import static java.lang.Thread.sleep;
 import static org.omarket.trading.MarketData.*;
 import static rx.Observable.*;
 
@@ -65,9 +66,15 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                         }
                         mergeQuoteStreams(quoteStreams)
                                 .map(QuoteConverter::toJSON)
+                                .take(30)
                                 .forEach(
                                         quoteJson -> {
-                                            logger.debug("sending: " + quoteJson + " on address " + address);
+                                            try {
+                                                sleep(2000);
+                                            } catch (InterruptedException e) {
+                                                e.printStackTrace();
+                                            }
+                                            logger.info("sending: " + quoteJson + " on address " + address);
                                             vertx.eventBus().send(address, quoteJson);
                                         },
                                         future::fail,

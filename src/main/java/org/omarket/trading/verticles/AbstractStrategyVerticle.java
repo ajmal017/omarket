@@ -6,6 +6,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import org.apache.commons.collections4.queue.CircularFifoQueue;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
@@ -14,7 +15,6 @@ import rx.functions.Action1;
 
 import java.text.ParseException;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
 
 /**
@@ -40,7 +40,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
      */
     abstract protected void init();
 
-    abstract protected Integer getTickHistorySize();
+    abstract protected Integer getSampledDataSize();
 
     Observable<List<Quote>> bufferize(Observable<Quote> quoteStream, Integer count) {
         return quoteStream.buffer(count, 1);
@@ -74,24 +74,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                             }
                         });
 
-                MessageConsumer<JsonObject> historicalSampledDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
-                Observable<JsonObject> historicalSampledDataStream = historicalSampledDataConsumer.bodyStream().toObservable();
-                Observable<Quote> sampledStream = historicalSampledDataStream
-                        .map(quoteJson -> {
-                            try {
-                                return QuoteConverter.fromJSON(quoteJson);
-                            } catch (ParseException e) {
-                                throw Exceptions.propagate(e);
-                            }
-                        })
-                        .buffer(2, 1)
-                        .filter(x -> !x.get(0).sameSampledTime(x.get(1), ChronoUnit.SECONDS))
-                        .map(x -> x.get(0));
-                final QuoteProcessor sampledDataProcessor = new QuoteProcessor();
-                sampledStream.forEach(x -> logger.info("SAMPLED: " + x));
-
-                final QuoteProcessor tickDataProcessor = new QuoteProcessor();
-                bufferize(tickStream, getTickHistorySize())
+                final QuoteProcessor tickDataProcessor = new QuoteProcessor(ChronoUnit.SECONDS);
+                bufferize(tickStream, 2) // forwards previous quote together with current quote
                         .subscribe(
                                 tickDataProcessor,
                                 error -> {
@@ -135,19 +119,29 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
 
     private class QuoteProcessor implements Action1<List<Quote>> {
 
-        final Map<String, List<Quote>> quotes;
+        final Map<String, Queue<Quote>> sampledQuotesByProductCode;
+        final Map<String, Quote> latestQuotesByProductCode;
+        final ChronoUnit samplingUnit;
 
-        QuoteProcessor() {
-            this.quotes = new HashMap<>();
+        QuoteProcessor(ChronoUnit samplingUnit) {
+            this.samplingUnit = samplingUnit;
+            this.sampledQuotesByProductCode = new HashMap<>();
+            this.latestQuotesByProductCode = new HashMap<>();
         }
 
         @Override
         public void call(List<Quote> quoteHistory) {
-            Quote quote = quoteHistory.get(quoteHistory.size() - 1);
+            Quote quote = quoteHistory.get(1);
+            Quote prevQuote = quoteHistory.get(0);
             String productCode = quote.getProductCode();
-            quotes.put(productCode, quoteHistory);
+            latestQuotesByProductCode.put(productCode, quote);
+            if (!quote.sameSampledTime(prevQuote, samplingUnit)){
+                Queue<Quote> sampledQuotes = sampledQuotesByProductCode.getOrDefault(productCode, new CircularFifoQueue<>(getSampledDataSize()));
+                sampledQuotes.add(prevQuote);
+                sampledQuotesByProductCode.put(productCode, sampledQuotes);
+            }
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(quotes);
+            processQuotes(latestQuotesByProductCode, sampledQuotesByProductCode);
         }
     }
 
