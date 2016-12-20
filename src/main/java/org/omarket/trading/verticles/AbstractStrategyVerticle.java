@@ -17,6 +17,8 @@ import java.text.ParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+import static org.omarket.trading.quote.QuoteFactory.createFrom;
+
 /**
  * Created by Christophe on 18/11/2016.
  */
@@ -41,8 +43,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     abstract protected void init();
 
     abstract protected Integer getSampledDataSize();
+    abstract protected ChronoUnit getSampleDataUnit();
 
-    Observable<List<Quote>> bufferize(Observable<Quote> quoteStream, Integer count) {
+    private Observable<List<Quote>> bufferize(Observable<Quote> quoteStream, Integer count) {
         return quoteStream.buffer(count, 1);
     }
 
@@ -74,7 +77,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                             }
                         });
 
-                final QuoteProcessor tickDataProcessor = new QuoteProcessor(ChronoUnit.SECONDS);
+                final QuoteProcessor tickDataProcessor = new QuoteProcessor(getSampleDataUnit());
                 bufferize(tickStream, 2) // forwards previous quote together with current quote
                         .subscribe(
                                 tickDataProcessor,
@@ -137,7 +140,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             latestQuotesByProductCode.put(productCode, quote);
             if (!quote.sameSampledTime(prevQuote, samplingUnit)){
                 Queue<Quote> sampledQuotes = sampledQuotesByProductCode.getOrDefault(productCode, new CircularFifoQueue<>(getSampledDataSize()));
-                sampledQuotes.add(prevQuote);
+                sampledQuotes.add(createFrom(prevQuote, samplingUnit));
                 sampledQuotesByProductCode.put(productCode, sampledQuotes);
             }
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);

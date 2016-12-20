@@ -7,6 +7,7 @@ import org.omarket.trading.quote.Quote;
 import rx.Observable;
 
 import java.math.BigDecimal;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,11 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     @Override
     protected Integer getSampledDataSize() {
         return 5;
+    }
+
+    @Override
+    protected ChronoUnit getSampleDataUnit() {
+        return ChronoUnit.SECONDS;
     }
 
     /**
