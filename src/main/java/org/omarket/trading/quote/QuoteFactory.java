@@ -12,12 +12,9 @@ import java.time.temporal.ChronoUnit;
  */
 public class QuoteFactory {
     private final static Logger logger = LoggerFactory.getLogger(QuoteFactory.class);
+
     public static QuoteImpl create(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode){
         return new QuoteImpl(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
-    }
-
-    public static QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit){
-        return createFrom(quote, sampleUnit, 0);
     }
 
     public static QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified){
@@ -35,13 +32,22 @@ public class QuoteFactory {
         BigDecimal bestAskPrice = quote.getBestAskPrice();
         Integer bestAskSize = quote.getBestAskSize();
         String productCode = quote.getProductCode();
-        return new QuoteImpl(lastModified.truncatedTo(sampleUnit).plus(1, sampleUnit), bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
+        return new QuoteImpl(toSampledTime(lastModified, sampleUnit), bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
+    }
+
+    public static ZonedDateTime toSampledTime(ZonedDateTime dateTime, ChronoUnit sampleUnit){
+        ZonedDateTime truncated = dateTime.truncatedTo(sampleUnit);
+        ZonedDateTime output;
+        if (truncated.equals(dateTime)) {
+            output = dateTime;
+        } else {
+            output = truncated.plus(1, sampleUnit);
+        }
+        return output;
     }
 
     public static QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit, Integer sampleDelay){
-        logger.info("reference time: " + quote.getLastModified());
-        ZonedDateTime lastModified = quote.getLastModified().truncatedTo(sampleUnit).plus(sampleDelay + 1, sampleUnit);
-        logger.info("target time: " + lastModified);
+        ZonedDateTime lastModified = toSampledTime(quote.getLastModified(), sampleUnit).plus(sampleDelay, sampleUnit);
         Integer bestBidSize = quote.getBestBidSize();
         BigDecimal bestBidPrice = quote.getBestBidPrice();
         BigDecimal bestAskPrice = quote.getBestAskPrice();

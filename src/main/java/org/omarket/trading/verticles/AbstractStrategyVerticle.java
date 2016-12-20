@@ -121,16 +121,74 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 .subscribe();
     }
 
+    private class SampleHistory {
+        final Map<String, Queue<Quote>> sampledQuotesByProductCode;
+        final Integer capacity;
+
+        SampleHistory(Integer capacity){
+            this.capacity = capacity;
+            this.sampledQuotesByProductCode = new HashMap<>();
+        }
+
+
+        void add(String productCode, Quote quote) {
+            if(!sampledQuotesByProductCode.containsKey(productCode)){
+                sampledQuotesByProductCode.put(productCode, new CircularFifoQueue<>(capacity));
+            }
+            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            quotes.add(quote);
+        }
+
+        private LinkedList<Quote> asLinkedList(String productCode){
+            if(!sampledQuotesByProductCode.containsKey(productCode)){
+                sampledQuotesByProductCode.put(productCode, new CircularFifoQueue<>(capacity));
+            }
+            Queue<Quote> queue = sampledQuotesByProductCode.get(productCode);
+            return new LinkedList<>(queue);
+        }
+
+        Map<String, List<Quote>> asMapList(){
+            Map<String, List<Quote>> map = new HashMap<>();
+            for(String productCode: sampledQuotesByProductCode.keySet()){
+                map.put(productCode, asLinkedList(productCode));
+            }
+            return map;
+        }
+
+        int size(String productCode) {
+            if (sampledQuotesByProductCode.get(productCode) == null){
+                return 0;
+            }
+            return sampledQuotesByProductCode.get(productCode).size();
+        }
+
+        Quote first(String productCode) {
+            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            if (quotes.size() == 0){
+                return null;
+            }
+            return new LinkedList<>(quotes).get(0);
+        }
+
+        Quote last(String productCode) {
+            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            if (quotes.size() == 0){
+                return null;
+            }
+            return new LinkedList<>(quotes).get(quotes.size() - 1);
+        }
+    }
+
     private class QuoteProcessor implements Action1<List<Quote>> {
 
-        final Map<String, Queue<Quote>> sampledQuotesByProductCode;
         final Map<String, Quote> latestQuotesByProductCode;
         final ChronoUnit samplingUnit;
+        final SampleHistory sampleQuotes;
 
         QuoteProcessor(ChronoUnit samplingUnit) {
             this.samplingUnit = samplingUnit;
-            this.sampledQuotesByProductCode = new HashMap<>();
             this.latestQuotesByProductCode = new HashMap<>();
+            this.sampleQuotes = new SampleHistory(getSampledDataSize());
         }
 
         @Override
@@ -140,24 +198,22 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             String productCode = quote.getProductCode();
             latestQuotesByProductCode.put(productCode, quote);
             if (!quote.sameSampledTime(prevQuote, samplingUnit)){
-                Queue<Quote> sampledQuotes = sampledQuotesByProductCode.getOrDefault(productCode, new CircularFifoQueue<>(getSampledDataSize()));
                 Quote newQuote = createFrom(prevQuote, quote.getLastModified(), samplingUnit);
                 ZonedDateTime endDateTime = newQuote.getLastModified().minus(1, samplingUnit);
-                if (sampledQuotes.peek() != null){
-                    logger.info("filling samples from " + sampledQuotes.peek().getLastModified() + " to " + endDateTime);
-                    while(sampledQuotes.peek().getLastModified().isBefore(endDateTime)){
-                        Quote fillQuote = createFrom(sampledQuotes.peek(), samplingUnit, 1);
-                        logger.info("samples queue: " + sampledQuotes);
+                if (sampleQuotes.size(productCode) != 0){
+                    logger.info("filling samples from " + sampleQuotes.first(productCode).getLastModified() + " to " + endDateTime);
+                    while(sampleQuotes.last(productCode).getLastModified().isBefore(endDateTime)){
+                        Quote fillQuote = createFrom(sampleQuotes.last(productCode), samplingUnit, 1);
+                        logger.info("samples queue: " + sampleQuotes);
                         logger.info("filling with sample for: " + fillQuote.getLastModified());
-                        sampledQuotes.add(fillQuote);
+                        sampleQuotes.add(productCode, fillQuote);
                     }
                 }
                 logger.info("adding new sample for " + newQuote.getLastModified());
-                sampledQuotes.add(newQuote);
-                sampledQuotesByProductCode.put(productCode, sampledQuotes);
+                sampleQuotes.add(productCode, newQuote);
             }
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(latestQuotesByProductCode, sampledQuotesByProductCode);
+            processQuotes(latestQuotesByProductCode, sampleQuotes.asMapList());
         }
     }
 

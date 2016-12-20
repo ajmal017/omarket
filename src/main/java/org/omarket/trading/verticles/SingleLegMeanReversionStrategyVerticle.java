@@ -48,7 +48,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
      * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Queue<Quote>> sampledQuotes) {
+    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, List<Quote>> sampledQuotes) {
         if (sampledQuotes.get(IB_CODE_EUR_CHF) == null) {
             return;
         }
@@ -62,8 +62,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
                 continue;
             }
-            Queue<Quote> samples = sampledQuotes.get(productCode);
-            List<Quote> quotes = new LinkedList<>(samples);
+            List<Quote> samples = sampledQuotes.get(productCode);
             for(Quote sample: samples){
                 logger.info("available sample: " + sample.getLastModified());
             }
