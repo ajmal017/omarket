@@ -146,7 +146,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 if (sampledQuotes.peek() != null){
                     logger.info("filling samples from " + sampledQuotes.peek().getLastModified() + " to " + endDateTime);
                     while(sampledQuotes.peek().getLastModified().isBefore(endDateTime)){
-                        Quote fillQuote = createFrom(sampledQuotes.peek(), samplingUnit, 0);
+                        Quote fillQuote = createFrom(sampledQuotes.peek(), samplingUnit, 1);
+                        logger.info("samples queue: " + sampledQuotes);
                         logger.info("filling with sample for: " + fillQuote.getLastModified());
                         sampledQuotes.add(fillQuote);
                     }
