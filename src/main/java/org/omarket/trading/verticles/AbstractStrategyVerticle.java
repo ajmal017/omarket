@@ -141,7 +141,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             latestQuotesByProductCode.put(productCode, quote);
             if (!quote.sameSampledTime(prevQuote, samplingUnit)){
                 Queue<Quote> sampledQuotes = sampledQuotesByProductCode.getOrDefault(productCode, new CircularFifoQueue<>(getSampledDataSize()));
-                Quote newQuote = createFrom(prevQuote, samplingUnit);
+                Quote newQuote = createFrom(prevQuote, quote.getLastModified(), samplingUnit);
                 ZonedDateTime endDateTime = newQuote.getLastModified().minus(1, samplingUnit);
                 if (sampledQuotes.peek() != null){
                     logger.info("filling samples from " + sampledQuotes.peek().getLastModified() + " to " + endDateTime);
@@ -150,6 +150,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                         sampledQuotes.add(fillQuote);
                     }
                 }
+                logger.info("adding new sample for " + newQuote.getLastModified());
                 sampledQuotes.add(newQuote);
                 sampledQuotesByProductCode.put(productCode, sampledQuotes);
             }

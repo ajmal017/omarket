@@ -16,6 +16,24 @@ public class QuoteFactory {
         return createFrom(quote, sampleUnit, 0);
     }
 
+    public static QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified){
+        Integer bestBidSize = quote.getBestBidSize();
+        BigDecimal bestBidPrice = quote.getBestBidPrice();
+        BigDecimal bestAskPrice = quote.getBestAskPrice();
+        Integer bestAskSize = quote.getBestAskSize();
+        String productCode = quote.getProductCode();
+        return new QuoteImpl(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
+    }
+
+    public static QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified, ChronoUnit sampleUnit){
+        Integer bestBidSize = quote.getBestBidSize();
+        BigDecimal bestBidPrice = quote.getBestBidPrice();
+        BigDecimal bestAskPrice = quote.getBestAskPrice();
+        Integer bestAskSize = quote.getBestAskSize();
+        String productCode = quote.getProductCode();
+        return new QuoteImpl(lastModified.truncatedTo(sampleUnit).plus(1, sampleUnit), bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
+    }
+
     public static QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit, Integer sampleDelay){
         ZonedDateTime lastModified = quote.getLastModified().truncatedTo(sampleUnit).plus(sampleDelay + 1, sampleUnit);
         Integer bestBidSize = quote.getBestBidSize();

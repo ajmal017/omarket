@@ -62,10 +62,11 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
                 continue;
             }
-            Queue<Quote> currentRecords = sampledQuotes.get(productCode);
-            List<Quote> quotes = new LinkedList<>(currentRecords);
-            String fromThrough = "" + quotes.get(0).getLastModified() + " -> " + quotes.get(quotes.size() - 1).getLastModified();
-            logger.info("sampled records for product " + productCode + ": " + fromThrough);
+            Queue<Quote> samples = sampledQuotes.get(productCode);
+            List<Quote> quotes = new LinkedList<>(samples);
+            for(Quote sample: samples){
+                logger.info("available sample: " + sample.getLastModified());
+            }
             Quote quote = quoteRecordsByProduct.get(productCode);
             BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
             JsonObject message = new JsonObject();
