@@ -4,6 +4,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
+import rx.Observable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,12 +27,12 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     @Override
     protected void init(){
         logger.info("starting single leg mean reversion strategy verticle");
-        logger.info("using default paramater for thresholdStep");
+        logger.info("using default parameter for thresholdStep");
         getParameters().put("thresholdStep", 0.1);
     }
 
     @Override
-    protected Integer getHistorySize() {
+    protected Integer getTickHistorySize() {
         return 10;
     }
 
@@ -41,6 +42,16 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
     @Override
     public void processQuotes(Map<String, List<Quote>> quoteRecordsByProduct) {
         List<Quote> quoteRecords = quoteRecordsByProduct.get(IB_CODE_EUR_CHF);
+        if(quoteRecords == null){
+            return;
+        }
+        Observable<Quote> quotesStream = Observable.from(quoteRecords);
+        Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
+        Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
+        Observable<BigDecimal> midStream = askStream.zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2)));
+        Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).map(x -> x.get(1));
+
+
         int count = 1;
         for(String product: quoteRecordsByProduct.keySet()){
             List<Quote> currentRecords = quoteRecordsByProduct.get(product);

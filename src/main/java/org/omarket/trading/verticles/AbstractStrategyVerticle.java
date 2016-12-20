@@ -13,6 +13,8 @@ import rx.exceptions.Exceptions;
 import rx.functions.Action1;
 
 import java.text.ParseException;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.*;
 
 /**
@@ -20,13 +22,14 @@ import java.util.*;
  */
 
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements QuoteProcessor {
+    private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
+
+    static final String KEY_PRODUCT_CODES = "productCodes";
+    static final String KEY_REPLY_TO = "replyTo";
+    static final String KEY_COMPLETION_ADDRESS = "completionAddress";
 
     private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
     private static final String ADDRESS_REALTIME_START_PREFIX = "oot.realtime.start";
-    private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
-    public static final String KEY_PRODUCT_CODES = "productCodes";
-    public static final String KEY_REPLY_TO = "replyTo";
-    public static final String KEY_COMPLETION_ADDRESS = "completionAddress";
 
     private JsonObject parameters = new JsonObject();
 
@@ -36,10 +39,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
      *
      */
     abstract protected void init();
-    abstract protected Integer getHistorySize();
 
-    protected Observable<List<Quote>> bufferize(Observable<Quote> quoteStream){
-        return quoteStream.buffer(getHistorySize(), 1);
+    abstract protected Integer getTickHistorySize();
+
+    Observable<List<Quote>> bufferize(Observable<Quote> quoteStream, Integer count) {
+        return quoteStream.buffer(count, 1);
     }
 
     JsonObject getParameters() {
@@ -59,10 +63,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         Observable<Integer> initStream = vertx.executeBlockingObservable(future -> {
             try {
                 init();
-                MessageConsumer<JsonObject> historicalDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
-                Observable<JsonObject> historicalDataStream = historicalDataConsumer.bodyStream().toObservable();
-                final QuoteProcessor quoteProcessor = new QuoteProcessor();
-                Observable<Quote> stream = historicalDataStream
+                MessageConsumer<JsonObject> historicalTickDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
+                Observable<JsonObject> historicalTickDataStream = historicalTickDataConsumer.bodyStream().toObservable();
+                Observable<Quote> tickStream = historicalTickDataStream
                         .map(quoteJson -> {
                             try {
                                 return QuoteConverter.fromJSON(quoteJson);
@@ -71,16 +74,35 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                             }
                         });
 
-                bufferize(stream).subscribe(
-                                quoteProcessor,
+                MessageConsumer<JsonObject> historicalSampledDataConsumer = vertx.eventBus().consumer(getHistoricalQuotesAddress());
+                Observable<JsonObject> historicalSampledDataStream = historicalSampledDataConsumer.bodyStream().toObservable();
+                Observable<Quote> sampledStream = historicalSampledDataStream
+                        .map(quoteJson -> {
+                            try {
+                                return QuoteConverter.fromJSON(quoteJson);
+                            } catch (ParseException e) {
+                                throw Exceptions.propagate(e);
+                            }
+                        })
+                        .buffer(2, 1)
+                        .filter(x -> !x.get(0).sameSampledTime(x.get(1), ChronoUnit.SECONDS))
+                        .map(x -> x.get(0));
+                final QuoteProcessor sampledDataProcessor = new QuoteProcessor();
+                sampledStream.forEach(x -> logger.info("SAMPLED: " + x));
+
+                final QuoteProcessor tickDataProcessor = new QuoteProcessor();
+                bufferize(tickStream, getTickHistorySize())
+                        .subscribe(
+                                tickDataProcessor,
                                 error -> {
                                     logger.error("error occured during backtest", error);
                                 });
+
                 MessageConsumer<JsonObject> realtimeStartConsumer = vertx.eventBus().consumer(getRealtimeQuotesAddress());
                 Observable<JsonObject> realtimeStartStream = realtimeStartConsumer.bodyStream().toObservable();
                 realtimeStartStream.subscribe(message -> {
                     logger.info("unregistering historical data consumer");
-                    historicalDataConsumer.unregister();
+                    historicalTickDataConsumer.unregister();
                     logger.info("starting realtime processing");
                     // TODO - enable realtime processing: subscribe to market data using quoteProcessor
                 });
