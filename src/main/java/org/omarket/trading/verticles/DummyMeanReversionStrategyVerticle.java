@@ -33,7 +33,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
 
     @Override
     protected Integer getSampledDataSize() {
-        return 5;
+        return 200;
     }
 
     @Override
@@ -46,10 +46,6 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
      */
     @Override
     public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
-        if (sampledQuotes.get(IB_CODE_EUR_CHF) == null) {
-            logger.info("sampled quotes empty");
-            return;
-        }
         /*
         Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_EUR_CHF));
         Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
@@ -57,7 +53,31 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         Observable<BigDecimal> midStream = askStream.zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2)));
         Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).map(x -> x.get(1));
         */
-        logger.info("sampled quotes: " + sampledQuotes.size());
+        for(String productCode: sampledQuotes.keySet()){
+            Deque<Quote> productQuotes = sampledQuotes.get(productCode);
+            int length = 0;
+            if (productQuotes != null){
+                length = productQuotes.size();
+            }
+            logger.info("length of sampled quotes history for " + productCode + ": " + length);
+        }
+        for(String productCode: sampledQuotes.keySet()){
+            Deque<Quote> productQuotes = sampledQuotes.get(productCode);
+            String range = null;
+            if (productQuotes != null){
+                range = "[" + productQuotes.getFirst().getLastModified() + ", " + productQuotes.getLast().getLastModified() + "]";
+            }
+            logger.info("range samples: " + range);
+        }
+        for(String productCode: quotes.keySet()){
+            Deque<Quote> productQuotes = quotes.get(productCode);
+            int length = 0;
+            if (productQuotes != null){
+                length = productQuotes.size();
+            }
+            logger.info("length of quotes history for " + productCode + ": " + length);
+        }
+        /*
         for(String productCode: sampledQuotes.keySet()){
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
                 continue;
@@ -74,6 +94,8 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             logger.debug("emitting: " + message + " (timestamp: " + quote.getLastModified() + ")");
             vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
         }
+        */
+        logger.info("*** completed processing quote ***");
     }
 
 }

@@ -175,13 +175,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 ZonedDateTime lastModified = newQuote.getLastModified();
                 ZonedDateTime endDateTime = lastModified.minus(1, samplingUnit);
                 forwardFillQuotes(productCode, endDateTime);
-                logger.info("adding new sample for " + lastModified);
+                logger.debug("adding new sample for " + lastModified);
                 addQuote(productCode, newQuote);
                 for(String currentProductCode: quotesByProductCode.keySet()){
                     if(currentProductCode.equals(productCode)){
                         continue;
                     }
-                    forwardFillQuotes(productCode, lastModified);
+                    forwardFillQuotes(currentProductCode, lastModified);
                 }
             }
             prevQuote = quote;
@@ -195,9 +195,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 if (last == null) {
                     return;
                 }
+                logger.info("last time: " + last.getLastModified());
                 while (last.getLastModified().isBefore(endDateTime)) {
-                    Quote fillQuote = createFrom(last(productCode), samplingUnit, 1);
-                    logger.info("samples queue: " + this);
+                    Quote fillQuote = createFrom(last, samplingUnit, 1);
                     logger.info("filling with sample for: " + fillQuote.getLastModified());
                     last = addQuote(productCode, fillQuote);
                 }
