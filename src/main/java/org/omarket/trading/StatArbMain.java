@@ -9,7 +9,6 @@ import io.vertx.core.json.JsonObject;
 import org.omarket.trading.verticles.*;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import rx.Observable;
 
 import java.util.Arrays;
 
@@ -37,7 +36,7 @@ public class StatArbMain {
 
         //Verticle marketDataVerticle = new FakeMarketDataVerticle();
         Verticle historicalDataVerticle = new HistoricalDataVerticle();
-        Verticle singleLegMeanReversionStrategyVerticle = new SingleLegMeanReversionStrategyVerticle();
+        Verticle singleLegMeanReversionStrategyVerticle = new DummyMeanReversionStrategyVerticle();
 
         //Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
         RxHelper.deployVerticle(vertx, historicalDataVerticle, options)

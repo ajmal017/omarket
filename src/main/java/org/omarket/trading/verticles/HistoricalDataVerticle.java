@@ -66,15 +66,9 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                         }
                         mergeQuoteStreams(quoteStreams)
                                 .map(QuoteConverter::toJSON)
-                                .take(30)
                                 .forEach(
                                         quoteJson -> {
-                                            try {
-                                                sleep(2000);
-                                            } catch (InterruptedException e) {
-                                                e.printStackTrace();
-                                            }
-                                            logger.info("sending: " + quoteJson + " on address " + address);
+                                            logger.debug("sending: " + quoteJson + " on address " + address);
                                             vertx.eventBus().send(address, quoteJson);
                                         },
                                         future::fail,

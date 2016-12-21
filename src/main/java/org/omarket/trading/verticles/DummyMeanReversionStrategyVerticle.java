@@ -4,7 +4,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
-import rx.Observable;
 
 import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
@@ -13,15 +12,16 @@ import java.util.*;
 /**
  * Created by Christophe on 01/11/2016.
  */
-public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
-    private final static Logger logger = LoggerFactory.getLogger(SingleLegMeanReversionStrategyVerticle.class);
-    final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.singleLeg";
+public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
+    private final static Logger logger = LoggerFactory.getLogger(DummyMeanReversionStrategyVerticle.class);
+    final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.dummy";
     private final static String IB_CODE_EUR_CHF = "12087817";
     private final static String IB_CODE_USD_CHF = "12087820";
+    private final static String IB_CODE_EUR_SEK = "37893488";
 
     @Override
     protected String[] getProductCodes(){
-        return new String[]{IB_CODE_EUR_CHF};
+        return new String[]{IB_CODE_EUR_CHF, IB_CODE_USD_CHF, IB_CODE_EUR_SEK};
     }
 
     @Override
@@ -45,16 +45,19 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
      * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> sampledQuotes) {
+    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
         if (sampledQuotes.get(IB_CODE_EUR_CHF) == null) {
+            logger.info("sampled quotes empty");
             return;
         }
+        /*
         Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_EUR_CHF));
         Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
         Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
         Observable<BigDecimal> midStream = askStream.zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2)));
         Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).map(x -> x.get(1));
-
+        */
+        logger.info("sampled quotes: " + sampledQuotes.size());
         for(String productCode: sampledQuotes.keySet()){
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
                 continue;

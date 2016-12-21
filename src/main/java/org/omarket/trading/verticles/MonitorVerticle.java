@@ -35,7 +35,7 @@ public class MonitorVerticle  extends AbstractVerticle {
         Integer port = config().getInteger("oot.monitor.port", 8080);
         server.listen(port, host);
 
-        vertx.eventBus().consumer(SingleLegMeanReversionStrategyVerticle.ADDRESS_STRATEGY_SIGNAL, (Message<JsonObject> message) -> {
+        vertx.eventBus().consumer(DummyMeanReversionStrategyVerticle.ADDRESS_STRATEGY_SIGNAL, (Message<JsonObject> message) -> {
             Double signal = message.body().getDouble("signal");
             Double threshold1 = message.body().getDouble("thresholdLow1");
             JsonObject newSample = new JsonObject()
