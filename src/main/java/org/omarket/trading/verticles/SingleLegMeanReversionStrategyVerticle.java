@@ -8,10 +8,7 @@ import rx.Observable;
 
 import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -48,7 +45,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
      * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, List<Quote>> sampledQuotes) {
+    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> sampledQuotes) {
         if (sampledQuotes.get(IB_CODE_EUR_CHF) == null) {
             return;
         }
@@ -62,7 +59,7 @@ public class SingleLegMeanReversionStrategyVerticle extends AbstractStrategyVert
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
                 continue;
             }
-            List<Quote> samples = sampledQuotes.get(productCode);
+            Deque<Quote> samples = sampledQuotes.get(productCode);
             for(Quote sample: samples){
                 logger.info("available sample: " + sample.getLastModified());
             }

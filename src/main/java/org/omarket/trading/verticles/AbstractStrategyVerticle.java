@@ -6,7 +6,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
-import org.apache.commons.collections4.queue.CircularFifoQueue;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
@@ -123,37 +122,27 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
     private class SampleHistory {
-        final Map<String, Queue<Quote>> sampledQuotesByProductCode;
-        final Integer capacity;
+        private final Map<String, Deque<Quote>> sampledQuotesByProductCode;
+        private final Integer capacity;
 
         SampleHistory(Integer capacity) {
             this.capacity = capacity;
             this.sampledQuotesByProductCode = new HashMap<>();
         }
 
-
-        void add(String productCode, Quote quote) {
+        void addQuote(String productCode, Quote quote) {
             if (!sampledQuotesByProductCode.containsKey(productCode)) {
-                sampledQuotesByProductCode.put(productCode, new CircularFifoQueue<>(capacity));
+                sampledQuotesByProductCode.put(productCode, new LinkedList<>());
             }
-            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            Deque<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            if (quotes.size() >= capacity) {
+                quotes.poll();
+            }
             quotes.add(quote);
         }
 
-        private LinkedList<Quote> asLinkedList(String productCode) {
-            if (!sampledQuotesByProductCode.containsKey(productCode)) {
-                sampledQuotesByProductCode.put(productCode, new CircularFifoQueue<>(capacity));
-            }
-            Queue<Quote> queue = sampledQuotesByProductCode.get(productCode);
-            return new LinkedList<>(queue);
-        }
-
-        Map<String, List<Quote>> asMapList() {
-            Map<String, List<Quote>> map = new HashMap<>();
-            for (String productCode : sampledQuotesByProductCode.keySet()) {
-                map.put(productCode, asLinkedList(productCode));
-            }
-            return map;
+        Map<String, Deque<Quote>> getQuotes() {
+            return sampledQuotesByProductCode;
         }
 
         int size(String productCode) {
@@ -164,19 +153,19 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         }
 
         Quote first(String productCode) {
-            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            Deque<Quote> quotes = sampledQuotesByProductCode.get(productCode);
             if (quotes.size() == 0) {
                 return null;
             }
-            return new LinkedList<>(quotes).get(0);
+            return quotes.getFirst();
         }
 
         Quote last(String productCode) {
-            Queue<Quote> quotes = sampledQuotesByProductCode.get(productCode);
+            Deque<Quote> quotes = sampledQuotesByProductCode.get(productCode);
             if (quotes.size() == 0) {
                 return null;
             }
-            return new LinkedList<>(quotes).get(quotes.size() - 1);
+            return quotes.getLast();
         }
 
         void sample(String productCode, Quote quote, Quote prevQuote, ChronoUnit samplingUnit) {
@@ -189,11 +178,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                         Quote fillQuote = createFrom(this.last(productCode), samplingUnit, 1);
                         logger.info("samples queue: " + this);
                         logger.info("filling with sample for: " + fillQuote.getLastModified());
-                        this.add(productCode, fillQuote);
+                        this.addQuote(productCode, fillQuote);
                     }
                 }
                 logger.info("adding new sample for " + newQuote.getLastModified());
-                this.add(productCode, newQuote);
+                this.addQuote(productCode, newQuote);
             }
 
         }
@@ -219,7 +208,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             latestQuotesByProductCode.put(productCode, quote);
             sampleQuotes.sample(productCode, quote, prevQuote, samplingUnit);
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(latestQuotesByProductCode, sampleQuotes.asMapList());
+            processQuotes(latestQuotesByProductCode, sampleQuotes.getQuotes());
         }
     }
 
