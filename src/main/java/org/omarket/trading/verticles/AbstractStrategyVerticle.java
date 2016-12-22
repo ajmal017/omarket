@@ -190,15 +190,15 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         private void forwardFillQuotes(String productCode, ZonedDateTime endDateTime) {
             Quote first = first(productCode);
             if (first != null) {
-                logger.info("filling samples from " + first.getLastModified() + " to " + endDateTime);
+                logger.debug("filling samples from " + first.getLastModified() + " to " + endDateTime);
                 Quote last = last(productCode);
                 if (last == null) {
                     return;
                 }
-                logger.info("last time: " + last.getLastModified());
+                logger.debug("last time: " + last.getLastModified());
                 while (last.getLastModified().isBefore(endDateTime)) {
                     Quote fillQuote = createFrom(last, samplingUnit, 1);
-                    logger.info("filling with sample for: " + fillQuote.getLastModified());
+                    logger.debug("filling with sample for: " + fillQuote.getLastModified());
                     last = addQuote(productCode, fillQuote);
                 }
             }

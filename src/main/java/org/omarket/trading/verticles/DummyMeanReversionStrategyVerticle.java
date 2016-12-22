@@ -1,13 +1,15 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
+import rx.Observable;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Deque;
+import java.util.Map;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -20,12 +22,12 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
     private final static String IB_CODE_EUR_SEK = "37893488";
 
     @Override
-    protected String[] getProductCodes(){
-        return new String[]{IB_CODE_EUR_CHF, IB_CODE_USD_CHF, IB_CODE_EUR_SEK};
+    protected String[] getProductCodes() {
+        return new String[]{IB_CODE_USD_CHF};
     }
 
     @Override
-    protected void init(){
+    protected void init() {
         logger.info("starting single leg mean reversion strategy verticle");
         logger.info("using default parameter for thresholdStep");
         getParameters().put("thresholdStep", 0.1);
@@ -33,7 +35,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
 
     @Override
     protected Integer getSampledDataSize() {
-        return 200;
+        return 1000;
     }
 
     @Override
@@ -46,13 +48,28 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
      */
     @Override
     public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
-        /*
-        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_EUR_CHF));
+        logger.info("processing: " + quoteRecordsByProduct);
+        logger.info("processing samples: " + sampledQuotes);
+        if (sampledQuotes.get(IB_CODE_USD_CHF) == null) {
+            return;
+        }
+        Deque<Quote> samples = sampledQuotes.get(IB_CODE_USD_CHF);
+        for(Quote sample: samples){
+            logger.info("available sample: " + sample);
+        }
+        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_USD_CHF));
         Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
         Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
-        Observable<BigDecimal> midStream = askStream.zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2)));
-        Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).map(x -> x.get(1));
-        */
+        Observable<BigDecimal> midStream = askStream
+                .zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2), RoundingMode.HALF_UP));
+        Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).filter(x -> x.size() >= 2).map(x -> x.get(1));
+        midStream.zipWith(delayedMidStream, (x1, x0) -> (BigDecimal.ONE.subtract(x1.divide(x0, RoundingMode.HALF_UP))))
+                .doOnNext(x -> {
+                    logger.info("value: " + x.multiply(BigDecimal.valueOf(10000)) + " bps");
+                })
+               // .subscribe()
+        ;
+        /*
         for(String productCode: sampledQuotes.keySet()){
             Deque<Quote> productQuotes = sampledQuotes.get(productCode);
             int length = 0;
@@ -77,6 +94,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             }
             logger.info("length of quotes history for " + productCode + ": " + length);
         }
+        */
         /*
         for(String productCode: sampledQuotes.keySet()){
             if (!productCode.equals(IB_CODE_EUR_CHF)) {
