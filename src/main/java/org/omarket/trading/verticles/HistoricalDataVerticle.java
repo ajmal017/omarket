@@ -25,7 +25,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 
-import static java.lang.Thread.sleep;
 import static org.omarket.trading.MarketData.*;
 import static rx.Observable.*;
 
