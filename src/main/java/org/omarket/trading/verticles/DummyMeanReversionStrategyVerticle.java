@@ -5,18 +5,13 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
 import org.omarket.trading.quote.Quote;
-import org.omarket.trading.quote.QuoteConverter;
 import rx.Observable;
-import rx.functions.Func0;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -68,7 +63,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         Deque<Quote> samples = sampledQuotes.get(IB_CODE_USD_CHF);
         logger.info("first sample: " + samples.getFirst());
         logger.info("last sample: " + samples.getLast());
-        DataFrame df = createSamplesDataFrame(sampledQuotes);
+        DataFrame<Object> df = createSamplesDataFrame(samples);
         logger.info("dataframe: \n" + df);
 
         /*
@@ -118,17 +113,20 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         logger.info("*** completed processing quote ***");
     }
 
-    static DataFrame createSamplesDataFrame(Map<String, Deque<Quote>> sampledQuotes) {
-        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_USD_CHF));
+    private static DataFrame<Object> createSamplesDataFrame(Deque<Quote> quoteSamples) {
+        Observable<Quote> quotesStream = Observable.from(quoteSamples);
+        Observable<Integer> volBidStream = quotesStream.map(Quote::getBestBidSize);
         Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
         Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
-        Observable<List<BigDecimal>> dataStream = Observable
-                .zip(bidStream, askStream, (bid, ask) -> Arrays.asList(bid, ask));
-
-        List<ZonedDateTime> indices = sampledQuotes.get(IB_CODE_USD_CHF).stream().map(Quote::getLastModified).collect(Collectors.toList());
-        List<String> columns = Arrays.asList("bid", "ask");
-        logger.info("indices: " + indices);
-        DataFrame df = new DataFrame(columns, indices, dataStream.toBlocking().getIterator());
+        Observable<Integer> volAskStream = quotesStream.map(Quote::getBestAskSize);
+        Observable<List<Object>> dataStream = Observable
+                .zip(volBidStream, bidStream, askStream, volAskStream,
+                        (volBid, bid, ask, volAsk) -> Arrays.asList(volBid, bid, ask, volAsk));
+        List<ZonedDateTime> indices = quoteSamples.stream()
+                .map(Quote::getLastModified)
+                .collect(Collectors.toList());
+        List<String> columns = Arrays.asList("volume_bid", "bid", "ask", "volume_ask");
+        DataFrame<Object> df = new DataFrame<>(columns, indices, dataStream.toBlocking().getIterator());
         return df.transpose();
     }
 
