@@ -79,9 +79,9 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
         Contract contract = new Contract();
         contract.conid(ibCode);
-        contract.currency(contractDetails.getString("m_currency"));
-        contract.exchange(contractDetails.getString("m_exchange"));
-        contract.secType(contractDetails.getString("m_sectype"));
+        contract.currency(contractDetails.getJsonObject("m_contract").getString("m_currency"));
+        contract.exchange(contractDetails.getJsonObject("m_contract").getString("m_exchange"));
+        contract.secType(contractDetails.getJsonObject("m_contract").getString("m_sectype"));
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
             return;
@@ -92,6 +92,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         Path productStorage = createIBrokersProductDescription(storageDirPath, contractDetails);
         subscribed.put(ibCode, productStorage);
         orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
+        logger.info("requesting market data for " + contractDetails);
         getClient().reqMktData(tickerId, contract, "", false, null);
     }
 
