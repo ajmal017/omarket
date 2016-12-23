@@ -6,17 +6,23 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
 import rx.exceptions.Exceptions;
 import rx.functions.Action1;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+import static org.omarket.trading.MarketData.loadIBrokersProductDescription;
 import static org.omarket.trading.quote.QuoteFactory.createFrom;
 
 /**
@@ -46,12 +52,21 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
 
     abstract protected ChronoUnit getSampleDataUnit();
 
-    private Observable<List<Quote>> bufferize(Observable<Quote> quoteStream, Integer count) {
-        return quoteStream.buffer(count, 1);
-    }
-
     JsonObject getParameters() {
         return parameters;
+    }
+
+    private Map<String, JsonObject> createProducts() throws IOException {
+        JsonArray pathElements = config().getJsonArray(MarketData.IBROKERS_TICKS_STORAGE_PATH);
+        String storageDirPathName = String.join(File.separator, pathElements.getList());
+        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+        String[] productCodes = getProductCodes();
+        Map<String, JsonObject> products = new HashMap<>();
+        for(String productCode: productCodes){
+            JsonObject product = loadIBrokersProductDescription(storageDirPath, productCode);
+            products.put(productCode, product);
+        }
+        return products;
     }
 
     private String getHistoricalQuotesAddress() {
@@ -78,7 +93,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                             }
                         });
 
-                final QuoteProcessor tickDataProcessor = new QuoteProcessor(getSampleDataUnit());
+                Map<String, JsonObject> contracts = createProducts();
+                final QuoteProcessor tickDataProcessor = new QuoteProcessor(getSampleDataUnit(), contracts);
                 tickStream.subscribe(
                                 tickDataProcessor,
                                 error -> {
@@ -103,16 +119,21 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         initStream
                 .doOnCompleted(() -> { // requesting historical data
                     JsonObject request = new JsonObject();
-                    String[] productCodes = getProductCodes();
-                    JsonArray codes = new JsonArray();
-                    for (String code : productCodes) {
-                        codes.add(code);
+                    Set<String> productCodes = null;
+                    try {
+                        productCodes = createProducts().keySet();
+                        JsonArray codes = new JsonArray();
+                        for (String code : productCodes) {
+                            codes.add(code);
+                        }
+                        request.put(KEY_PRODUCT_CODES, codes);
+                        request.put(KEY_REPLY_TO, getHistoricalQuotesAddress());
+                        request.put(KEY_COMPLETION_ADDRESS, getRealtimeQuotesAddress());
+                        logger.info("requesting historical data for products: " + productCodes + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
+                        vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
+                    } catch (IOException e) {
+                        logger.error("failed to access product description", e);
                     }
-                    request.put(KEY_PRODUCT_CODES, codes);
-                    request.put(KEY_REPLY_TO, getHistoricalQuotesAddress());
-                    request.put(KEY_COMPLETION_ADDRESS, getRealtimeQuotesAddress());
-                    logger.info("requesting historical data for products: " + Arrays.asList(productCodes) + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
-                    vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
                 })
                 .doOnError(error -> {
                     logger.error("initialization step failed for " + this.deploymentID());
@@ -210,11 +231,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         private final Map<String, Quote> latestQuotesByProductCode;
         private final SampledQuoteHistory sampleQuotes;
         private final QuoteHistory quotes;
+        private final Map<String, JsonObject> contracts;
 
-        QuoteProcessor(ChronoUnit samplingUnit) {
+        QuoteProcessor(ChronoUnit samplingUnit, Map<String, JsonObject> contracts) {
             this.latestQuotesByProductCode = new HashMap<>();
             this.sampleQuotes = new SampledQuoteHistory(getSampledDataSize(), samplingUnit);
             this.quotes = new QuoteHistory(getSampledDataSize());
+            this.contracts = contracts;
         }
 
         @Override
@@ -224,7 +247,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             sampleQuotes.addQuoteSampled(productCode, quote);
             quotes.addQuote(productCode, quote);
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(latestQuotesByProductCode, quotes.getQuotes(), sampleQuotes.getQuotes());
+            processQuotes(contracts, latestQuotesByProductCode, quotes.getQuotes(), sampleQuotes.getQuotes());
         }
     }
 

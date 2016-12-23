@@ -1,5 +1,6 @@
 package org.omarket.trading.verticles;
 
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.quote.Quote;
@@ -8,6 +9,7 @@ import rx.Observable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Map;
 
@@ -51,12 +53,13 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
      * @param quoteRecordsByProduct quotes history for each product
      */
     @Override
-    public void processQuotes(Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
+    public void processQuotes(Map<String, JsonObject> contracts, Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
         logger.info("processing: " + quoteRecordsByProduct);
         logger.info("processing samples: " + sampledQuotes);
         if (sampledQuotes.get(IB_CODE_USD_CHF) == null) {
             return;
         }
+        logger.info("contract: " + contracts.get(IB_CODE_USD_CHF));
         Deque<Quote> samples = sampledQuotes.get(IB_CODE_USD_CHF);
         for(Quote sample: samples){
             logger.info("available sample: " + sample);

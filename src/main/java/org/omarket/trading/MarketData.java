@@ -1,12 +1,19 @@
 package org.omarket.trading;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.verticles.MarketDataVerticle;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -52,5 +59,33 @@ public class MarketData {
             logger.error("failed to access recorded ticks for product " + productCode, e);
         }
         return tickFiles;
+    }
+
+    public static Path createIBrokersProductDescription(Path storageDirPath, JsonObject contractDetails) throws IOException {
+        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
+        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
+        logger.info("preparing storage for contract: " + productStorage);
+        Files.createDirectories(productStorage);
+        Path descriptionFilePath = productStorage.resolve("description.json");
+        if(!Files.exists(descriptionFilePath)){
+            Files.createFile(descriptionFilePath);
+        }
+        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        Gson gson = gsonBuilder.create();
+        gson.toJson(contractDetails.getMap(), writer);
+        writer.close();
+        return productStorage;
+    }
+
+    public static JsonObject loadIBrokersProductDescription(Path storageDirPath, String productCode) throws IOException {
+        Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
+        Path descriptionFilePath = productStorage.resolve("description.json");
+        BufferedReader reader = Files.newBufferedReader(descriptionFilePath, StandardCharsets.UTF_8);
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        Gson gson = gsonBuilder.create();
+        Map productMap = gson.fromJson(reader, Map.class);
+        reader.close();
+        return new JsonObject(productMap);
     }
 }

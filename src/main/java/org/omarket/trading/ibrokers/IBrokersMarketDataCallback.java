@@ -22,6 +22,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.omarket.trading.MarketData.createChannelQuote;
+import static org.omarket.trading.MarketData.createIBrokersProductDescription;
 
 
 /**
@@ -83,24 +84,12 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         contract.secType(contractDetails.getString("m_sectype"));
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
+            return;
         }
         int tickerId = newSubscriptionId();
         Files.createDirectories(storageDirPath);
-        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
         logger.info("min tick for contract " + ibCode + ": " + minTick);
-        logger.info("preparing storage for contract: " + productStorage);
-        Files.createDirectories(productStorage);
-
-        Path descriptionFilePath = productStorage.resolve("description.json");
-        if(!Files.exists(descriptionFilePath)){
-            Files.createFile(descriptionFilePath);
-        }
-        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        gson.toJson(contractDetails.getMap(), writer);
-        writer.close();
-
+        Path productStorage = createIBrokersProductDescription(storageDirPath, contractDetails);
         subscribed.put(ibCode, productStorage);
         orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
         getClient().reqMktData(tickerId, contract, "", false, null);
