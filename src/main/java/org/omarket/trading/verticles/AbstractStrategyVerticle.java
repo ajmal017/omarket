@@ -6,6 +6,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import joinery.DataFrame;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
@@ -15,6 +16,7 @@ import rx.functions.Action1;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.text.ParseException;
@@ -40,6 +42,23 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     private static final String ADDRESS_REALTIME_START_PREFIX = "oot.realtime.start";
 
     private JsonObject parameters = new JsonObject();
+
+    private static DataFrame<Object> createSamplesDataFrame(Deque<Quote> quoteSamples) {
+        Observable<Quote> quotesStream = Observable.from(quoteSamples);
+        Observable<Integer> volBidStream = quotesStream.map(Quote::getBestBidSize);
+        Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
+        Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
+        Observable<Integer> volAskStream = quotesStream.map(Quote::getBestAskSize);
+        Observable<List<Object>> dataStream = Observable
+                .zip(volBidStream, bidStream, askStream, volAskStream,
+                        (volBid, bid, ask, volAsk) -> Arrays.asList(volBid, bid, ask, volAsk));
+        List<ZonedDateTime> indices = quotesStream.map(Quote::getLastModified)
+                .collect(LinkedList<ZonedDateTime>::new, LinkedList<ZonedDateTime>::add)
+                .toBlocking().first();
+        List<String> columns = Arrays.asList("volume_bid", "bid", "ask", "volume_ask");
+        DataFrame<Object> df = new DataFrame<>(columns, indices, dataStream.toBlocking().getIterator());
+        return df.transpose();
+    }
 
     abstract protected String[] getProductCodes();
 
@@ -224,6 +243,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 }
             }
         }
+        Map<String, DataFrame>  getDataFrames(){
+                Map<String, DataFrame> samplesDataframe = new HashMap<>();
+                getQuotes().forEach((productCode, quotes) -> {
+                    samplesDataframe.put(productCode, createSamplesDataFrame(quotes));
+                });
+                return samplesDataframe;
+        }
     }
 
     private class QuoteProcessor implements Action1<Quote> {
@@ -243,7 +269,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             sampleQuotes.addQuoteSampled(productCode, quote);
             quotes.addQuote(productCode, quote);
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(contracts, quotes.getQuotes(), sampleQuotes.getQuotes());
+            processQuotes(contracts, quotes.getQuotes(), sampleQuotes.getDataFrames());
         }
     }
 
