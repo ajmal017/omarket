@@ -3,6 +3,8 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
+import joinery.DataFrame;
+import joinery.impl.Index;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;

@@ -3,15 +3,20 @@ package org.omarket.trading.verticles;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import joinery.DataFrame;
 import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
 import rx.Observable;
+import rx.functions.Func0;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -50,34 +55,22 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
     }
 
     /**
-     * @param contracts
-     * @param quotes
-     * @param sampledQuotes
+     * @param contracts     mapping each contract code to the relevant contract properties
+     * @param quotes        tick data, in increasing order of timestamp (last is most recent)
+     * @param sampledQuotes sampled data
      */
     @Override
     public void processQuotes(Map<String, JsonObject> contracts, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
-        quotes.forEach((x, y) -> logger.info("last: " + y.getLast()));
-        logger.info("processing samples: " + sampledQuotes);
         if (sampledQuotes.get(IB_CODE_USD_CHF) == null) {
             return;
         }
         logger.info("contract: " + contracts.get(IB_CODE_USD_CHF));
         Deque<Quote> samples = sampledQuotes.get(IB_CODE_USD_CHF);
-        for(Quote sample: samples){
-            logger.info("available sample: " + sample);
-        }
-        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_USD_CHF));
-        Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
-        Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
-        Observable<BigDecimal> midStream = askStream
-                .zipWith(bidStream, (x, y) -> x.add(y).divide(BigDecimal.valueOf(2), RoundingMode.HALF_UP));
-        Observable<BigDecimal> delayedMidStream = midStream.buffer(2, 1).filter(x -> x.size() >= 2).map(x -> x.get(1));
-        midStream.zipWith(delayedMidStream, (x1, x0) -> (BigDecimal.ONE.subtract(x1.divide(x0, RoundingMode.HALF_UP))))
-                .doOnNext(x -> {
-                    logger.info("value: " + x.multiply(BigDecimal.valueOf(10000)) + " bps");
-                })
-               // .subscribe()
-        ;
+        logger.info("first sample: " + samples.getFirst());
+        logger.info("last sample: " + samples.getLast());
+        DataFrame df = createSamplesDataFrame(sampledQuotes);
+        logger.info("dataframe: \n" + df);
+
         /*
         for(String productCode: sampledQuotes.keySet()){
             Deque<Quote> productQuotes = sampledQuotes.get(productCode);
@@ -123,6 +116,20 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         }
         */
         logger.info("*** completed processing quote ***");
+    }
+
+    static DataFrame createSamplesDataFrame(Map<String, Deque<Quote>> sampledQuotes) {
+        Observable<Quote> quotesStream = Observable.from(sampledQuotes.get(IB_CODE_USD_CHF));
+        Observable<BigDecimal> bidStream = quotesStream.map(Quote::getBestBidPrice);
+        Observable<BigDecimal> askStream = quotesStream.map(Quote::getBestAskPrice);
+        Observable<List<BigDecimal>> dataStream = Observable
+                .zip(bidStream, askStream, (bid, ask) -> Arrays.asList(bid, ask));
+
+        List<ZonedDateTime> indices = sampledQuotes.get(IB_CODE_USD_CHF).stream().map(Quote::getLastModified).collect(Collectors.toList());
+        List<String> columns = Arrays.asList("bid", "ask");
+        logger.info("indices: " + indices);
+        DataFrame df = new DataFrame(columns, indices, dataStream.toBlocking().getIterator());
+        return df.transpose();
     }
 
 }
