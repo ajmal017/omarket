@@ -15,7 +15,6 @@ import rx.Observable;
 import java.util.Arrays;
 
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
-import static rx.Observable.combineLatest;
 
 public class RecorderMain {
     private final static Logger logger = LoggerFactory.getLogger(RecorderMain.class);
@@ -36,61 +35,27 @@ public class RecorderMain {
         final Vertx vertx = Vertx.vertx();
 
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
-        Observable<Integer> ibCodes = Observable.from(new Integer[]{12087817, 12087820, 37893488, 28027110});
-
-        /*Observable<String> deployedMarketData = marketDataDeployment.map(deploymentId -> {
+        String[] ibCodes = new String[]{"12087817", "12087820", "37893488", "28027110", "188989072", "229726316"};
+        marketDataDeployment.subscribe(deploymentId -> {
             logger.info("succesfully deployed market data verticle: " + deploymentId);
-            return deploymentId;
-        });*/
-        Observable<String> marketDataDeployed = marketDataDeployment.first(deploymentId -> {
-            logger.info("succesfully deployed market data verticle: " + deploymentId);
-            return true;
-        });
-        combineLatest(marketDataDeployed, ibCodes, (deploymentId, ibCode) -> ibCode)
-                .flatMap(ibCode -> {
-                    logger.info("subscribing ibCode: " + ibCode);
-                    JsonObject contract = new JsonObject().put("conId", Integer.toString(ibCode));
-                    ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
-                    return contractStream;
-                })
-                .flatMap((Message<JsonObject> contractMessage) -> {
-                    JsonObject contract = contractMessage.body();
-                    logger.info("contract retrieved: " + contract);
+            for(String ibCode: ibCodes){
+                logger.info("subscribing ibCode: " + ibCode);
+                JsonObject contract = new JsonObject().put("conId", ibCode);
+                ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
+                vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
+                contractStream.subscribe((Message<JsonObject> contractMessage) -> {
+                    JsonObject contractJson = contractMessage.body();
+                    logger.info("contract retrieved: " + contractJson);
                     ObservableFuture<Message<JsonObject>> quoteStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, quoteStream.toHandler());
-                    return quoteStream;
-                })
-                .subscribe(resultMessage -> {
-                    JsonObject result = resultMessage.body();
-                    logger.info("received: " + result);
-                }, err -> {
-                    logger.error("error", err);
+                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractJson, quoteStream.toHandler());
+                    quoteStream.subscribe(resultMessage -> {
+                        JsonObject result = resultMessage.body();
+                        logger.info("received: " + result);
+                    }, err -> {
+                        logger.error("error", err);
+                    });
                 });
-        /*
-        deployedMarketData.subscribe(deploymentId -> {
-        ibCodes
-                .flatMap(ibCode -> {
-                    logger.info("subscribing ibCode: " + ibCode);
-                    JsonObject contract = new JsonObject().put("conId", Integer.toString(ibCode));
-                    ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
-                    return contractStream;
-                })
-                .flatMap((Message<JsonObject> contractMessage) -> {
-                    JsonObject contract = contractMessage.body();
-                    logger.info("contract retrieved: " + contract);
-                    ObservableFuture<Message<JsonObject>> quoteStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contract, quoteStream.toHandler());
-                    return quoteStream;
-                })
-                .subscribe(resultMessage -> {
-                    JsonObject result = resultMessage.body();
-                    logger.info("received: " + result);
-                }, err -> {
-                    logger.error("error", err);
-                });
+            }
         });
-        */
     }
 }

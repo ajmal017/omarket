@@ -17,6 +17,10 @@ import java.util.Map;
 public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
     private final static Logger logger = LoggerFactory.getLogger(DummyMeanReversionStrategyVerticle.class);
     final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.dummy";
+
+    private final static String IB_CODE_GCG7 = "188989072";
+    private final static String IB_CODE_GDX_ARCA = "229726316";
+
     private final static String IB_CODE_EUR_CHF = "12087817";
     private final static String IB_CODE_USD_CHF = "12087820";
     private final static String IB_CODE_EUR_SEK = "37893488";
