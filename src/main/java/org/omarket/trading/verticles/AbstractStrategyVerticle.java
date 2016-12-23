@@ -227,14 +227,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
     private class QuoteProcessor implements Action1<Quote> {
-
-        private final Map<String, Quote> latestQuotesByProductCode;
         private final SampledQuoteHistory sampleQuotes;
         private final QuoteHistory quotes;
         private final Map<String, JsonObject> contracts;
 
         QuoteProcessor(ChronoUnit samplingUnit, Map<String, JsonObject> contracts) {
-            this.latestQuotesByProductCode = new HashMap<>();
             this.sampleQuotes = new SampledQuoteHistory(getSampledDataSize(), samplingUnit);
             this.quotes = new QuoteHistory(getSampledDataSize());
             this.contracts = contracts;
@@ -243,11 +240,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         @Override
         public void call(Quote quote) {
             String productCode = quote.getProductCode();
-            latestQuotesByProductCode.put(productCode, quote);
             sampleQuotes.addQuoteSampled(productCode, quote);
             quotes.addQuote(productCode, quote);
             logger.debug("forwarding order book to concrete strategy after update from: " + quote);
-            processQuotes(contracts, latestQuotesByProductCode, quotes.getQuotes(), sampleQuotes.getQuotes());
+            processQuotes(contracts, quotes.getQuotes(), sampleQuotes.getQuotes());
         }
     }
 

@@ -50,11 +50,13 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
     }
 
     /**
-     * @param quoteRecordsByProduct quotes history for each product
+     * @param contracts
+     * @param quotes
+     * @param sampledQuotes
      */
     @Override
-    public void processQuotes(Map<String, JsonObject> contracts, Map<String, Quote> quoteRecordsByProduct, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
-        logger.info("processing: " + quoteRecordsByProduct);
+    public void processQuotes(Map<String, JsonObject> contracts, Map<String, Deque<Quote>> quotes, Map<String, Deque<Quote>> sampledQuotes) {
+        quotes.forEach((x, y) -> logger.info("last: " + y.getLast()));
         logger.info("processing samples: " + sampledQuotes);
         if (sampledQuotes.get(IB_CODE_USD_CHF) == null) {
             return;
