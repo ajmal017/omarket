@@ -97,23 +97,23 @@ public class MarketDataVerticle extends AbstractVerticle {
                         ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
                         future.complete(productCode);
                     } catch (Exception e) {
-                        logger.error("failed to subscribe product: '" + productCode.toString() + "'", e);
+                        logger.error("failed to subscribe product: '" + productCode + "'", e);
                         future.fail(e);
                     }
                 }, result -> {
                     logger.info("raw result: " + result.result());
                     String status = "failed";
                     if (result.succeeded()) {
-                        logger.info("subscription succeeded for " + productCode.toString());
+                        logger.info("subscription succeeded for " + productCode);
                         status = "registered";
                     } else {
-                        logger.info("subscription failed for " + productCode.toString());
+                        logger.info("subscription failed for " + productCode);
                     }
                     final JsonObject reply = new JsonObject().put("status", status);
                     message.reply(reply);
                 });
             } else {
-                logger.info("already registered: " + productCode.toString());
+                logger.info("already registered: " + productCode);
                 final JsonObject reply = new JsonObject().put("status", "already_registered");
                 message.reply(reply);
             }

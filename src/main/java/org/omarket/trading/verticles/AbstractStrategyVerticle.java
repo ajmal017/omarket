@@ -229,4 +229,3 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
 }
-
