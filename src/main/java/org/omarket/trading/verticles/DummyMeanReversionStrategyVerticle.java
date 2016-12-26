@@ -6,6 +6,7 @@ import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
 import org.omarket.trading.quote.Quote;
 
+import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -60,7 +61,13 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         logger.info("first sample: " + samples.head(1));
         logger.info("last sample: " + samples.tail(1));
         logger.info("dataframe: \n" + samples);
-
+        samples.applyRows("mid", row -> {
+            BigDecimal bid = (BigDecimal) row.get("bid");
+            BigDecimal ask = (BigDecimal) row.get("ask");
+           return 0.5 * (bid.doubleValue() + ask.doubleValue());
+        });
+        List<Double> midValues = samples.col("mid");
+        logger.info("column: " + midValues.toArray(new Double[0]));
         /*
         for(String productCode: sampledQuotes.keySet()){
             Deque<Quote> productQuotes = sampledQuotes.get(productCode);
