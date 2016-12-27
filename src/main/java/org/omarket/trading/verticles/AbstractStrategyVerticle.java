@@ -169,7 +169,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             this.quotesByProductCode = new HashMap<>();
         }
 
-        Quote addQuote(String productCode, Quote quote) {
+        Quote addQuote(Quote quote) {
+            String productCode = quote.getProductCode();
             if (!quotesByProductCode.containsKey(productCode)) {
                 quotesByProductCode.put(productCode, new LinkedList<>());
             }
@@ -184,11 +185,15 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         Map<String, Deque<Quote>> getQuotes() {
             return quotesByProductCode;
         }
+
+        public String toString(){
+            return quotesByProductCode.toString();
+        }
     }
 
     private class SampledQuoteHistory extends QuoteHistory {
         private final ChronoUnit samplingUnit;
-        private Quote prevQuote = null;
+        private Map<String, Quote> prevQuotes = new HashMap<>();
 
         SampledQuoteHistory(Integer capacity, ChronoUnit samplingUnit) {
             super(capacity);
@@ -209,14 +214,19 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             }
             return quotes.getLast();
         }
-        void addQuoteSampled(String productCode, Quote quote) {
+        void addQuoteSampled(Quote quote) {
+            String productCode = quote.getProductCode();
+            Quote prevQuote = prevQuotes.getOrDefault(productCode, null);
             if (prevQuote != null && !quote.sameSampledTime(prevQuote, samplingUnit)) {
-                Quote newQuote = createFrom(prevQuote, quote.getLastModified(), samplingUnit);
+                logger.info("prev quote:" + prevQuote.getLastModified());
+                logger.info("current quote:" + quote.getLastModified());
+                ZonedDateTime samplingTime = quote.getLastModified().minus(1, samplingUnit);
+                logger.info("adding new sample for " + samplingTime);
+                Quote newQuote = createFrom(prevQuote, samplingTime, samplingUnit);
                 ZonedDateTime lastModified = newQuote.getLastModified();
                 ZonedDateTime endDateTime = lastModified.minus(1, samplingUnit);
                 forwardFillQuotes(productCode, endDateTime);
-                logger.debug("adding new sample for " + lastModified);
-                addQuote(productCode, newQuote);
+                addQuote(newQuote);
                 for(String currentProductCode: quotesByProductCode.keySet()){
                     if(currentProductCode.equals(productCode)){
                         continue;
@@ -224,7 +234,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                     forwardFillQuotes(currentProductCode, lastModified);
                 }
             }
-            prevQuote = quote;
+            prevQuotes.put(productCode, quote);
         }
 
         private void forwardFillQuotes(String productCode, ZonedDateTime endDateTime) {
@@ -239,10 +249,11 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 while (last.getLastModified().isBefore(endDateTime)) {
                     Quote fillQuote = createFrom(last, samplingUnit, 1);
                     logger.debug("filling with sample for: " + fillQuote.getLastModified());
-                    last = addQuote(productCode, fillQuote);
+                    last = addQuote(fillQuote);
                 }
             }
         }
+
         Map<String, DataFrame>  getDataFrames(){
                 Map<String, DataFrame> samplesDataframe = new HashMap<>();
                 getQuotes().forEach((productCode, quotes) -> {
@@ -265,10 +276,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
 
         @Override
         public void call(Quote quote) {
-            String productCode = quote.getProductCode();
-            sampleQuotes.addQuoteSampled(productCode, quote);
-            quotes.addQuote(productCode, quote);
-            logger.debug("forwarding order book to concrete strategy after update from: " + quote);
+            sampleQuotes.addQuoteSampled(quote);
+            logger.info("samples for product " + quote.getProductCode() + ":\n" + sampleQuotes);
+            quotes.addQuote(quote);
+            logger.info("forwarding order book to concrete strategy after update from: " + quote);
             processQuotes(contracts, quotes.getQuotes(), sampleQuotes.getDataFrames());
         }
     }

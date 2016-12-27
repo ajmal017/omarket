@@ -4,6 +4,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
+import org.apache.commons.math3.filter.KalmanFilter;
+import org.apache.commons.math3.filter.MeasurementModel;
+import org.apache.commons.math3.filter.ProcessModel;
+import org.apache.commons.math3.linear.*;
 import org.omarket.trading.quote.Quote;
 
 import java.math.BigDecimal;
@@ -26,7 +30,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
 
     @Override
     protected String[] getProductCodes() {
-        return new String[]{IB_CODE_USD_CHF};
+        return new String[]{IB_CODE_GCG7, IB_CODE_GDX_ARCA};
     }
 
     @Override
@@ -53,21 +57,41 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
      */
     @Override
     public void processQuotes(Map<String, JsonObject> contracts, Map<String, Deque<Quote>> quotes, Map<String, DataFrame> sampledQuotes) {
-        if (sampledQuotes.get(IB_CODE_USD_CHF) == null) {
+        if (sampledQuotes.get(IB_CODE_GCG7) == null || sampledQuotes.get(IB_CODE_GDX_ARCA) == null) {
             return;
         }
-        logger.info("contract: " + contracts.get(IB_CODE_USD_CHF));
-        DataFrame samples = sampledQuotes.get(IB_CODE_USD_CHF);
-        logger.info("first sample: " + samples.head(1));
-        logger.info("last sample: " + samples.tail(1));
-        logger.info("dataframe: \n" + samples);
-        samples.applyRows("mid", row -> {
+        DataFrame samplesGold = sampledQuotes.get(IB_CODE_GCG7);
+        DataFrame samplesGDX = sampledQuotes.get(IB_CODE_GDX_ARCA);
+        samplesGold.applyRows("mid", row -> {
             BigDecimal bid = (BigDecimal) row.get("bid");
             BigDecimal ask = (BigDecimal) row.get("ask");
-           return 0.5 * (bid.doubleValue() + ask.doubleValue());
+            return 0.5 * (bid.doubleValue() + ask.doubleValue());
         });
-        List<Double> midValues = samples.col("mid");
-        logger.info("column: " + midValues.toArray(new Double[0]));
+        samplesGDX.applyRows("mid", row -> {
+            BigDecimal bid = (BigDecimal) row.get("bid");
+            BigDecimal ask = (BigDecimal) row.get("ask");
+            return 0.5 * (bid.doubleValue() + ask.doubleValue());
+        });
+        logger.info("gold:\n" + samplesGold);
+        logger.info("gdx:\n" + samplesGDX);
+        Double[] midGoldValues = (Double[]) samplesGold.col("mid").toArray(new Double[0]);
+        Double[] midGDXValues = (Double[]) samplesGDX.col("mid").toArray(new Double[0]);
+        logger.info("gold values:" + samplesGold.col("mid"));
+        logger.info("gdx values:" + samplesGDX.col("mid"));
+        ProcessModel pm = new LinearRegressionProcessModel();
+        LinearRegressionMeasurementModel mm = new LinearRegressionMeasurementModel();
+        KalmanFilter filter = new KalmanFilter(pm, mm);
+        int count = 0;
+        while (count < midGDXValues.length){
+            double independentVariable = midGDXValues[count];
+            double dependentVariable = midGoldValues[count];
+            filter.predict();
+            mm.setMeasurement(independentVariable);
+            filter.correct(new double[]{dependentVariable});
+            count++;
+            logger.info("estimates: " + Arrays.asList(filter.getStateEstimation()));
+        }
+
         /*
         for(String productCode: sampledQuotes.keySet()){
             Deque<Quote> productQuotes = sampledQuotes.get(productCode);
@@ -115,4 +139,70 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         logger.info("*** completed processing quote ***");
     }
 
+    private static class LinearRegressionProcessModel implements ProcessModel {
+        /**
+         * Our model assumes the hidden state is a random walk, so the state transition
+         * matrix is the identity.
+         *
+         * @return Identity matrix
+         */
+        @Override
+        public RealMatrix getStateTransitionMatrix() {
+            return new DiagonalMatrix(new double[]{1., 1.});
+        }
+
+        /**
+         * @return our model assumes no external control
+         */
+        @Override
+        public RealMatrix getControlMatrix() {
+            return new DiagonalMatrix(new double[]{0., 0.});
+        }
+
+        /**
+         * @return process noise matrix
+         */
+        @Override
+        public RealMatrix getProcessNoise() {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public RealVector getInitialStateEstimate() {
+            return new ArrayRealVector(new double[]{0., 0.});
+        }
+
+        @Override
+        public RealMatrix getInitialErrorCovariance() {
+            return new DiagonalMatrix(new double[]{0., 0.});
+        }
+    }
+
+    private static class LinearRegressionMeasurementModel implements MeasurementModel {
+        private Double currentMeasurement = 0.;
+        /**
+         * This is the observation model, that is the second asset price
+         * augmented with 1. in the second column.
+         *
+         * @return observation model matrix
+         */
+        @Override
+        public RealMatrix getMeasurementMatrix() {
+            return new Array2DRowRealMatrix(new double[]{currentMeasurement, 1.}).transpose();
+        }
+
+        /**
+         * @return measurement noise matrix
+         */
+        @Override
+        public RealMatrix getMeasurementNoise() {
+            // TODO
+            return null;
+        }
+
+        void setMeasurement(double value){
+            currentMeasurement = value;
+        }
+    }
 }
