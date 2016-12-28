@@ -4,6 +4,10 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
 import joinery.DataFrame;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
@@ -150,10 +154,44 @@ public class Scratchpad {
 
         DataFrame ewcDf = new DataFrame(columnsEWC, indexEWC, adjCloseEWC.iterator()).transpose();
         DataFrame ewaDf = new DataFrame(columnsEWA, indexEWA, adjCloseEWA.iterator()).transpose();
-        logger.info("df:\n" + ewcDf);
-        logger.info("df:\n" + ewaDf);
         DataFrame df = ewcDf.join(ewaDf);
         logger.info("df:\n" + df);
+        RealMatrix betaPrev = MatrixUtils.createColumnRealMatrix(new double[]{0., 0.});
+        RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
+        RealMatrix R = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});;
+        double delta = 0.0001;
+        RealMatrix Vw = MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
+        double Ve = 0.001;
+        int count = 1;
+        RealMatrix beta = MatrixUtils.createColumnRealMatrix(new double[]{0., 0.});
+        Double Q;
+        for (ListIterator it = df.iterrows(); it.hasNext(); ) {
+            List row = (List)it.next();
+            BigDecimal ewcValue = (BigDecimal)row.get(0);
+            BigDecimal ewaValue = (BigDecimal)row.get(1);
+            logger.info("values=" + ewcValue + " - " + ewaValue);
+            RealMatrix x = MatrixUtils.createRowRealMatrix(new double[]{ewcValue.doubleValue(), 1.});
+            double y = ewaValue.doubleValue();
+            if (count > 1) {
+                beta = betaPrev;
+                R = P.add(Vw);
+                logger.info("hedge ratio: " + beta.getEntry(0, 0));
+                logger.info("intercept: " + beta.getEntry(1, 0));
+                logger.info("----------");
+            }
+            double yHat = x.multiply(beta).getEntry(0, 0);
+            Q = x.multiply(R)
+                    .multiply(x.transpose())
+                    .scalarAdd(Ve)
+                    .getEntry(0, 0);
+
+            // observing y
+            double e = y - yHat;
+            RealMatrix K = R.multiply(x.transpose()).scalarMultiply(1. / Q);
+            betaPrev = beta.add(K.scalarMultiply(e));
+            P = R.subtract(K.multiply(x).multiply(R));
+            count++;
+        }
     }
 
     public static void main1(String[] args) throws Exception {
