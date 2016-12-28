@@ -81,6 +81,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         ProcessModel pm = new LinearRegressionProcessModel();
         LinearRegressionMeasurementModel mm = new LinearRegressionMeasurementModel();
         KalmanFilter filter = new KalmanFilter(pm, mm);
+        // have a look at: http://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
         int count = 0;
         while (count < midGDXValues.length){
             double independentVariable = midGDXValues[count];

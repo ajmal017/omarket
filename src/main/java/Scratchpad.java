@@ -4,7 +4,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
 import joinery.DataFrame;
-import joinery.impl.Index;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
@@ -13,9 +12,21 @@ import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
 import rx.Observable;
 import rx.schedulers.Schedulers;
+import yahoofinance.Stock;
+import yahoofinance.YahooFinance;
+import yahoofinance.histquotes.HistoricalQuote;
+import yahoofinance.histquotes.Interval;
 
+import java.io.*;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.lang.Thread.sleep;
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
@@ -23,6 +34,8 @@ import static org.omarket.trading.verticles.HistoricalDataVerticle.mergeQuoteStr
 import static org.omarket.trading.verticles.HistoricalDataVerticle.getHistoricalQuoteStream;
 import static rx.Observable.combineLatest;
 import static rx.Observable.interval;
+import static yahoofinance.Utils.loadObject;
+import static yahoofinance.Utils.storeObject;
 
 class RandomWalk implements Func1<Boolean, Double> {
     private final Double step;
@@ -70,7 +83,7 @@ class Hysteresis implements Func1<Double, Double> {
 public class Scratchpad {
     private final static Logger logger = LoggerFactory.getLogger(Scratchpad.class);
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main0(String[] args) throws InterruptedException {
         Observable<Long> clock = interval(100, TimeUnit.MILLISECONDS, Schedulers.computation());
 
         final Random random = new Random();
@@ -98,15 +111,49 @@ public class Scratchpad {
         sleep(10000);
     }
 
-    public static void main0(String[] args) throws Exception {
-        Observable<Integer> stream1 = Observable.from(new Integer[]{1, 2, 3, 4});
-        Observable<String> stream2 = Observable.from(new String[]{"a", "b", "c", "d", "e"});
-        String value = "x"; //Observable.just("x");
-        stream1.map(y -> value + ", " + y).subscribe(
-                x -> {
-                    logger.info("got " + x);
-                }
-        );
+    public static void saveYahooExamples() throws Exception {
+        String[] symbols = new String[]{"EWC", "EWA", "USO"};
+        Calendar from = Calendar.getInstance();
+        from.add(Calendar.YEAR, -5);
+        Map<String, Stock> stocks = YahooFinance.get(symbols, from);
+        Stock ewc = stocks.get("EWC");
+        Stock ewa = stocks.get("EWA");
+        Stock uso = stocks.get("USO");
+        List<HistoricalQuote> historyEWC = ewc.getHistory(Interval.DAILY);
+        List<HistoricalQuote> historyEWA = ewa.getHistory(Interval.DAILY);
+        List<HistoricalQuote> historyUSO = uso.getHistory(Interval.DAILY);
+        storeObject(Paths.get("data", "ewc-hist.bin"), historyEWC);
+        storeObject(Paths.get("data", "ewa-hist.bin"), historyEWA);
+        storeObject(Paths.get("data", "uso-hist.bin"), historyUSO);
+    }
+
+    public static void main(String[] args) throws Exception {
+        List<HistoricalQuote> historyEWC = loadObject(Paths.get("data", "ewc-hist.bin"));
+        List<HistoricalQuote> historyEWA = loadObject(Paths.get("data", "ewa-hist.bin"));
+        List<HistoricalQuote> historyUSO = loadObject(Paths.get("data", "uso-hist.bin"));
+        Stream<Date> indexStreamEWC = historyEWC.stream()
+                .map(HistoricalQuote::getDate)
+                .map(Calendar::getTime);
+        Stream<Date> indexStreamEWA = historyEWA.stream()
+                .map(HistoricalQuote::getDate)
+                .map(Calendar::getTime);
+        Stream<List<BigDecimal>> adjCloseEWC = historyEWC.stream()
+                .map(HistoricalQuote::getAdjClose)
+                .map(Collections::singletonList);
+        Stream<List<BigDecimal>> adjCloseEWA = historyEWA.stream()
+                .map(HistoricalQuote::getAdjClose)
+                .map(Collections::singletonList);
+        Collection<String> columnsEWC = Collections.singletonList("ewc");
+        Collection<String> columnsEWA = Collections.singletonList("ewa");
+        Collection<Date> indexEWC = indexStreamEWC.collect(Collectors.toList());
+        Collection<Date> indexEWA = indexStreamEWA.collect(Collectors.toList());
+
+        DataFrame ewcDf = new DataFrame(columnsEWC, indexEWC, adjCloseEWC.iterator()).transpose();
+        DataFrame ewaDf = new DataFrame(columnsEWA, indexEWA, adjCloseEWA.iterator()).transpose();
+        logger.info("df:\n" + ewcDf);
+        logger.info("df:\n" + ewaDf);
+        DataFrame df = ewcDf.join(ewaDf);
+        logger.info("df:\n" + df);
     }
 
     public static void main1(String[] args) throws Exception {

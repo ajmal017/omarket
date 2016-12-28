@@ -103,11 +103,15 @@
             <artifactId>opencsv</artifactId>
             <version>3.8</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/colt/colt -->
         <dependency>
-            <groupId>colt</groupId>
-            <artifactId>colt</artifactId>
-            <version>1.2.0</version>
+            <groupId>org.ejml</groupId>
+            <artifactId>all</artifactId>
+            <version>0.30</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.chris-ch</groupId>
+            <artifactId>yahoofinance-api</artifactId>
+            <version>v3.5.1</version>
         </dependency>
     </dependencies>
 
