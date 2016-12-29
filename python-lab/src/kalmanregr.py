@@ -18,8 +18,10 @@ def main():
 
     else:
         print('loading from web')
-        prices = data.DataReader(secs, 'yahoo', '2011-12-29', '2016-12-28')['Adj Close']
+        prices = data.DataReader(secs, 'yahoo', '2011-12-28', '2016-12-28')['Adj Close']
         prices.to_pickle('prices.pkl')
+
+    prices.to_csv('prices.csv')
 
     # visualize the correlation between assest prices over time
     cm = pyplot.cm.get_cmap('jet')
@@ -32,23 +34,23 @@ def main():
     pyplot.ylabel(prices.columns[1])
 
     delta = 1e-5
-    trans_cov = delta / (1 - delta) * numpy.eye(2)
+    process_noise = delta / (1 - delta) * numpy.eye(2)
     obs_mat = numpy.vstack([prices['EWA'], numpy.ones(prices['EWA'].shape)]).T[:, numpy.newaxis]
-
+    initial_state_estimate = numpy.zeros(2)
+    initial_error_covariance = numpy.ones((2, 2))
     kf = KalmanFilter(n_dim_obs=1, n_dim_state=2,
-                      initial_state_mean=numpy.zeros(2),
-                      initial_state_covariance=numpy.ones((2, 2)),
+                      initial_state_mean=initial_state_estimate,
+                      initial_state_covariance=initial_error_covariance,
                       transition_matrices=numpy.eye(2),
                       observation_matrices=obs_mat,
                       observation_covariance=1.0,
-                      transition_covariance=trans_cov)
+                      transition_covariance=process_noise)
 
     state_means, state_covs = kf.filter(prices['EWC'].values)
     results = {'slope': state_means[:, 0], 'intercept': state_means[:, 1]}
     output_df = pandas.DataFrame(results, index=prices.index)
     output_df.plot(subplots=True)
     pyplot.show()
-    #pyplot.tight_layout()
 
     # visualize the correlation between assest prices over time
     cm = pyplot.cm.get_cmap('jet')
@@ -60,7 +62,7 @@ def main():
     pyplot.ylabel(prices.columns[1])
 
     # add regression lines
-    step = 20
+    step = 100
     xi = numpy.linspace(prices[prices.columns[0]].min(), prices[prices.columns[0]].max(), 2)
     count_states = state_means[::step].size
     colors_l = numpy.linspace(0.1, 1, count_states)
@@ -70,7 +72,7 @@ def main():
         i += 1
 
     pyplot.show()
-    print(output_df)
+    print(state_means)
 
 if __name__ == '__main__':
     main()

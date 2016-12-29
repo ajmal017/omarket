@@ -136,39 +136,18 @@ public class Scratchpad {
     }
 
     public static void main(String[] args) throws Exception {
-        List<HistoricalQuote> historyEWC = loadObject(Paths.get("data", "ewc-hist.bin"));
-        List<HistoricalQuote> historyEWA = loadObject(Paths.get("data", "ewa-hist.bin"));
-        List<HistoricalQuote> historyUSO = loadObject(Paths.get("data", "uso-hist.bin"));
-        Stream<Date> indexStreamEWC = historyEWC.stream()
-                .map(HistoricalQuote::getDate)
-                .map(Calendar::getTime);
-        Stream<Date> indexStreamEWA = historyEWA.stream()
-                .map(HistoricalQuote::getDate)
-                .map(Calendar::getTime);
-        Stream<List<BigDecimal>> adjCloseEWC = historyEWC.stream()
-                .map(HistoricalQuote::getAdjClose)
-                .map(Collections::singletonList);
-        Stream<List<BigDecimal>> adjCloseEWA = historyEWA.stream()
-                .map(HistoricalQuote::getAdjClose)
-                .map(Collections::singletonList);
-        Collection<String> columnsEWC = Collections.singletonList("ewc");
-        Collection<String> columnsEWA = Collections.singletonList("ewa");
-        Collection<Date> indexEWC = indexStreamEWC.collect(Collectors.toList());
-        Collection<Date> indexEWA = indexStreamEWA.collect(Collectors.toList());
-
-        DataFrame ewcDf = new DataFrame(columnsEWC, indexEWC, adjCloseEWC.iterator()).transpose();
-        DataFrame ewaDf = new DataFrame(columnsEWA, indexEWA, adjCloseEWA.iterator()).transpose();
-        DataFrame df = ewcDf.join(ewaDf);
-        logger.info("df:\n" + df);
+        Path pricesPath = Paths.get("python-lab", "prices.csv");
+        DataFrame df = DataFrame.readCsv(Files.newInputStream(pricesPath));
+        logger.info("df:\n" + df.toString(5000));
 
         List<Pair<Double, Double>> values = new LinkedList<>();
         SimpleRegression regression = new SimpleRegression(true);
         for (ListIterator it = df.iterrows(); it.hasNext(); ) {
             List row = (List) it.next();
-            BigDecimal ewcValue = (BigDecimal) row.get(0);
-            BigDecimal ewaValue = (BigDecimal) row.get(1);
-            values.add(new Pair<>(ewaValue.doubleValue(), ewcValue.doubleValue()));
-            regression.addData(ewaValue.doubleValue(), ewcValue.doubleValue());
+            Double ewaValue = (Double) row.get(1);
+            Double ewcValue = (Double) row.get(2);
+            values.add(new Pair<>(ewaValue, ewcValue));
+            regression.addData(ewaValue, ewcValue);
         }
         modifiedKalman(values);
         logger.info("data size: " + values.size());
@@ -180,15 +159,12 @@ public class Scratchpad {
      * @param pairs List of (input value, output value) pairs
      */
     private static void modifiedKalman(List<Pair<Double, Double>> pairs) {
-        RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
         ProcessModel pm = new RegressionProcessModel();
         MeasurementModel mm = new RegressionMeasurementModel();
         ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
         for (Pair<Double, Double> pair : pairs) {
             // prediction phase
             kf.predict();
-            logger.info("prediction slope / intercept:" + kf.getStateEstimationVector());
-            logger.info("error estimate: " + kf.getErrorCovarianceMatrix());
 
             // measurement update
             RealMatrix measurementMatrix = MatrixUtils.createRowRealMatrix(new double[]{pair.getFirst(), 1.});
@@ -196,9 +172,11 @@ public class Scratchpad {
 
             // correction phase
             RealVector z = MatrixUtils.createRealVector(new double[]{pair.getSecond()});
-            logger.info("values=" + pair.getFirst() + " - " + z);
+            logger.debug("values=" + pair.getFirst() + " - " + z);
             kf.correct(z);
         }
+        logger.info("prediction slope / intercept:" + kf.getStateEstimationVector());
+        logger.info("error estimate: " + kf.getErrorCovarianceMatrix());
 
     }
 
@@ -269,7 +247,7 @@ public class Scratchpad {
 
         @Override
         public RealMatrix getProcessNoise() {
-            double delta = 1E-4;
+            double delta = 1E-5;
             return MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
         }
 
@@ -280,7 +258,7 @@ public class Scratchpad {
 
         @Override
         public RealMatrix getInitialErrorCovariance() {
-            return MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
+            return MatrixUtils.createRealMatrix(new double[][]{{1., 1.}, {1., 1.}});
         }
     }
 
