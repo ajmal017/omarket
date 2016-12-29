@@ -5,6 +5,7 @@ import pandas
 import os
 from matplotlib import pyplot
 
+
 def main():
     pyplot.style.use('ggplot')
 
@@ -46,7 +47,8 @@ def main():
     results = {'slope': state_means[:, 0], 'intercept': state_means[:, 1]}
     output_df = pandas.DataFrame(results, index=prices.index)
     output_df.plot(subplots=True)
-    pyplot.tight_layout()
+    pyplot.show()
+    #pyplot.tight_layout()
 
     # visualize the correlation between assest prices over time
     cm = pyplot.cm.get_cmap('jet')
@@ -58,7 +60,7 @@ def main():
     pyplot.ylabel(prices.columns[1])
 
     # add regression lines
-    step = 5
+    step = 20
     xi = numpy.linspace(prices[prices.columns[0]].min(), prices[prices.columns[0]].max(), 2)
     count_states = state_means[::step].size
     colors_l = numpy.linspace(0.1, 1, count_states)
