@@ -159,6 +159,7 @@ public class Scratchpad {
      * @param pairs List of (input value, output value) pairs
      */
     private static void modifiedKalman(List<Pair<Double, Double>> pairs) {
+        // TODO: non recurrent version (only one correct / predict step)
         ProcessModel pm = new RegressionProcessModel();
         MeasurementModel mm = new RegressionMeasurementModel();
         ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
