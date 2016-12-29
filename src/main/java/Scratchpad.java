@@ -9,6 +9,7 @@ import org.apache.commons.math3.exception.NullArgumentException;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
 import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.Pair;
 import org.omarket.stats.KalmanFilter;
 import org.omarket.trading.quote.Quote;
@@ -122,13 +123,13 @@ public class Scratchpad {
         String[] symbols = new String[]{"EWC", "EWA", "USO"};
         Calendar from = Calendar.getInstance();
         from.add(Calendar.YEAR, -5);
-        Map<String, Stock> stocks = YahooFinance.get(symbols, from);
+        Map<String, Stock> stocks = YahooFinance.get(symbols, from, Interval.DAILY);
         Stock ewc = stocks.get("EWC");
         Stock ewa = stocks.get("EWA");
         Stock uso = stocks.get("USO");
-        List<HistoricalQuote> historyEWC = ewc.getHistory(Interval.DAILY);
-        List<HistoricalQuote> historyEWA = ewa.getHistory(Interval.DAILY);
-        List<HistoricalQuote> historyUSO = uso.getHistory(Interval.DAILY);
+        List<HistoricalQuote> historyEWC = ewc.getHistory();
+        List<HistoricalQuote> historyEWA = ewa.getHistory();
+        List<HistoricalQuote> historyUSO = uso.getHistory();
         storeObject(Paths.get("data", "ewc-hist.bin"), historyEWC);
         storeObject(Paths.get("data", "ewa-hist.bin"), historyEWA);
         storeObject(Paths.get("data", "uso-hist.bin"), historyUSO);
@@ -161,14 +162,18 @@ public class Scratchpad {
         logger.info("df:\n" + df);
 
         List<Pair<Double, Double>> values = new LinkedList<>();
+        SimpleRegression regression = new SimpleRegression(true);
         for (ListIterator it = df.iterrows(); it.hasNext(); ) {
-            List row = (List)it.next();
-            BigDecimal ewcValue = (BigDecimal)row.get(0);
-            BigDecimal ewaValue = (BigDecimal)row.get(1);
-            values.add(new Pair<>(ewcValue.doubleValue(), ewaValue.doubleValue()));
+            List row = (List) it.next();
+            BigDecimal ewcValue = (BigDecimal) row.get(0);
+            BigDecimal ewaValue = (BigDecimal) row.get(1);
+            values.add(new Pair<>(ewaValue.doubleValue(), ewcValue.doubleValue()));
+            regression.addData(ewaValue.doubleValue(), ewcValue.doubleValue());
         }
-
         modifiedKalman(values);
+        logger.info("data size: " + values.size());
+        logger.info("regression R2: " + regression.getRSquare());
+        logger.info("regression data: " + regression.getSlope() + ", " + regression.getIntercept());
     }
 
     /**
@@ -176,55 +181,14 @@ public class Scratchpad {
      */
     private static void modifiedKalman(List<Pair<Double, Double>> pairs) {
         RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
-        ProcessModel pm = new ProcessModel() {
-            @Override
-            public RealMatrix getStateTransitionMatrix() {
-                return MatrixUtils.createRealIdentityMatrix(2);
-            }
-
-            @Override
-            public RealMatrix getControlMatrix() {
-                return null;
-            }
-
-            @Override
-            public RealMatrix getProcessNoise() {
-                double delta = 0.0001;
-                return MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
-            }
-
-            @Override
-            public RealVector getInitialStateEstimate() {
-                return MatrixUtils.createRealVector(new double[]{0., 0.});
-            }
-
-            @Override
-            public RealMatrix getInitialErrorCovariance() {
-                return MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
-            }
-        };
-        MeasurementModel mm = new MeasurementModel(){
-
-            @Override
-            public RealMatrix getMeasurementMatrix() {
-                return MatrixUtils.createRowRealMatrix(new double[]{0., 1.});
-            }
-
-            @Override
-            public RealMatrix getMeasurementNoise() {
-                return MatrixUtils.createRealMatrix(new double[][]{ {0.001} });
-            }
-        };
-
+        ProcessModel pm = new RegressionProcessModel();
+        MeasurementModel mm = new RegressionMeasurementModel();
         ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
-        boolean first = true;
         for (Pair<Double, Double> pair : pairs) {
-            if (!first) {
-                // prediction phase
-                kf.predict();
-                logger.info("prediction slope / intercept:" + kf.getStateEstimationVector());
-                logger.info("error estimate: " + kf.getErrorCovarianceMatrix());
-            }
+            // prediction phase
+            kf.predict();
+            logger.info("prediction slope / intercept:" + kf.getStateEstimationVector());
+            logger.info("error estimate: " + kf.getErrorCovarianceMatrix());
 
             // measurement update
             RealMatrix measurementMatrix = MatrixUtils.createRowRealMatrix(new double[]{pair.getFirst(), 1.});
@@ -234,7 +198,6 @@ public class Scratchpad {
             RealVector z = MatrixUtils.createRealVector(new double[]{pair.getSecond()});
             logger.info("values=" + pair.getFirst() + " - " + z);
             kf.correct(z);
-            first = false;
         }
 
     }
@@ -293,4 +256,44 @@ public class Scratchpad {
                 );
     }
 
+    private static class RegressionProcessModel implements ProcessModel {
+        @Override
+        public RealMatrix getStateTransitionMatrix() {
+            return MatrixUtils.createRealIdentityMatrix(2);
+        }
+
+        @Override
+        public RealMatrix getControlMatrix() {
+            return null;
+        }
+
+        @Override
+        public RealMatrix getProcessNoise() {
+            double delta = 1E-4;
+            return MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
+        }
+
+        @Override
+        public RealVector getInitialStateEstimate() {
+            return MatrixUtils.createRealVector(new double[]{0., 0.});
+        }
+
+        @Override
+        public RealMatrix getInitialErrorCovariance() {
+            return MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
+        }
+    }
+
+    private static class RegressionMeasurementModel implements MeasurementModel {
+
+        @Override
+        public RealMatrix getMeasurementMatrix() {
+            return MatrixUtils.createRowRealMatrix(new double[]{0., 1.});
+        }
+
+        @Override
+        public RealMatrix getMeasurementNoise() {
+            return MatrixUtils.createRealMatrix(new double[][]{{1E-3}});
+        }
+    }
 }
