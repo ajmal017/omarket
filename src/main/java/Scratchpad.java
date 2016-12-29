@@ -4,14 +4,13 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
 import joinery.DataFrame;
-import org.apache.commons.math3.filter.KalmanFilter;
+import org.apache.commons.math3.exception.DimensionMismatchException;
+import org.apache.commons.math3.exception.NullArgumentException;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
-import org.apache.commons.math3.linear.ArrayRealVector;
-import org.apache.commons.math3.linear.MatrixUtils;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.linear.*;
 import org.apache.commons.math3.util.Pair;
+import org.omarket.stats.KalmanFilter;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
@@ -173,21 +172,14 @@ public class Scratchpad {
     }
 
     /**
-     * @param values List of (input value, output value) pairs
+     * @param pairs List of (input value, output value) pairs
      */
-    private static void modifiedKalman(List<Pair<Double, Double>> values) {
+    private static void modifiedKalman(List<Pair<Double, Double>> pairs) {
         RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
-        RealMatrix errorCovariance = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
-        double delta = 0.0001;
-        RealMatrix processNoise = MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
-        double measurementNoise = 0.001;
-        RealVector stateEstimation = MatrixUtils.createRealVector(new double[]{0., 0.});
-        boolean first = true;
-        KalmanFilter kf1;
         ProcessModel pm = new ProcessModel() {
             @Override
             public RealMatrix getStateTransitionMatrix() {
-                return null;
+                return MatrixUtils.createRealIdentityMatrix(2);
             }
 
             @Override
@@ -197,69 +189,76 @@ public class Scratchpad {
 
             @Override
             public RealMatrix getProcessNoise() {
-                return null;
+                double delta = 0.0001;
+                return MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
             }
 
             @Override
             public RealVector getInitialStateEstimate() {
-                return null;
+                return MatrixUtils.createRealVector(new double[]{0., 0.});
             }
 
             @Override
             public RealMatrix getInitialErrorCovariance() {
-                return null;
+                return MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
             }
         };
-        ModifiedMeasurementModel mm = new ModifiedMeasurementModel();
-        ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
-        RealMatrix transitionMatrix = MatrixUtils.createRealIdentityMatrix(2);
-        for (Pair<Double, Double> value : values) {
-            // prediction phase
-            kf.predict();
-            RealMatrix measurementMatrix = MatrixUtils.createRowRealMatrix(new double[]{value.getFirst(), 1.});
-            stateEstimation = transitionMatrix.operate(stateEstimation);
-            if (!first) {
-                errorCovariance = P.add(processNoise);
-                logger.info("hedge ratio: " + stateEstimation.getEntry(0));
-                logger.info("intercept: " + stateEstimation.getEntry(1));
-                logger.info("----------");
+        MeasurementModel mm = new MeasurementModel(){
+
+            @Override
+            public RealMatrix getMeasurementMatrix() {
+                return MatrixUtils.createRowRealMatrix(new double[]{0., 1.});
             }
 
-            // Correction phase
-            RealVector z = MatrixUtils.createRealVector(new double[]{value.getSecond()});
-            logger.info("values=" + value.getFirst() + " - " + z);
+            @Override
+            public RealMatrix getMeasurementNoise() {
+                return MatrixUtils.createRealMatrix(new double[][]{ {0.001} });
+            }
+        };
+
+        ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
+        boolean first = true;
+        for (Pair<Double, Double> pair : pairs) {
+            if (!first) {
+                // prediction phase
+                kf.predict();
+                logger.info("prediction slope / intercept:" + kf.getStateEstimationVector());
+                logger.info("error estimate: " + kf.getErrorCovarianceMatrix());
+            }
+
+            // measurement update
+            RealMatrix measurementMatrix = MatrixUtils.createRowRealMatrix(new double[]{pair.getFirst(), 1.});
+            kf.updateMeasurementMatrix(measurementMatrix);
+
+            // correction phase
+            RealVector z = MatrixUtils.createRealVector(new double[]{pair.getSecond()});
+            logger.info("values=" + pair.getFirst() + " - " + z);
             kf.correct(z);
-            Double s = measurementMatrix.multiply(errorCovariance)
-                    .multiply(measurementMatrix.transpose())
-                    .scalarAdd(measurementNoise)
-                    .getEntry(0, 0);
-
-            // Inn = z(k) - H * xHat(k)-
-            RealVector innovation = z.subtract(measurementMatrix.operate(stateEstimation));
-
-            RealMatrix kalmanGain = errorCovariance.multiply(measurementMatrix.transpose()).scalarMultiply(1. / s);
-            stateEstimation = stateEstimation.add(kalmanGain.operate(innovation));
-            P = errorCovariance.subtract(kalmanGain.multiply(measurementMatrix).multiply(errorCovariance));
             first = false;
         }
+
     }
 
-    static class ModifiedKalmanFilter{
-        public ModifiedKalmanFilter(final ProcessModel process, final ModifiedMeasurementModel measurement){
-
+    static class ModifiedKalmanFilter extends KalmanFilter {
+        /**
+         * Creates a new Kalman filter with the given process and measurement models.
+         *
+         * @param process     the model defining the underlying process dynamics
+         * @param measurement the model defining the given measurement characteristics
+         * @throws NullArgumentException            if any of the given inputs is null (except for the control matrix)
+         * @throws NonSquareMatrixException         if the transition matrix is non square
+         * @throws DimensionMismatchException       if the column dimension of the transition matrix does not match the dimension of the
+         *                                          initial state estimation vector
+         * @throws MatrixDimensionMismatchException if the matrix dimensions do not fit together
+         */
+        public ModifiedKalmanFilter(ProcessModel process, MeasurementModel measurement) throws NullArgumentException, NonSquareMatrixException, DimensionMismatchException, MatrixDimensionMismatchException {
+            super(process, measurement);
         }
 
-        public void predict() {
-
+        public void updateMeasurementMatrix(RealMatrix newMeasurementMatrix) {
+            this.measurementMatrix = newMeasurementMatrix;
+            this.measurementMatrixT = newMeasurementMatrix.transpose();
         }
-
-        public void correct(RealVector z) {
-
-        }
-    }
-
-    static class ModifiedMeasurementModel{
-
     }
 
     public static void main1(String[] args) throws Exception {
