@@ -4,10 +4,14 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.Vertx;
 import joinery.DataFrame;
+import org.apache.commons.math3.filter.KalmanFilter;
+import org.apache.commons.math3.filter.MeasurementModel;
+import org.apache.commons.math3.filter.ProcessModel;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.util.Pair;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
@@ -156,42 +160,106 @@ public class Scratchpad {
         DataFrame ewaDf = new DataFrame(columnsEWA, indexEWA, adjCloseEWA.iterator()).transpose();
         DataFrame df = ewcDf.join(ewaDf);
         logger.info("df:\n" + df);
-        RealMatrix betaPrev = MatrixUtils.createColumnRealMatrix(new double[]{0., 0.});
-        RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
-        RealMatrix R = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});;
-        double delta = 0.0001;
-        RealMatrix Vw = MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
-        double Ve = 0.001;
-        int count = 1;
-        RealMatrix beta = MatrixUtils.createColumnRealMatrix(new double[]{0., 0.});
-        Double Q;
+
+        List<Pair<Double, Double>> values = new LinkedList<>();
         for (ListIterator it = df.iterrows(); it.hasNext(); ) {
             List row = (List)it.next();
             BigDecimal ewcValue = (BigDecimal)row.get(0);
             BigDecimal ewaValue = (BigDecimal)row.get(1);
-            logger.info("values=" + ewcValue + " - " + ewaValue);
-            RealMatrix x = MatrixUtils.createRowRealMatrix(new double[]{ewcValue.doubleValue(), 1.});
-            double y = ewaValue.doubleValue();
-            if (count > 1) {
-                beta = betaPrev;
-                R = P.add(Vw);
-                logger.info("hedge ratio: " + beta.getEntry(0, 0));
-                logger.info("intercept: " + beta.getEntry(1, 0));
+            values.add(new Pair<>(ewcValue.doubleValue(), ewaValue.doubleValue()));
+        }
+
+        modifiedKalman(values);
+    }
+
+    /**
+     * @param values List of (input value, output value) pairs
+     */
+    private static void modifiedKalman(List<Pair<Double, Double>> values) {
+        RealMatrix P = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
+        RealMatrix errorCovariance = MatrixUtils.createRealDiagonalMatrix(new double[]{0., 0.});
+        double delta = 0.0001;
+        RealMatrix processNoise = MatrixUtils.createRealIdentityMatrix(2).scalarMultiply(delta / (1. - delta));
+        double measurementNoise = 0.001;
+        RealVector stateEstimation = MatrixUtils.createRealVector(new double[]{0., 0.});
+        boolean first = true;
+        KalmanFilter kf1;
+        ProcessModel pm = new ProcessModel() {
+            @Override
+            public RealMatrix getStateTransitionMatrix() {
+                return null;
+            }
+
+            @Override
+            public RealMatrix getControlMatrix() {
+                return null;
+            }
+
+            @Override
+            public RealMatrix getProcessNoise() {
+                return null;
+            }
+
+            @Override
+            public RealVector getInitialStateEstimate() {
+                return null;
+            }
+
+            @Override
+            public RealMatrix getInitialErrorCovariance() {
+                return null;
+            }
+        };
+        ModifiedMeasurementModel mm = new ModifiedMeasurementModel();
+        ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
+        RealMatrix transitionMatrix = MatrixUtils.createRealIdentityMatrix(2);
+        for (Pair<Double, Double> value : values) {
+            // prediction phase
+            kf.predict();
+            RealMatrix measurementMatrix = MatrixUtils.createRowRealMatrix(new double[]{value.getFirst(), 1.});
+            stateEstimation = transitionMatrix.operate(stateEstimation);
+            if (!first) {
+                errorCovariance = P.add(processNoise);
+                logger.info("hedge ratio: " + stateEstimation.getEntry(0));
+                logger.info("intercept: " + stateEstimation.getEntry(1));
                 logger.info("----------");
             }
-            double yHat = x.multiply(beta).getEntry(0, 0);
-            Q = x.multiply(R)
-                    .multiply(x.transpose())
-                    .scalarAdd(Ve)
+
+            // Correction phase
+            RealVector z = MatrixUtils.createRealVector(new double[]{value.getSecond()});
+            logger.info("values=" + value.getFirst() + " - " + z);
+            kf.correct(z);
+            Double s = measurementMatrix.multiply(errorCovariance)
+                    .multiply(measurementMatrix.transpose())
+                    .scalarAdd(measurementNoise)
                     .getEntry(0, 0);
 
-            // observing y
-            double e = y - yHat;
-            RealMatrix K = R.multiply(x.transpose()).scalarMultiply(1. / Q);
-            betaPrev = beta.add(K.scalarMultiply(e));
-            P = R.subtract(K.multiply(x).multiply(R));
-            count++;
+            // Inn = z(k) - H * xHat(k)-
+            RealVector innovation = z.subtract(measurementMatrix.operate(stateEstimation));
+
+            RealMatrix kalmanGain = errorCovariance.multiply(measurementMatrix.transpose()).scalarMultiply(1. / s);
+            stateEstimation = stateEstimation.add(kalmanGain.operate(innovation));
+            P = errorCovariance.subtract(kalmanGain.multiply(measurementMatrix).multiply(errorCovariance));
+            first = false;
         }
+    }
+
+    static class ModifiedKalmanFilter{
+        public ModifiedKalmanFilter(final ProcessModel process, final ModifiedMeasurementModel measurement){
+
+        }
+
+        public void predict() {
+
+        }
+
+        public void correct(RealVector z) {
+
+        }
+    }
+
+    static class ModifiedMeasurementModel{
+
     }
 
     public static void main1(String[] args) throws Exception {
