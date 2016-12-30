@@ -4,6 +4,9 @@ import numpy
 import pandas
 import os
 from matplotlib import pyplot
+from statsmodels.formula.api import OLS
+from statsmodels.api import add_constant
+from datetime import date
 
 
 def main():
@@ -23,6 +26,19 @@ def main():
 
     prices.to_csv('prices.csv')
 
+    prices.reset_index(inplace=True)
+    in_sample_prices = prices[prices['Date'] < date(2016, 1, 1)]
+    out_sample_prices = prices[prices['Date'] >= date(2016, 1, 1)]
+    prices = prices.set_index('Date')
+    in_sample_prices = in_sample_prices.set_index('Date')
+    out_sample_prices = out_sample_prices.set_index('Date')
+
+    Y = in_sample_prices['EWC']
+    X = add_constant(in_sample_prices['EWA'])
+
+    regress = OLS(Y, X).fit()
+    print(regress.params)
+
     # visualize the correlation between assest prices over time
     cm = pyplot.cm.get_cmap('jet')
     count = prices['EWA'].count()
@@ -33,8 +49,9 @@ def main():
     pyplot.xlabel(prices.columns[0])
     pyplot.ylabel(prices.columns[1])
 
-    delta = 1e-5
+    delta = 1e-4
     process_noise = delta / (1 - delta) * numpy.eye(2)
+    measurement_noise = 1e-5
     obs_mat = numpy.vstack([prices['EWA'], numpy.ones(prices['EWA'].shape)]).T[:, numpy.newaxis]
     initial_state_estimate = numpy.zeros(2)
     initial_error_covariance = numpy.ones((2, 2))
@@ -43,7 +60,7 @@ def main():
                       initial_state_covariance=initial_error_covariance,
                       transition_matrices=numpy.eye(2),
                       observation_matrices=obs_mat,
-                      observation_covariance=1.0,
+                      observation_covariance=measurement_noise,
                       transition_covariance=process_noise)
 
     state_means, state_covs = kf.filter(prices['EWC'].values)
@@ -72,7 +89,12 @@ def main():
         i += 1
 
     pyplot.show()
-    print(state_means)
+
+    slopes = state_means.transpose()[0][:out_sample_prices.index.size].transpose()
+
+    portfolio = out_sample_prices['EWC'] - out_sample_prices['EWA'] * slopes
+    portfolio.plot()
+    pyplot.show()
 
 if __name__ == '__main__':
     main()

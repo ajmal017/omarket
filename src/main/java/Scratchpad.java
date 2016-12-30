@@ -147,19 +147,21 @@ public class Scratchpad {
             Double ewaValue = (Double) row.get(1);
             Double ewcValue = (Double) row.get(2);
             values.add(new Pair<>(ewaValue, ewcValue));
+            logger.info("adding value for " + row.get(0));
             regression.addData(ewaValue, ewcValue);
         }
         modifiedKalman(values);
         logger.info("data size: " + values.size());
         logger.info("regression R2: " + regression.getRSquare());
         logger.info("regression data: " + regression.getSlope() + ", " + regression.getIntercept());
+        // const    5.315368
+        // slope    0.988800
     }
 
     /**
      * @param pairs List of (input value, output value) pairs
      */
     private static void modifiedKalman(List<Pair<Double, Double>> pairs) {
-        // TODO: non recurrent version (only one correct / predict step)
         ProcessModel pm = new RegressionProcessModel();
         MeasurementModel mm = new RegressionMeasurementModel();
         ModifiedKalmanFilter kf = new ModifiedKalmanFilter(pm, mm);
@@ -259,7 +261,8 @@ public class Scratchpad {
 
         @Override
         public RealMatrix getInitialErrorCovariance() {
-            return MatrixUtils.createRealMatrix(new double[][]{{1., 1.}, {1., 1.}});
+            //return MatrixUtils.createRealMatrix(new double[][]{{1., 1.}, {1., 1.}});
+            return MatrixUtils.createRealIdentityMatrix(2);
         }
     }
 
