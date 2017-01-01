@@ -147,9 +147,34 @@ public class StatsUtilsTest {
         cointegration_johansen(matrix);
         /*
         eigenvalues=[  2.12612657e-04   3.37863583e-01   3.27530270e-01]
-eigenvectors=[[ 0.0030233   0.28840906 -0.43915418]
-            [ 0.71405179 -0.57679596  0.87821493]
-            [-0.70008636  0.76428178 -0.18942582]]
+eigenvectors=[
+[ 0.0030233   0.28840906 -0.43915418]
+[ 0.71405179 -0.57679596  0.87821493]
+[-0.70008636  0.76428178 -0.18942582]
+            ]
          */
+    }
+
+    @Test
+    public void testJohansenShort() throws Exception {
+        Path csvPath = Paths.get(ClassLoader.getSystemResource("test-johansen.csv").toURI());
+        DataFrame df = DataFrame.readCsv(Files.newInputStream(csvPath));
+        List<double[]> rows = new LinkedList<>();
+        int count = 20;
+        for(ListIterator row = df.iterrows(); row.hasNext();){
+            if (count == 0) {
+                break;
+            }
+            List<Double> fields = (List<Double>) row.next();
+            rows.add(fields.stream().mapToDouble(Double::doubleValue).toArray());
+            count--;
+        }
+        double[][] values = new double[rows.size()][];
+        for(int i=0; i< rows.size(); i++){
+            values[i] = rows.get(i);
+        }
+        RealMatrix matrix = MatrixUtils.createRealMatrix(values);
+        System.out.println(matrix);
+        cointegration_johansen(matrix);
     }
 }

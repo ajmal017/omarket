@@ -1,8 +1,14 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.CholeskyDecomposition;
+import org.apache.commons.math3.linear.DecompositionSolver;
+import org.apache.commons.math3.linear.EigenDecomposition;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.QRDecomposition;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 
-import java.util.Arrays;
+import static java.lang.Math.round;
 
 /**
  * Created by christophe on 30/12/16.
@@ -172,18 +178,15 @@ public class CoIntegration {
 
     }
     public static RealMatrix cointegration_johansen(RealMatrix input, int lag){
-        int count_samples = input.getRowDimension();
-        int count_dimensions = input.getColumnDimension();
-
         RealMatrix x = StatsUtils.constantDetrendColumns(input);
         RealMatrix dx = StatsUtils.truncateTop(StatsUtils.diffRows(x));
-        RealMatrix z = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(StatsUtils.shiftDown(dx)));
-        RealMatrix shiftedDx = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(dx));
+        RealMatrix z = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(StatsUtils.shiftDown(dx, lag), lag));
+        RealMatrix shiftedDx = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(dx, lag));
         // finds v1 such that z.v = shiftedDx
         DecompositionSolver solver = new QRDecomposition(z).getSolver();
         RealMatrix v1 = solver.solve(shiftedDx);
         RealMatrix r0t = shiftedDx.subtract(z.multiply(v1));
-        RealMatrix shiftedDx2 = StatsUtils.constantDetrendColumns((StatsUtils.truncateTop(StatsUtils.shiftDown(x), 2)));
+        RealMatrix shiftedDx2 = StatsUtils.constantDetrendColumns((StatsUtils.truncateTop(StatsUtils.shiftDown(x, lag), lag+1)));
         RealMatrix v2 = solver.solve(shiftedDx2);
         RealMatrix rkt = shiftedDx2.subtract(z.multiply(v2));
 
@@ -191,8 +194,7 @@ public class CoIntegration {
         RealMatrix sk0 = rkt.transpose().multiply(r0t).scalarMultiply(1. / rkt.getRowDimension());
         RealMatrix s00 = r0t.transpose().multiply(r0t).scalarMultiply(1. / r0t.getRowDimension());
         RealMatrix sig = sk0.multiply(StatsUtils.inverse(s00)).multiply(sk0.transpose());
-        RealMatrix tmp = StatsUtils.inverse(skk);
-        EigenDecomposition decomposition = new EigenDecomposition(tmp.multiply(sig));
+        EigenDecomposition decomposition = new EigenDecomposition(StatsUtils.inverse(skk).multiply(sig));
         double[] eigenValues = decomposition.getRealEigenvalues();
         RealMatrix eigenVectors = decomposition.getV();
         for(int i=0; i<eigenValues.length; i++){
@@ -201,16 +203,15 @@ public class CoIntegration {
         }
 
         // Normalize the eigen vectors such that (du'skk*du) = I
-        RealMatrix normalizedEigenvectors = eigenVectors.transpose().multiply(skk).multiply(eigenVectors);
-        CholeskyDecomposition cholesky = new CholeskyDecomposition(normalizedEigenvectors);
-        RealMatrix temp = StatsUtils.inverse((cholesky.getL()));
-        RealMatrix dt = eigenVectors.multiply(temp);
+        RealMatrix eigenvectorsNormalizer = eigenVectors.transpose().multiply(skk).multiply(eigenVectors);
+        CholeskyDecomposition cholesky = new CholeskyDecomposition(eigenvectorsNormalizer, 1., 1.E-9D);
+        RealMatrix dt = eigenVectors.multiply(StatsUtils.inverse((cholesky.getL())));
 
         /* NOTE: At this point, the eigenvectors are aligned by column. To
            physically move the column elements using the MATLAB sort,
            take the transpose to put the eigenvectors across the row
         */
-        System.out.println(dt.transpose());
+        System.out.println("vectors by row: " + dt.transpose());
         return null;
     }
 

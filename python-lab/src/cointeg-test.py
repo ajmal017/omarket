@@ -1,7 +1,6 @@
 import unittest
 import os
 import sys
-import pickle
 
 import numpy
 import pandas

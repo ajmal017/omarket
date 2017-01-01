@@ -110,15 +110,21 @@ public class StatsUtils {
         return identity(other.getRowDimension(), other.getColumnDimension());
     }
 
-    public static RealMatrix shiftDown(RealMatrix matrix) {
+    public static RealMatrix shiftDown(RealMatrix matrix, int lag) {
         double[][] data = matrix.getData();
-        double[][] shifted = Arrays.copyOfRange(data, 0, data.length - 1);
+        double[][] shifted = Arrays.copyOfRange(data, 0, data.length - lag);
         double[][] output = new double[data.length][];
-        for(int row=1; row < output.length; row++){
-            output[row] = shifted[row - 1];
+        for(int row=lag; row < output.length; row++){
+            output[row] = shifted[row - lag];
         }
-        output[0] = new double[matrix.getColumnDimension()];
+        for(int row=0; row < lag; row++) {
+            output[row] = new double[matrix.getColumnDimension()];
+        }
         return MatrixUtils.createRealMatrix(output);
+    }
+
+    public static RealMatrix shiftDown(RealMatrix matrix) {
+        return shiftDown(matrix, 1);
     }
 
     public static RealMatrix inverse(RealMatrix matrix) {
