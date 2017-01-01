@@ -10,7 +10,6 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -196,8 +195,8 @@ public class StatsUtilsTest {
         MatrixComparator evecCompare = new MatrixComparator(expectedEVec, 5);
         result.getEigenVectors().walkInColumnOrder(evecCompare);
         assertTrue(evecCompare.result(), evecCompare.areEqual());
-        assertArrayEquals(new double[]{15.35861, 4.51534, 0.78276}, result.getLr1().toArray(), 1E-5);
-        assertArrayEquals(new double[]{10.84328, 3.73257, 0.78276}, result.getLr2().toArray(), 1E-5);
+        assertArrayEquals(new double[]{15.35861, 4.51534, 0.78276}, result.getLikelihoodRatioTraceStatistics().toArray(), 1E-5);
+        assertArrayEquals(new double[]{10.84328, 3.73257, 0.78276}, result.getEigenvalueStatistics().toArray(), 1E-5);
 
         double[][] dataCVT = new double[][]{
                 {27.0669, 29.7961, 35.4628},
@@ -206,7 +205,7 @@ public class StatsUtilsTest {
         };
         RealMatrix expectedCVT = MatrixUtils.createRealMatrix(dataCVT);
         MatrixComparator cvtCompare = new MatrixComparator(expectedCVT, 5);
-        result.getCvt().walkInColumnOrder(cvtCompare);
+        result.getCriticalValuesTraceStatistics().walkInColumnOrder(cvtCompare);
         assertTrue(cvtCompare.result(), cvtCompare.areEqual());
         double[][] dataCVM = new double[][]{
                 {18.8928, 21.1314, 25.8650},
@@ -215,7 +214,7 @@ public class StatsUtilsTest {
         };
         RealMatrix expectedCVM = MatrixUtils.createRealMatrix(dataCVM);
         MatrixComparator cvmCompare = new MatrixComparator(expectedCVM, 5);
-        result.getCvm().walkInColumnOrder(cvmCompare);
+        result.getCriticalValuesMaxEigenvalue().walkInColumnOrder(cvmCompare);
         assertTrue(cvmCompare.result(), cvmCompare.areEqual());
     }
 

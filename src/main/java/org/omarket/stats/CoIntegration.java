@@ -258,23 +258,48 @@ public class CoIntegration {
             return eigenValues;
         }
 
+        /***
+         * Eigenvectors arranged as column vectors.
+         *
+         * @return
+         */
         public RealMatrix getEigenVectors() {
             return eigenVectors;
         }
 
-        public RealVector getLr1() {
+        /**
+         * Likelihood ratio trace statistic for r=0 to m-1.
+         *
+         * @return vector
+         */
+        public RealVector getLikelihoodRatioTraceStatistics() {
             return lr1;
         }
 
-        public RealVector getLr2() {
+        /**
+         * Maximum eigenvalue statistic for r=0 to m-1.
+         *
+         * @return vector
+         */
+        public RealVector getEigenvalueStatistics() {
             return lr2;
         }
 
-        public RealMatrix getCvt() {
+        /**
+         * Critical values for trace statistic.
+         *
+         * @return 3 row vectors [90% 95% 99%]
+         */
+        public RealMatrix getCriticalValuesTraceStatistics() {
             return cvt;
         }
 
-        public RealMatrix getCvm() {
+        /**
+         * Critical values for max eigenvalue statistic.
+         *
+         * @return 3 row vectors [90% 95% 99%]
+         */
+        public RealMatrix getCriticalValuesMaxEigenvalue() {
             return cvm;
         }
 
