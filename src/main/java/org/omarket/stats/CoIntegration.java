@@ -1,14 +1,10 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.CholeskyDecomposition;
-import org.apache.commons.math3.linear.DecompositionSolver;
-import org.apache.commons.math3.linear.EigenDecomposition;
-import org.apache.commons.math3.linear.MatrixUtils;
-import org.apache.commons.math3.linear.QRDecomposition;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.linear.*;
 
-import static java.lang.Math.round;
+import java.util.*;
+
+import static java.lang.Math.log;
 
 /**
  * Created by christophe on 30/12/16.
@@ -133,7 +129,6 @@ public class CoIntegration {
         return jc;
     }
 
-
     /**
      * Critical values for Johansen maximum eigenvalue statistic.
      * The order of time polynomial in the null-hypothesis allows following values:
@@ -173,11 +168,11 @@ public class CoIntegration {
         DecompositionSolver solver = decomposition.getSolver();
         return solver.getInverse();
     }
-    public static RealMatrix cointegration_johansen(RealMatrix input_df){
+    public static Result cointegration_johansen(RealMatrix input_df){
         return cointegration_johansen(input_df, 1);
 
     }
-    public static RealMatrix cointegration_johansen(RealMatrix input, int lag){
+    public static Result cointegration_johansen(RealMatrix input, int lag){
         RealMatrix x = StatsUtils.constantDetrendColumns(input);
         RealMatrix dx = StatsUtils.truncateTop(StatsUtils.diffRows(x));
         RealMatrix z = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(StatsUtils.shiftDown(dx, lag), lag));
@@ -196,83 +191,117 @@ public class CoIntegration {
         RealMatrix sig = sk0.multiply(StatsUtils.inverse(s00)).multiply(sk0.transpose());
         EigenDecomposition decomposition = new EigenDecomposition(StatsUtils.inverse(skk).multiply(sig));
         double[] eigenValues = decomposition.getRealEigenvalues();
-        RealMatrix eigenVectors = decomposition.getV();
+        Map<Double, RealVector> vectors = new TreeMap<>();
         for(int i=0; i<eigenValues.length; i++){
-            System.out.println("eigen vector: " + decomposition.getEigenvector(i));
-            System.out.println("eigen value: " +  eigenValues[i]);
+            vectors.put(eigenValues[i], decomposition.getEigenvector(i));
         }
+        RealMatrix eigenVectors = decomposition.getV();
+        RealMatrix sortedVectors = MatrixUtils.createRealMatrix(eigenVectors.getRowDimension(), eigenVectors.getColumnDimension());
+        int count = vectors.size() - 1;
+        for(Double eigenvalue: vectors.keySet()){
+            RealVector eigenvector = vectors.get(eigenvalue);
+            for(int row=0; row < eigenvector.getDimension(); row++){
+                sortedVectors.setEntry(row, count, eigenvector.getEntry(row));
+            }
+            count--;
+        }
+        // Normalizes the eigen vectors such that (du'skk*du) = I
+        RealMatrix eigenvectorsNormalizer = sortedVectors.transpose().multiply(skk).multiply(sortedVectors);
 
-        // Normalize the eigen vectors such that (du'skk*du) = I
-        RealMatrix eigenvectorsNormalizer = eigenVectors.transpose().multiply(skk).multiply(eigenVectors);
         CholeskyDecomposition cholesky = new CholeskyDecomposition(eigenvectorsNormalizer, 1., 1.E-9D);
-        RealMatrix dt = eigenVectors.multiply(StatsUtils.inverse((cholesky.getL())));
+        RealMatrix dt = sortedVectors.multiply(StatsUtils.inverse((cholesky.getL())));
+        int m = input.getColumnDimension();
+        RealVector lr1 = StatsUtils.zerosVector(m);
+        RealVector lr2 = StatsUtils.zerosVector(m);
+        RealMatrix cvm = StatsUtils.zeros(m,3);
+        RealMatrix cvt = StatsUtils.zeros(m,3);
+        RealVector iota = StatsUtils.onesVector(m);
+        int t = rkt.getRowDimension();
+        /* Computes the trace and max eigenvalue statistics */
 
-        /* NOTE: At this point, the eigenvectors are aligned by column. To
-           physically move the column elements using the MATLAB sort,
-           take the transpose to put the eigenvectors across the row
-        */
-        System.out.println("vectors by row: " + dt.transpose());
-        return null;
+        List<Double> sortedValues = new LinkedList<>();
+        for(Double value: vectors.keySet()){
+            sortedValues.add(value);
+        }
+        Collections.reverse(sortedValues);
+        RealVector sortedEigenvalues = StatsUtils.createVector(sortedValues);
+        for(int i=0; i < m; i++){
+            RealVector lr1Tmp = iota.subtract(sortedEigenvalues).map(Math::log);
+            RealVector lr1TmpTruncated = StatsUtils.truncateTop(lr1Tmp, i);
+            lr1.setEntry(i, -t * StatsUtils.sum(lr1TmpTruncated));
+            double lr2Tmp = -t * log(1. - sortedEigenvalues.getEntry(i));
+            lr2.setEntry(i, lr2Tmp);
+            cvm.setRowVector(i, get_critical_values_max_eigenvalue(m - i, 0));
+            cvt.setRowVector(i, get_critical_values_trace(m - i, 0));
+        }
+        return new Result(sortedEigenvalues, dt, lr1, lr2, cvt, cvm);
     }
 
-/*
+    static class Result{
+        private final RealVector eigenValues;
+        private final RealMatrix eigenVectors;
+        private final RealVector lr1;
+        private final RealVector lr2;
+        private final RealMatrix cvt;
+        private final RealMatrix cvm;
 
-    diff_input_df = numpy.diff(input_df, 1, axis=0)
-    z = tsatools.lagmat(diff_input_df, lag)
-    z = z[lag:]
-    z = detrend(z, type='constant', axis=0)
-    diff_input_df = diff_input_df[lag:]
-    diff_input_df = detrend(diff_input_df, type='constant', axis=0)
-    r0t = residuals(diff_input_df, z)
-    lx = input_df[:-lag]
-    lx = lx[1:]
-    diff_input_df = detrend(lx, type='constant', axis=0)
-    rkt = residuals(diff_input_df, z)
+        public Result(RealVector eigenValues, RealMatrix eigenVectors, RealVector lr1, RealVector lr2, RealMatrix cvt, RealMatrix cvm) {
+            this.eigenValues = eigenValues;
+            this.eigenVectors = eigenVectors;
+            this.lr1 = lr1;
+            this.lr2 = lr2;
+            this.cvt = cvt;
+            this.cvm = cvm;
+        }
 
-    if rkt is None:
-        return None
+        public RealVector getEigenValues() {
+            return eigenValues;
+        }
 
-    skk = numpy.dot(rkt.T, rkt) / rkt.shape[0]
-    sk0 = numpy.dot(rkt.T, r0t) / rkt.shape[0]
-    s00 = numpy.dot(r0t.T, r0t) / r0t.shape[0]
-    sig = numpy.dot(sk0, numpy.dot(linalg.inv(s00), sk0.T))
-    eigenvalues, eigenvectors = linalg.eig(numpy.dot(linalg.inv(skk), sig))
+        public RealMatrix getEigenVectors() {
+            return eigenVectors;
+        }
 
-    # normalizing the eigenvectors such that (du'skk*du) = I
-    temp = linalg.inv(linalg.cholesky(numpy.dot(eigenvectors.T, numpy.dot(skk, eigenvectors))))
-    dt = numpy.dot(eigenvectors, temp)
+        public RealVector getLr1() {
+            return lr1;
+        }
 
-    # sorting eigenvalues and vectors
-    order_decreasing = numpy.flipud(numpy.argsort(eigenvalues))
-    sorted_eigenvalues = eigenvalues[order_decreasing]
-    sorted_eigenvectors = dt[:, order_decreasing]
+        public RealVector getLr2() {
+            return lr2;
+        }
 
-    # computing the trace and max eigenvalue statistics
-    trace_statistics = numpy.zeros(count_dimensions)
-    eigenvalue_statistics = numpy.zeros(count_dimensions)
-    critical_values_max_eigenvalue = numpy.zeros((count_dimensions, 3))
-    critical_values_trace = numpy.zeros((count_dimensions, 3))
-    iota = numpy.ones(count_dimensions)
-    t, junk = rkt.shape
-    for i in range(0, count_dimensions):
-        tmp = numpy.log(iota - sorted_eigenvalues)[i:]
-        trace_statistics[i] = -t * numpy.sum(tmp, 0)
-        eigenvalue_statistics[i] = -t * numpy.log(1 - sorted_eigenvalues[i])
-        critical_values_max_eigenvalue[i, :] = get_critical_values_max_eigenvalue(count_dimensions - i, time_polynomial_order=0)
-        critical_values_trace[i, :] = get_critical_values_trace(count_dimensions - i, time_polynomial_order=0)
-        order_decreasing[i] = i
+        public RealMatrix getCvt() {
+            return cvt;
+        }
 
-    result = dict()
-    result['rkt'] = rkt
-    result['r0t'] = r0t
-    result['eigenvalues'] = sorted_eigenvalues
-    result['eigenvectors'] = sorted_eigenvectors
-    result['trace_statistic'] = trace_statistics  # likelihood ratio trace statistic
-    result['eigenvalue_statistics'] = eigenvalue_statistics  # maximum eigenvalue statistic
-    result['critical_values_trace'] = critical_values_trace
-    result['critical_values_max_eigenvalue'] = critical_values_max_eigenvalue
-    result['order_decreasing'] = order_decreasing  # indices of eigenvalues in decreasing order
-    return result
+        public RealMatrix getCvm() {
+            return cvm;
+        }
 
-            */
+        public String toString(){
+            Map<String, String> entries = new LinkedHashMap<>();
+            RealMatrixFormat toOctave = MatrixUtils.OCTAVE_FORMAT;
+            entries.put("eigenvalues", eigenValues.toString());
+            entries.put("eigenvectors", toOctave.format(eigenVectors));
+            entries.put("lr1", lr1.toString());
+            entries.put("lr2", lr2.toString());
+            entries.put("cvt", toOctave.format(cvt));
+            entries.put("cvm", toOctave.format(cvm));
+
+            StringBuilder sb = new StringBuilder();
+            Iterator<String> iter = entries.keySet().iterator();
+            while (iter.hasNext()) {
+                String key = iter.next();
+                String entry = entries.get(key);
+                sb.append(key);
+                sb.append('=').append('"');
+                sb.append(entry);
+                sb.append('"');
+                if (iter.hasNext()) {
+                    sb.append(',').append("%n");
+                }
+            }
+            return String.format(sb.toString());
+        }
+    }
 }

@@ -1,20 +1,25 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.DecompositionSolver;
+import org.apache.commons.math3.linear.LUDecomposition;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static java.lang.Math.min;
-import static java.util.Arrays.copyOfRange;
 
 interface MatrixElementOperator{
-    public double compute(int row, int column);
+    double compute(int row, int column);
 }
 
 /**
  * Created by christophe on 30/12/16.
  */
+
 public class StatsUtils {
 
     public static RealMatrix zeros(int rowDimension, int columnDimension) {
@@ -86,8 +91,19 @@ public class StatsUtils {
     }
 
     public static RealMatrix truncateTop(RealMatrix matrix, int count){
+        if(count == matrix.getRowDimension() || count < 0){
+            throw new IndexOutOfBoundsException("position "+ count +" not allowed for number of rows: " + matrix.getRowDimension());
+        }
         double[][] data = matrix.getData();
         return MatrixUtils.createRealMatrix(Arrays.copyOfRange(data, count, data.length));
+    }
+
+    public static RealVector truncateTop(RealVector vector, int count){
+        if(count == vector.getDimension() || count < 0){
+            throw new IndexOutOfBoundsException("position "+ count +" not allowed for vector size: " + vector.getDimension());
+        }
+        double[] data = vector.toArray();
+        return MatrixUtils.createRealVector(Arrays.copyOfRange(data, count, data.length));
     }
 
     public static RealMatrix truncateTop(RealMatrix matrix){
@@ -131,5 +147,29 @@ public class StatsUtils {
         LUDecomposition decomposition = new LUDecomposition(matrix);
         DecompositionSolver solver = decomposition.getSolver();
         return solver.getInverse();
+    }
+
+    public static RealVector createVector(List<Double> listValues) {
+        double[] values = listValues.stream().mapToDouble(Double::doubleValue).toArray();
+        return MatrixUtils.createRealVector(values);
+    }
+
+    public static RealVector onesVector(int dimension) {
+        RealVector init = zerosVector(dimension);
+        init.set(1.);
+        return init;
+    }
+
+    public static RealVector onesVectorLike(RealVector other) {
+        return onesVector(other.getDimension());
+    }
+
+    public static RealVector zerosVector(int dimension) {
+        return MatrixUtils.createRealVector(new double[dimension]);
+    }
+
+    public static double sum(RealVector vector){
+        RealVector ones = onesVectorLike(vector);
+        return ones.dotProduct(vector);
     }
 }
