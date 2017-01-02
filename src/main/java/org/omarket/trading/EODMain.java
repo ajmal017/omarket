@@ -61,7 +61,7 @@ public class EODMain {
                 Type typeOfEtfsList = new TypeToken<List<String>>() {
                 }.getType();
                 List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
-                Stream<String> codesStream = ibCodesETFs.stream().skip(40).limit(20);
+                Stream<String> codesStream = ibCodesETFs.stream().skip(50).limit(4);
                 for (String ibCode : codesStream.collect(Collectors.toList())) {
                     JsonObject contract = new JsonObject().put("conId", ibCode);
                     ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
