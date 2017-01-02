@@ -4,6 +4,8 @@ import joinery.DataFrame;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealMatrixChangingVisitor;
+import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.random.*;
 import org.apache.commons.math3.util.Precision;
 import org.junit.Test;
 
@@ -13,6 +15,7 @@ import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Random;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertArrayEquals;
@@ -48,6 +51,18 @@ public class StatsUtilsTest {
                 {-10.0, 0.0, 10.0},
                 {-10.0, 0.0, 10.0}};
         assertEquals(MatrixUtils.createRealMatrix(expectedRows), StatsUtils.constantDetrendRows(matrix));
+    }
+
+    @Test
+    public void testLightweightMatrix() throws Exception {
+        long seed = 73339045431L; // Fixed seed means same results every time
+        RandomGenerator rg0 = RandomGeneratorFactory.createRandomGenerator(new Random(seed));
+        UniformRandomGenerator randomGenerator = new UniformRandomGenerator(rg0);
+        RandomVectorGenerator rg = new UncorrelatedRandomVectorGenerator(20000, randomGenerator);
+        double[] sample = rg.nextVector();
+        RealVector vector = MatrixUtils.createRealVector(sample);
+        RealMatrix ones = StatsUtils.ones(vector.getDimension());
+        assertEquals(140.2754110, ones.operate(vector).getEntry(0), 1E-7);
     }
 
     @Test

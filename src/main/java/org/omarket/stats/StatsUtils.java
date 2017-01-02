@@ -1,10 +1,6 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.DecompositionSolver;
-import org.apache.commons.math3.linear.LUDecomposition;
-import org.apache.commons.math3.linear.MatrixUtils;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.linear.*;
 import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.Arrays;
@@ -31,7 +27,9 @@ public class StatsUtils {
     }
 
     public static RealMatrix ones(int rowDimension, int columnDimension) {
-        return zeros(rowDimension, columnDimension).scalarAdd(1.);
+        ElementProvider onesProvider = (row, column) -> 1.;
+        LightweightMatrix matrix = new LightweightMatrix(rowDimension, columnDimension, onesProvider);
+        return matrix;
     }
 
     public static RealMatrix ones(int dimension) {
@@ -169,7 +167,10 @@ public class StatsUtils {
     }
 
     public static double sum(RealVector vector){
-        RealVector ones = onesVectorLike(vector);
-        return ones.dotProduct(vector);
+        double value = 0;
+        for(int i=0; i < vector.getDimension(); i++){
+            value += vector.getEntry(i);
+        }
+        return value;
     }
 }

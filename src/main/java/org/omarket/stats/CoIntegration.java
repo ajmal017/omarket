@@ -177,13 +177,11 @@ public class CoIntegration {
         RealMatrix dx = StatsUtils.truncateTop(StatsUtils.diffRows(x));
         RealMatrix z = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(StatsUtils.shiftDown(dx, lag), lag));
         RealMatrix shiftedDx = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(dx, lag));
-        // finds v1 such that z.v = shiftedDx
-        DecompositionSolver solver = new QRDecomposition(z).getSolver();
-        RealMatrix v1 = solver.solve(shiftedDx);
-        RealMatrix r0t = shiftedDx.subtract(z.multiply(v1));
+        QRDecomposition qr = new QRDecomposition(z);
+        DecompositionSolver solver = qr.getSolver();
+        RealMatrix r0t = shiftedDx.subtract(z.multiply(solver.solve(shiftedDx)));
         RealMatrix shiftedDx2 = StatsUtils.constantDetrendColumns((StatsUtils.truncateTop(StatsUtils.shiftDown(x, lag), lag+1)));
-        RealMatrix v2 = solver.solve(shiftedDx2);
-        RealMatrix rkt = shiftedDx2.subtract(z.multiply(v2));
+        RealMatrix rkt = shiftedDx2.subtract(z.multiply(solver.solve(shiftedDx2)));
 
         RealMatrix skk = rkt.transpose().multiply(rkt).scalarMultiply(1. / rkt.getRowDimension());
         RealMatrix sk0 = rkt.transpose().multiply(r0t).scalarMultiply(1. / rkt.getRowDimension());
