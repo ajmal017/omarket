@@ -9,7 +9,10 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.quote.*;
+import org.omarket.trading.quote.MutableQuote;
+import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
+import org.omarket.trading.quote.QuoteFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,12 +20,18 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
 
 import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.MarketData.createIBrokersProductDescription;
+import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
 
 
 /**
@@ -32,7 +41,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
     private final Path storageDirPath;
     private Integer lastRequestId = null;
-    private Integer lastSubscriptionId = null;
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
@@ -53,7 +61,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private Integer newRequestId() {
+    synchronized private Integer newRequestId() {
         if (lastRequestId == null) {
             lastRequestId = 0;
         }
@@ -61,21 +69,14 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return lastRequestId;
     }
 
-    public void request(Contract contract, Message<JsonObject> message) {
+    public String request(Contract contract, Message<JsonObject> message) {
         Integer newRequestId = newRequestId();
         callbackMessages.put(newRequestId, message);
         getClient().reqContractDetails(newRequestId, contract);
+        return getErrorChannel(newRequestId);
     }
 
-    private Integer newSubscriptionId() {
-        if (lastSubscriptionId == null) {
-            lastSubscriptionId = 0;
-        }
-        lastSubscriptionId += 1;
-        return lastSubscriptionId;
-    }
-
-    public void subscribe(JsonObject contractDetails, BigDecimal minTick) throws IOException {
+    public String subscribe(JsonObject contractDetails, BigDecimal minTick) throws IOException {
         Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
         Contract contract = new Contract();
         contract.conid(ibCode);
@@ -84,16 +85,17 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         contract.secType(contractDetails.getJsonObject("m_contract").getString("m_sectype"));
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
-            return;
+            return null;
         }
-        int tickerId = newSubscriptionId();
+        int requestId = newRequestId();
         Files.createDirectories(storageDirPath);
         logger.info("min tick for contract " + ibCode + ": " + minTick);
         Path productStorage = createIBrokersProductDescription(storageDirPath, contractDetails);
         subscribed.put(ibCode, productStorage);
-        orderBooks.put(tickerId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
+        orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
         logger.info("requesting market data for " + contractDetails);
-        getClient().reqMktData(tickerId, contract, "", false, null);
+        getClient().reqMktData(requestId, contract, "", false, null);
+        return getErrorChannel(requestId);
     }
 
     @Override
@@ -174,6 +176,30 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         } catch (IOException e) {
             logger.error("unable to record order book: message not sent", e);
         }
+    }
+
+    @Override
+    public void error(int requestId, int errorCode, String errorMsg) {
+        Map<Integer, String> exceptions = new HashMap<>();
+        exceptions.put(2104, "Market data farm connection is OK");
+        exceptions.put(2106, "HMDS data farm connection is OK");
+        if (!exceptions.containsKey(errorCode)){
+            logger.error("error code: " + errorCode + " - " + errorMsg + " (request id: " + requestId + ")");
+            JsonObject errorJson = new JsonObject();
+            errorJson.put("code", errorCode);
+            errorJson.put("message", errorMsg);
+            this.eventBus.send(getErrorChannel(requestId), errorJson);
+        }
+    }
+
+    @Override
+    public void error(Exception e) {
+        logger.error("IBrokers callback wrapper error", e);
+    }
+
+    @Override
+    public void error(String str) {
+        logger.error(str);
     }
 
 }

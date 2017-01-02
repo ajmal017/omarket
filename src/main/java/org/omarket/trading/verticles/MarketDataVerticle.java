@@ -32,7 +32,12 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
+    public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
+
+    public static String getErrorChannel(Integer requestId){
+        return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
+    }
 
     private static String getProductAsString(String ibCode) {
         JsonObject product = subscribedProducts.get(ibCode);
@@ -94,7 +99,14 @@ public class MarketDataVerticle extends AbstractVerticle {
                         logger.info("subscribing: " + productCode.toString());
                         Double minTick = contractDetails.getDouble("m_minTick");
                         subscribedProducts.put(Integer.toString(productCode), contractDetails);
-                        ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
+                        String errorChannel = ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros());
+                        if (errorChannel != null){
+                            Observable<JsonObject> errorStream =
+                                    vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
+                            errorStream.subscribe(errorMessage -> {
+                                logger.error("failed to subscribe for contract '" + productCode +"': " + errorMessage);
+                            });
+                        }
                         future.complete(productCode);
                     } catch (Exception e) {
                         logger.error("failed to subscribe product: '" + productCode + "'", e);
@@ -144,11 +156,16 @@ public class MarketDataVerticle extends AbstractVerticle {
         Observable<Message<JsonObject>> contractStream = vertx.eventBus().<JsonObject>consumer(ADDRESS_CONTRACT_RETRIEVE).toObservable();
         contractStream.subscribe(message -> {
             final JsonObject body = message.body();
-            logger.info("registering contract: " + body);
-            int productCode = Integer.parseInt(body.getString("conId"));
+            logger.info("requesting contract: " + body);
+            final int productCode = Integer.parseInt(body.getString("conId"));
             Contract contract = new Contract();
             contract.conid(productCode);
-            ibrokersClient.request(contract, message);
+            String errorChannel = ibrokersClient.request(contract, message);
+            Observable<JsonObject> errorStream =
+                    vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
+            errorStream.subscribe(errorMessage -> {
+                logger.error("failed to request contract '" + productCode +"': " + errorMessage);
+            });
         });
     }
 
