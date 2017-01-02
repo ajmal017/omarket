@@ -74,35 +74,24 @@ public class EODMain {
             vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, deliveryOptions,
                     contractStream.toHandler());
             return contractStream;
-        }).map(contractMessage -> {
+        }).doOnNext(result -> {
+            JsonObject error = result.body().getJsonObject("error");
+            if (!error.equals(MarketDataVerticle.EMPTY)) {
+                logger.info("error occured:" + error);
+            }
+        }).filter(item -> item.body().getJsonObject("error").equals(MarketDataVerticle.EMPTY)).map(contractMessage -> {
             JsonObject envelopJson = contractMessage.body();
             JsonObject product = envelopJson.getJsonObject("content");
             logger.info("processing message:" + contractMessage);
             logger.info("processing product:" + product);
-            notifyResponseProcessed(vertx, product.toString());
             return product;
-        }).doOnNext(product -> {
-            logger.info("result on next: " + product);
         }).subscribe(product -> {
             logger.info("product processed: " + product);
         }, failed -> {
             logger.error("failed to retrieve contract:" + failed);
-            notifyResponseProcessed(vertx, failed.getMessage());
         }, () -> {
             logger.info("completed");
             System.exit(0);
         });
     }
-
-    synchronized private static void notifyResponseProcessed(Vertx vertx, String message) {
-        responsesCount++;
-        logger.info("message:" + message);
-        logger.info("responses count:" + responsesCount);
-        logger.info("expected responses count:" + expectedResponsesCount);
-        if (responsesCount >= expectedResponsesCount) {
-            logger.info("all responses received: shutting down");
-            System.exit(0);
-        }
-    }
-
 }

@@ -40,6 +40,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
+    public static final JsonObject EMPTY = new JsonObject();
 
     public static String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
@@ -161,7 +162,7 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public static JsonObject createSuccessReply(JsonObject content) {
         JsonObject result = new JsonObject();
-        result.put("error", "");
+        result.put("error", EMPTY);
         result.put("content", content);
         return result;
     }
