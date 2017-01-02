@@ -2,6 +2,7 @@ package org.omarket.trading.ibrokers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.eventbus.EventBus;
@@ -31,26 +32,28 @@ import java.util.TimeZone;
 
 import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.MarketData.createIBrokersProductDescription;
+import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
+import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGeneric;
 
 
 /**
  * Created by Christophe on 03/11/2016.
  */
 public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
+    private final static int PRICE_BID = 1;
+    private final static int PRICE_ASK = 2;
+    private final static int SIZE_BID = 0;
+    private final static int SIZE_ASK = 3;
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
     private final Path storageDirPath;
+    private final SimpleDateFormat formatYearMonthDay;
+    private final SimpleDateFormat formatHour;
     private Integer lastRequestId = null;
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
-    private final static int PRICE_BID = 1;
-    private final static int PRICE_ASK = 2;
-    private final static int SIZE_BID = 0;
-    private final static int SIZE_ASK = 3;
-    private final SimpleDateFormat formatYearMonthDay;
-    private final SimpleDateFormat formatHour;
 
     public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath) {
         this.eventBus = eventBus;
@@ -92,7 +95,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("min tick for contract " + ibCode + ": " + minTick);
         Path productStorage = createIBrokersProductDescription(storageDirPath, contractDetails);
         subscribed.put(ibCode, productStorage);
-        orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()), contract));
+        orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()),
+                contract));
         logger.info("requesting market data for " + contractDetails);
         getClient().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
@@ -100,10 +104,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     @Override
     public void contractDetails(int requestId, ContractDetails contractDetails) {
-            Gson gson = new GsonBuilder().create();
-            JsonObject product = new JsonObject(gson.toJson(contractDetails));
-            Message<JsonObject> message = callbackMessages.get(requestId);
-            message.reply(product);
+        Gson gson = new GsonBuilder().create();
+        JsonObject product = new JsonObject(gson.toJson(contractDetails));
+        Message<JsonObject> message = callbackMessages.get(requestId);
+        message.reply(createSuccessReply(product));
     }
 
     @Override
@@ -129,7 +133,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         } else {
             modified = orderBook.updateBestAskPrice(price);
         }
-        if (!orderBook.isValid() || !modified){
+        if (!orderBook.isValid() || !modified) {
             return;
         }
         Contract contract = orderBookContract.getRight();
@@ -149,7 +153,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         } else {
             modified = orderBook.updateBestAskSize(size);
         }
-        if (!orderBook.isValid() || !modified){
+        if (!orderBook.isValid() || !modified) {
             return;
         }
         Contract contract = orderBookContract.getRight();
@@ -165,10 +169,11 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
             Files.createDirectories(currentDirectory);
             Path tickFilePath = currentDirectory.resolve(formatHour.format(now));
             String content = QuoteConverter.toPriceVolumeString(orderBook);
-            if(!Files.exists(tickFilePath)){
+            if (!Files.exists(tickFilePath)) {
                 Files.createFile(tickFilePath);
             }
-            BufferedWriter writer = Files.newBufferedWriter(tickFilePath, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            BufferedWriter writer =
+                    Files.newBufferedWriter(tickFilePath, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
             writer.write(content);
             writer.newLine();
             writer.close();
@@ -177,18 +182,48 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
             logger.error("unable to record order book: message not sent", e);
         }
     }
+    @Override
+    public void historicalData(int reqId, String date, double open, double high, double low, double close, int volume,
+                               int count, double WAP, boolean hasGaps) {
+        logger.info("hist:" + reqId);
+    }
 
     @Override
     public void error(int requestId, int errorCode, String errorMsg) {
         Map<Integer, String> exceptions = new HashMap<>();
         exceptions.put(2104, "Market data farm connection is OK");
         exceptions.put(2106, "HMDS data farm connection is OK");
-        if (!exceptions.containsKey(errorCode)){
-            logger.error("error code: " + errorCode + " - " + errorMsg + " (request id: " + requestId + ")");
-            JsonObject errorJson = new JsonObject();
-            errorJson.put("code", errorCode);
-            errorJson.put("message", errorMsg);
-            this.eventBus.send(getErrorChannel(requestId), errorJson);
+        if (!exceptions.containsKey(errorCode)) {
+            if (requestId != -1) {
+                logger.error("error code: " + errorCode + " - " + errorMsg + " (request id: " + requestId + ")");
+                JsonObject errorJson = new JsonObject();
+                errorJson.put("code", errorCode);
+                errorJson.put("message", errorMsg);
+                this.eventBus.send(getErrorChannel(requestId), errorJson);
+            } else {
+                if(errorCode == 2110){
+                    // Connectivity between Trader Workstation and server is broken. It will be restored automatically.
+                    logger.error("error code: " + errorCode + " - " + errorMsg);
+                    JsonObject errorJson = new JsonObject();
+                    errorJson.put("code", errorCode);
+                    errorJson.put("message", errorMsg);
+                    this.eventBus.send(getErrorChannelGeneric(), errorJson);
+                } else if (errorCode == 1102){
+                    // Connectivity between IB and Trader Workstation has been restored - data maintained.
+                    logger.error("error code: " + errorCode + " - " + errorMsg);
+                    JsonObject errorJson = new JsonObject();
+                    errorJson.put("code", errorCode);
+                    errorJson.put("message", errorMsg);
+                    this.eventBus.send(getErrorChannelGeneric(), errorJson);
+                } else {
+                    // Connectivity between IB and Trader Workstation has been restored - data maintained.
+                    logger.error("error code: " + errorCode + " - " + errorMsg);
+                    JsonObject errorJson = new JsonObject();
+                    errorJson.put("code", errorCode);
+                    errorJson.put("message", errorMsg);
+                    this.eventBus.send(getErrorChannelGeneric(), errorJson);
+                }
+            }
         }
     }
 

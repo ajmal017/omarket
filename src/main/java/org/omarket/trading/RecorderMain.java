@@ -44,7 +44,11 @@ public class RecorderMain {
                 ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
                 vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
                 contractStream.subscribe((Message<JsonObject> contractMessage) -> {
-                    JsonObject contractJson = contractMessage.body();
+                    JsonObject envelopJson = contractMessage.body();
+                    if(!envelopJson.getString("error").equals("")){
+                        return;
+                    }
+                    JsonObject contractJson = envelopJson.getJsonObject("content");
                     logger.info("contract retrieved: " + contractJson);
                     ObservableFuture<Message<JsonObject>> quoteStream = io.vertx.rx.java.RxHelper.observableFuture();
                     vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractJson, quoteStream.toHandler());

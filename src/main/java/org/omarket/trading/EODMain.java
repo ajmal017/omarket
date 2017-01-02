@@ -25,13 +25,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
 
 public class EODMain {
     private final static Logger logger = LoggerFactory.getLogger(EODMain.class);
+    private static int responsesCount;
+    private static int expectedResponsesCount;
 
     public static void main(String[] args) throws InterruptedException {
         JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
@@ -43,46 +43,66 @@ public class EODMain {
                         defaultClientId).put("ibrokers.host", defaultHost).put("ibrokers.port", defaultPort).put
                         ("runBacktestFlag", false);
         DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
-
         final Vertx vertx = Vertx.vertx();
-
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
-        marketDataDeployment.subscribe(deploymentId -> {
+        marketDataDeployment.flatMap(deploymentId -> {
             logger.info("succesfully deployed market data verticle: " + deploymentId);
             URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");
-            if (etfsResource == null) {
-                vertx.close();
-                return;
-            }
-            try {
-                Path etfsPath = Paths.get(etfsResource.toURI());
-                Gson gson = new Gson();
-                JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
-                Type typeOfEtfsList = new TypeToken<List<String>>() {
-                }.getType();
-                List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
-                Stream<String> codesStream = ibCodesETFs.stream().skip(50).limit(4);
-                for (String ibCode : codesStream.collect(Collectors.toList())) {
-                    JsonObject contract = new JsonObject().put("conId", ibCode);
-                    ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    DeliveryOptions deliveryOptions = new DeliveryOptions();
-                    deliveryOptions.setSendTimeout(10000);
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, deliveryOptions, contractStream
-                            .toHandler());
-                    contractStream.subscribe((Message<JsonObject> contractMessage) -> {
-                        JsonObject contractDetails = contractMessage.body();
-                        logger.info("received data for contract: " + contractDetails);
-                    }, error -> {
-                        logger.error("unrecoverable error occured", error);
-                    });
+            Observable<String> codesStream = Observable.empty();
+            if (etfsResource != null) {
+                try {
+                    Path etfsPath = Paths.get(etfsResource.toURI());
+                    Gson gson = new Gson();
+                    JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
+                    Type typeOfEtfsList = new TypeToken<List<String>>() {
+                    }.getType();
+                    List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
+                    codesStream = Observable.from(ibCodesETFs);
+                    expectedResponsesCount = ibCodesETFs.size();
+                } catch (URISyntaxException | IOException e) {
+                    logger.error("failed to load resource: ", e);
+                    vertx.close();
                 }
-            } catch (URISyntaxException | IOException e) {
-                logger.error("failed to load resource: ", e);
-                vertx.close();
             }
-        }, err -> {
-            logger.error("shutting down vertx", err);
-            vertx.close();
+            return codesStream;
+        }).skip(50).limit(4).flatMap(code -> {
+            JsonObject contract = new JsonObject().put("conId", code);
+            ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
+            DeliveryOptions deliveryOptions = new DeliveryOptions();
+            deliveryOptions.setSendTimeout(10000);
+            logger.info("requesting contract " + code);
+            vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, deliveryOptions,
+                    contractStream.toHandler());
+            return contractStream;
+        }).map(contractMessage -> {
+            JsonObject envelopJson = contractMessage.body();
+            JsonObject product = envelopJson.getJsonObject("content");
+            logger.info("processing message:" + contractMessage);
+            logger.info("processing product:" + product);
+            notifyResponseProcessed(vertx, product.toString());
+            return product;
+        }).doOnNext(product -> {
+            logger.info("result on next: " + product);
+        }).subscribe(product -> {
+            logger.info("product processed: " + product);
+        }, failed -> {
+            logger.error("failed to retrieve contract:" + failed);
+            notifyResponseProcessed(vertx, failed.getMessage());
+        }, () -> {
+            logger.info("completed");
+            System.exit(0);
         });
     }
+
+    synchronized private static void notifyResponseProcessed(Vertx vertx, String message) {
+        responsesCount++;
+        logger.info("message:" + message);
+        logger.info("responses count:" + responsesCount);
+        logger.info("expected responses count:" + expectedResponsesCount);
+        if (responsesCount >= expectedResponsesCount) {
+            logger.info("all responses received: shutting down");
+            System.exit(0);
+        }
+    }
+
 }

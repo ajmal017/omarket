@@ -1,7 +1,10 @@
 package org.omarket.trading.verticles;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.ib.client.*;
 import io.vertx.core.Future;
+import io.vertx.core.json.Json;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
@@ -11,10 +14,12 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import org.json.JSONObject;
 import org.omarket.trading.MarketData;
 import org.omarket.trading.ibrokers.*;
 import rx.Observable;
 
+import javax.swing.*;
 import java.io.*;
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -38,6 +43,9 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public static String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
+    }
+    public static String getErrorChannelGeneric() {
+        return ADDRESS_ERROR_MESSAGE_PREFIX + ".*";
     }
 
     private static String getProductAsString(String ibCode) {
@@ -137,9 +145,25 @@ public class MarketDataVerticle extends AbstractVerticle {
                     vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
             errorStream.subscribe(errorMessage -> {
                 logger.error("failed to request contract '" + productCode + "': " + errorMessage);
-                message.reply(null); // required in order to avoid pending vertx subscription
+                Gson gson = new GsonBuilder().create();
+                JsonObject product = new JsonObject(gson.toJson(contract));
+                message.reply(createErrorReply(errorMessage, product));
             });
         });
+    }
+
+    public static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
+        JsonObject result = new JsonObject();
+        result.put("error", errorMessage);
+        result.put("content", content);
+        return result;
+    }
+
+    public static JsonObject createSuccessReply(JsonObject content) {
+        JsonObject result = new JsonObject();
+        result.put("error", "");
+        result.put("content", content);
+        return result;
     }
 
     private static void processAdminCommand(Vertx vertx) {
