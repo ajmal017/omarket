@@ -61,31 +61,4 @@ public class MarketData {
         return tickFiles;
     }
 
-    public static Path createIBrokersProductDescription(Path storageDirPath, JsonObject contractDetails) throws IOException {
-        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
-        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
-        logger.info("preparing storage for contract: " + productStorage);
-        Files.createDirectories(productStorage);
-        Path descriptionFilePath = productStorage.resolve("description.json");
-        if(!Files.exists(descriptionFilePath)){
-            Files.createFile(descriptionFilePath);
-        }
-        BufferedWriter writer = Files.newBufferedWriter(descriptionFilePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        gson.toJson(contractDetails.getMap(), writer);
-        writer.close();
-        return productStorage;
-    }
-
-    public static JsonObject loadIBrokersProductDescription(Path storageDirPath, String productCode) throws IOException {
-        Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
-        Path descriptionFilePath = productStorage.resolve("description.json");
-        BufferedReader reader = Files.newBufferedReader(descriptionFilePath, StandardCharsets.UTF_8);
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        Map productMap = gson.fromJson(reader, Map.class);
-        reader.close();
-        return new JsonObject(productMap);
-    }
 }

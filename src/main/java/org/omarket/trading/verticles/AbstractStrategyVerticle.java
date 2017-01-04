@@ -23,7 +23,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-import static org.omarket.trading.MarketData.loadIBrokersProductDescription;
+import static org.omarket.trading.ContractDB.loadContract;
 import static org.omarket.trading.quote.QuoteFactory.createFrom;
 
 /**
@@ -75,13 +75,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
     private Map<String, JsonObject> createProducts() throws IOException {
-        JsonArray pathElements = config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH);
-        String storageDirPathName = String.join(File.separator, pathElements.getList());
-        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+        JsonArray pathElements = config().getJsonArray(VerticleProperties.PROPERTY_CONTRACT_DB_PATH);
+        String contractDBPathName = String.join(File.separator, pathElements.getList());
+        Path contractDBPath = FileSystems.getDefault().getPath(contractDBPathName);
         String[] productCodes = getProductCodes();
         Map<String, JsonObject> products = new HashMap<>();
         for(String productCode: productCodes){
-            JsonObject product = loadIBrokersProductDescription(storageDirPath, productCode);
+            JsonObject product = loadContract(contractDBPath, productCode);
             products.put(productCode, product);
         }
         return products;

@@ -18,10 +18,8 @@ import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import rx.Observable;
 
-import java.io.File;
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -253,15 +251,14 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
-        String storageDirPathName =
-                String.join(File.separator, config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH).getList());
-        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-
+        Path storageDirPath = VerticleProperties.makePath(config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH));
+        Path contractDBPath = VerticleProperties.makePath(config().getJsonArray(VerticleProperties.PROPERTY_CONTRACT_DB_PATH));
         logger.info("ticks data storage set to '" + storageDirPath + "'");
         String ibrokersHost = config().getString("ibrokers.host");
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
-        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath);
+
+        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath, contractDBPath);
         vertx.executeBlocking(future -> {
             try {
                 org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,
@@ -286,4 +283,5 @@ public class MarketDataVerticle extends AbstractVerticle {
             }
         });
     }
+
 }

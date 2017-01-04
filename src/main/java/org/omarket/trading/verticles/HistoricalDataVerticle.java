@@ -37,12 +37,11 @@ public class HistoricalDataVerticle extends AbstractVerticle {
 
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting historical data");
-        String storageDirPathName = String.join(File.separator, config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH).getList());
-        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-        logger.info("ticks data storage set to '" + storageDirPath + "'");
-
         JsonArray storageDirs = config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH);
         List<String> dirs = storageDirs.getList();
+        String storageDirPathName = String.join(File.separator, dirs);
+        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+        logger.info("ticks data storage set to '" + storageDirPath + "'");
 
         final MessageConsumer<JsonObject> provideRequest = vertx.eventBus().consumer(ADDRESS_PROVIDE_HISTORY);
         Observable<JsonObject> contractStream = provideRequest.bodyStream().toObservable();

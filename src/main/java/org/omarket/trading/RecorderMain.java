@@ -1,7 +1,6 @@
 package org.omarket.trading;
 
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.RxHelper;
@@ -12,10 +11,6 @@ import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
-
-import java.util.Arrays;
-
-import static org.omarket.trading.verticles.VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH;
 
 public class RecorderMain {
     private final static Logger logger = LoggerFactory.getLogger(RecorderMain.class);

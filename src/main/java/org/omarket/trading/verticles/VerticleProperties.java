@@ -4,6 +4,9 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import java.io.File;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 /**
@@ -26,5 +29,10 @@ public class VerticleProperties {
                 .put("ibrokers.port", defaultPort)
                 .put("runBacktestFlag", false);
         return new DeploymentOptions().setConfig(jsonConfig);
+    }
+
+    public static Path makePath(JsonArray values) {
+        String storageDirPathName = String.join(File.separator, values.getList());
+        return FileSystems.getDefault().getPath(storageDirPathName);
     }
 }

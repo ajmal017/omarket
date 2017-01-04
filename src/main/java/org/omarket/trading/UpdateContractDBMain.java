@@ -18,6 +18,7 @@ import rx.Observable;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -37,35 +38,26 @@ public class UpdateContractDBMain {
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
         marketDataDeployment.flatMap(deploymentId -> {
             logger.info("succesfully deployed market data verticle: " + deploymentId);
-            URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");
             Observable<String> codesStream = Observable.empty();
-            if (etfsResource != null) {
-                try {
-                    Path etfsPath = Paths.get(etfsResource.toURI());
-                    Gson gson = new Gson();
-                    JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
-                    Type typeOfEtfsList = new TypeToken<List<String>>() {
-                    }.getType();
-                    List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
-                    DeliveryOptions deliveryOptions = new DeliveryOptions();
-                    deliveryOptions.setSendTimeout(10000);
-                    codesStream = Observable.from(ibCodesETFs);
-                } catch (URISyntaxException | IOException e) {
-                    logger.error("failed to load resource: ", e);
-                    vertx.close();
+            try {
+                URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");
+                if (etfsResource != null) {
+                        URI resourceURI = etfsResource.toURI();
+                        Path etfsPath = Paths.get(resourceURI);
+                        JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
+                        Type typeOfEtfsList = new TypeToken<List<String>>() {
+                        }.getType();
+                        Gson gson = new Gson();
+                        List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
+                        codesStream = Observable.from(ibCodesETFs);
                 }
+            } catch (URISyntaxException | IOException e) {
+                logger.error("failed to load resource: ", e);
+                vertx.close();
             }
             return codesStream;
-        }).concatMap(address -> Observable.just(address).delay(100, TimeUnit.MILLISECONDS))  // throttling
-                .flatMap(code -> {
-                    JsonObject contract = new JsonObject().put("conId", code);
-                    ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    DeliveryOptions deliveryOptions = new DeliveryOptions();
-                    deliveryOptions.setSendTimeout(10000);
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, deliveryOptions,
-                            contractStream.toHandler());
-                    return contractStream;
-                }).doOnNext(result -> {
+        }).take(100).concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
+                .flatMap(new ContractFetcher(vertx)).doOnNext(result -> {
             JsonObject error = result.body().getJsonObject("error");
             if (!error.equals(MarketDataVerticle.EMPTY)) {
                 logger.error("error occured:" + error);
@@ -75,6 +67,7 @@ public class UpdateContractDBMain {
             JsonObject envelopJson = response.body();
             JsonObject product = envelopJson.getJsonObject("content");
             try {
+                // TODO: parameters
                 ContractDB.saveContract(Paths.get("data", "contracts"), product);
             } catch (IOException e) {
                 logger.error("failed to save to contracts db", e);

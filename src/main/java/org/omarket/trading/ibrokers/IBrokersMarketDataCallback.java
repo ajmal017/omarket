@@ -9,6 +9,7 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
@@ -34,8 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
+import static org.omarket.trading.ContractDB.saveContract;
 import static org.omarket.trading.MarketData.createChannelQuote;
-import static org.omarket.trading.MarketData.createIBrokersProductDescription;
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
 import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGeneric;
@@ -50,6 +51,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private final static int SIZE_BID = 0;
     private final static int SIZE_ASK = 3;
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
+    private final Path contractsDBPath;
     private final Path storageDirPath;
     private final SimpleDateFormat formatYearMonthDay;
     private final SimpleDateFormat formatHour;
@@ -60,13 +62,22 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
 
-    public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath) {
+    public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath, Path contractsDBPath) {
         this.eventBus = eventBus;
         this.storageDirPath = storageDirPath;
+        this.contractsDBPath = contractsDBPath;
         formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
+
+    private static Path prepareTickPath(Path storageDirPath, JsonObject contractDetails) throws IOException {
+        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
+        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
+        logger.info("preparing storage for contract: " + productStorage);
+        Files.createDirectories(productStorage);
+        return productStorage;
     }
 
     synchronized private Integer newRequestId() {
@@ -110,7 +121,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         int requestId = newRequestId();
         Files.createDirectories(storageDirPath);
         logger.info("min tick for contract " + ibCode + ": " + minTick);
-        Path productStorage = createIBrokersProductDescription(storageDirPath, contractDetails);
+        Path productStorage = prepareTickPath(contractsDBPath, contractDetails);
+        saveContract(contractsDBPath, contractDetails);
         subscribed.put(ibCode, productStorage);
         orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()),
                 contract));
