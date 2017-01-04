@@ -8,29 +8,21 @@ import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
 
 import java.util.Arrays;
 
-import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.verticles.VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH;
 
 public class RecorderMain {
     private final static Logger logger = LoggerFactory.getLogger(RecorderMain.class);
 
     public static void main(String[] args) throws InterruptedException {
-        JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
-        int defaultClientId = 1;
-        String defaultHost = "127.0.0.1";
-        int defaultPort = 7497;
-        JsonObject jsonConfig = new JsonObject()
-                .put(IBROKERS_TICKS_STORAGE_PATH, defaultStoragePath)
-                .put("ibrokers.clientId", defaultClientId)
-                .put("ibrokers.host", defaultHost)
-                .put("ibrokers.port", defaultPort)
-                .put("runBacktestFlag", false);
-        DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
+        int defaultClientId = 3;
+        DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
 
         final Vertx vertx = Vertx.vertx();
 

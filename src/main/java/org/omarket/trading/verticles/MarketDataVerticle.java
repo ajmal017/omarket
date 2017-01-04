@@ -14,22 +14,19 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.MutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.MarketData;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import rx.Observable;
-import rx.functions.Action2;
 
-import java.io.*;
+import java.io.File;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -257,7 +254,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
         String storageDirPathName =
-                String.join(File.separator, config().getJsonArray(MarketData.IBROKERS_TICKS_STORAGE_PATH).getList());
+                String.join(File.separator, config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH).getList());
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
 
         logger.info("ticks data storage set to '" + storageDirPath + "'");

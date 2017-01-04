@@ -25,24 +25,18 @@ import yahoofinance.YahooFinance;
 import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
-import java.io.*;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.lang.Thread.sleep;
-import static org.omarket.trading.MarketData.IBROKERS_TICKS_STORAGE_PATH;
+import static org.omarket.trading.verticles.VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH;
 import static org.omarket.trading.verticles.HistoricalDataVerticle.mergeQuoteStreams;
 import static org.omarket.trading.verticles.HistoricalDataVerticle.getHistoricalQuoteStream;
 import static rx.Observable.combineLatest;
 import static rx.Observable.interval;
-import static yahoofinance.Utils.loadObject;
 import static yahoofinance.Utils.storeObject;
 
 class RandomWalk implements Func1<Boolean, Double> {
@@ -211,7 +205,7 @@ public class Scratchpad {
         String defaultHost = "127.0.0.1";
         int defaultPort = 7497;
         JsonObject jsonConfig = new JsonObject()
-                .put(IBROKERS_TICKS_STORAGE_PATH, defaultStoragePath)
+                .put(PROPERTY_IBROKERS_TICKS_PATH, defaultStoragePath)
                 .put("ibrokers.clientId", defaultClientId)
                 .put("ibrokers.host", defaultHost)
                 .put("ibrokers.port", defaultPort)

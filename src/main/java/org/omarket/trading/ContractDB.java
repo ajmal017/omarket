@@ -21,7 +21,6 @@ public class ContractDB {
     private final static Logger logger = LoggerFactory.getLogger(ContractDB.class);
 
     public static void saveContract(Path contractsDirPath, JsonObject product) throws IOException {
-        logger.info("saving contract: " + product);
         JsonObject contract = product.getJsonObject("m_contract");
         String primaryExchange = contract.getString("m_primaryExch");
         Integer conId = contract.getInteger("m_conid");
@@ -48,5 +47,6 @@ public class ContractDB {
         Gson gson = gsonBuilder.create();
         gson.toJson(product.getMap(), writer);
         writer.close();
+        logger.info("saved contract: " + filePath);
     }
 }

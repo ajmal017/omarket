@@ -7,7 +7,6 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import joinery.DataFrame;
-import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
@@ -76,7 +75,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
     private Map<String, JsonObject> createProducts() throws IOException {
-        JsonArray pathElements = config().getJsonArray(MarketData.IBROKERS_TICKS_STORAGE_PATH);
+        JsonArray pathElements = config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH);
         String storageDirPathName = String.join(File.separator, pathElements.getList());
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         String[] productCodes = getProductCodes();
