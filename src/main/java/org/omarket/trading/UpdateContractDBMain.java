@@ -56,7 +56,7 @@ public class UpdateContractDBMain {
                 vertx.close();
             }
             return codesStream;
-        }).take(100).concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
+        }).concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
                 .flatMap(new ContractFetcher(vertx)).doOnNext(result -> {
             JsonObject error = result.body().getJsonObject("error");
             if (!error.equals(MarketDataVerticle.EMPTY)) {
