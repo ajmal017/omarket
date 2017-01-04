@@ -26,10 +26,46 @@ import java.util.stream.Collectors;
 public class ContractDB {
 
     private final static Logger logger = LoggerFactory.getLogger(ContractDB.class);
-    public static ContractFilter ALL = path -> true;
+    public static ContractFilter ALL = new ContractFilter(){
 
-    public interface ContractFilter{
-        boolean accept(Path path);
+        @Override
+        protected boolean accept(String content) {
+            return true;
+        }
+    };
+
+    public abstract static class ContractFilter{
+
+        private Path filename;
+        private Path primaryExchange;
+        private Path currency;
+        private Path securityType;
+
+        protected String prepare(Path path) throws IOException {
+            int count = path.getNameCount();
+            filename = path.getFileName();
+            primaryExchange = path.getName(count - 3);
+            currency = path.getName(count - 4);
+            securityType = path.getName(count - 5);
+            return Files.lines(path, StandardCharsets.UTF_8).collect(Collectors.joining());
+        }
+
+        public String getFilename() {
+            return filename.toString();
+        }
+
+        public String getPrimaryExchange() {
+            return primaryExchange.toString();
+        }
+
+        public String getCurrency() {
+            return currency.toString();
+        }
+
+        public String getSecurityType() {
+            return securityType.toString();
+        }
+        protected abstract boolean accept(String content);
     }
 
     public static JsonObject loadContract(Path contractsDirPath, String productCode) throws IOException {
@@ -91,9 +127,9 @@ public class ContractDB {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                     throws IOException
             {
-                if(filter.accept(file)){
+                String content = filter.prepare(file);
+                if(filter.accept(content)){
                     logger.info("processing file: " + file);
-                    String content = Files.lines(file, StandardCharsets.UTF_8).collect(Collectors.joining());
                     JsonObject contract =  new JsonObject(content);
                     output.add(contract);
                 }

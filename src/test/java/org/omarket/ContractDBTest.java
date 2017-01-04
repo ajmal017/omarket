@@ -29,10 +29,22 @@ public class ContractDBTest {
     }
 
     @Test
+    public void loadContractsCurrencyExchange() throws Exception {
+        ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
+            @Override
+            public boolean accept(String content) {
+                return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK")  && getCurrency().equals("USD");
+            }
+        };
+        Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
+        JsonArray values = loadContracts(contractsDirPath, filter);
+        assertEquals(17, values.size());
+    }
+
+    @Test
     public void loadOneContract() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         JsonObject contract = loadContract(contractsDirPath, "114584777");
-        System.out.println(contract);
         JsonObject contractJson = contract.getJsonObject("m_contract");
         assertEquals(new Integer(114584777), contractJson.getInteger("m_conid"));
     }

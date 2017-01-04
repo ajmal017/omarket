@@ -29,8 +29,8 @@ public class UpdateEODMain {
             logger.info("succesfully deployed market data verticle: " + deploymentId);
             ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
                 @Override
-                public boolean accept(Path path) {
-                    return false;
+                public boolean accept(String content) {
+                    return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK")  && getCurrency().equals("USD");
                 }
             };
             JsonArray contractsStream = null;
