@@ -2,9 +2,9 @@ package org.omarket.trading.verticles;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.ib.client.*;
+import com.ib.client.Contract;
 import io.vertx.core.Future;
-import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
@@ -14,17 +14,21 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
-import org.json.JSONObject;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.omarket.trading.MarketData;
-import org.omarket.trading.ibrokers.*;
+import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
+import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import rx.Observable;
+import rx.functions.Action2;
 
-import javax.swing.*;
 import java.io.*;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.*;
 
 /**
@@ -32,19 +36,22 @@ import java.util.*;
  */
 public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
+    public final static String ADDRESS_EOD_REQUEST = "oot.marketData.subscribeDaily";
+    public static final String ADDRESS_EOD_DATA_PREFIX = "oot.marketData.hist";
     public final static String ADDRESS_UNSUBSCRIBE_TICK = "oot.marketData.unsubscribeTick";
     public final static String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
     public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
+    public static final JsonObject EMPTY = new JsonObject();
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, JsonObject> subscribedProducts = new HashMap<>();
-    public static final JsonObject EMPTY = new JsonObject();
 
     public static String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
     }
+
     public static String getErrorChannelGeneric() {
         return ADDRESS_ERROR_MESSAGE_PREFIX + ".*";
     }
@@ -62,12 +69,12 @@ public class MarketDataVerticle extends AbstractVerticle {
         return subscribedProducts.keySet();
     }
 
-    private static void processSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private static void setupSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
             final JsonObject contractDetails = message.body();
-            logger.info("received subscription request for: " + contractDetails);
+            logger.info("received tick subscription request for: " + contractDetails);
             JsonObject contractJson = contractDetails.getJsonObject("m_contract");
             Integer productCode = contractJson.getInteger("m_conid");
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
@@ -112,7 +119,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         logger.info("quotes subscription service deployed");
     }
 
-    private static void processUnsubscribeTick(Vertx vertx) {
+    private static void setupUnsubscribeTick(Vertx vertx) {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_UNSUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -132,7 +139,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void processContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    public static void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -167,7 +174,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return result;
     }
 
-    private static void processAdminCommand(Vertx vertx) {
+    private static void setupAdminCommand(Vertx vertx) {
         Observable<Message<String>> consumer = vertx.eventBus().<String>consumer(ADDRESS_ADMIN_COMMAND).toObservable();
         consumer.subscribe(message -> {
             final String commandLine = message.body();
@@ -213,6 +220,40 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
+    private static void setupHistoricalEOD(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+        final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
+        Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
+        histRequestStream.subscribe(request -> {
+            final JsonObject contractDetails = request.body();
+            JsonObject contractJson = contractDetails.getJsonObject("m_contract");
+            Integer productCode = contractJson.getInteger("m_conid");;
+            logger.info("received historical eod request for: " + productCode);
+            String replyAddress = ADDRESS_EOD_DATA_PREFIX + "." + productCode;
+            String errorChannel = ibrokersClient.eod(contractDetails, replyAddress);
+            if (errorChannel != null) {
+                MessageConsumer<JsonObject> errorConsumer = vertx.eventBus().consumer(errorChannel);
+                Observable<JsonObject> errorStream = errorConsumer.bodyStream().toObservable();
+                errorStream.subscribe(errorMessage -> {
+                    logger.error("failed to subscribe for contract '" + productCode + "': " + errorMessage);
+                });
+            }
+            final JsonArray bars = new JsonArray();
+            vertx.eventBus().<JsonObject>consumer(replyAddress, handler -> {
+                JsonObject bar = handler.body();
+                boolean completed = false;
+                String lastMarker = "finished-";
+                if (bar.getString("date").startsWith(lastMarker)) {
+                    bar.put("date", bar.getString("date").substring(lastMarker.length()));
+                    completed = true;
+                }
+                bars.add(bar);
+                if (completed) {
+                    request.reply(bars);
+                }
+            });
+        });
+    }
+
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
         String storageDirPathName =
@@ -228,10 +269,11 @@ public class MarketDataVerticle extends AbstractVerticle {
             try {
                 org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,
                         ibrokersClient);
-                processContractRetrieve(vertx, ibrokersClient);
-                processSubscribeTick(vertx, ibrokersClient);
-                processUnsubscribeTick(vertx);
-                processAdminCommand(vertx);
+                setupContractRetrieve(vertx, ibrokersClient);
+                setupHistoricalEOD(vertx, ibrokersClient);
+                setupSubscribeTick(vertx, ibrokersClient);
+                setupUnsubscribeTick(vertx);
+                setupAdminCommand(vertx);
                 future.complete();
             } catch (IBrokersConnectionFailure iBrokersConnectionFailure) {
                 logger.error("connection failed", iBrokersConnectionFailure);

@@ -2,7 +2,6 @@ package org.omarket.trading.ibrokers;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.eventbus.EventBus;
@@ -25,6 +24,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,6 +58,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
+    private Map<Integer, String> eodReplies = new HashMap<>();
 
     public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath) {
         this.eventBus = eventBus;
@@ -79,13 +84,25 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return getErrorChannel(newRequestId);
     }
 
+    public String eod(JsonObject contractDetails, String replyAddress){
+        Contract contract = makeContract(contractDetails);
+        int requestId = newRequestId();
+        ZonedDateTime endDate = ZonedDateTime.of(LocalDateTime.now(), ZoneId.from(ZoneOffset.UTC));
+        DateTimeFormatter ibrokersFormat = DateTimeFormatter.ofPattern("yyyyMMdd hh:mm:ss");
+        String endDateString = endDate.format(ibrokersFormat);
+        String duration = "3 M";
+        String bar = "1 day";
+        String what = "TRADES";
+        int rth = 1;
+        int useLongDate = 2;
+        eodReplies.put(requestId, replyAddress);
+        getClient().reqHistoricalData(requestId, contract, endDateString, duration , bar, what, rth, useLongDate, null);
+        return getErrorChannel(requestId);
+    }
+
     public String subscribe(JsonObject contractDetails, BigDecimal minTick) throws IOException {
-        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
-        Contract contract = new Contract();
-        contract.conid(ibCode);
-        contract.currency(contractDetails.getJsonObject("m_contract").getString("m_currency"));
-        contract.exchange(contractDetails.getJsonObject("m_contract").getString("m_exchange"));
-        contract.secType(contractDetails.getJsonObject("m_contract").getString("m_sectype"));
+        Contract contract = makeContract(contractDetails);
+        Integer ibCode = contract.conid();
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
             return null;
@@ -100,6 +117,16 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("requesting market data for " + contractDetails);
         getClient().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
+    }
+
+    private Contract makeContract(JsonObject contractDetails) {
+        Integer ibCode0 = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
+        Contract contract = new Contract();
+        contract.conid(ibCode0);
+        contract.currency(contractDetails.getJsonObject("m_contract").getString("m_currency"));
+        contract.exchange(contractDetails.getJsonObject("m_contract").getString("m_exchange"));
+        contract.secType(contractDetails.getJsonObject("m_contract").getString("m_sectype"));
+        return contract;
     }
 
     @Override
@@ -185,7 +212,18 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     @Override
     public void historicalData(int reqId, String date, double open, double high, double low, double close, int volume,
                                int count, double WAP, boolean hasGaps) {
-        logger.info("hist:" + reqId);
+        String replyData = eodReplies.get(reqId);
+        JsonObject bar = new JsonObject();
+        bar.put("date", date);
+        bar.put("open", open);
+        bar.put("high", high);
+        bar.put("low", low);
+        bar.put("close", close);
+        bar.put("volume", volume);
+        bar.put("count", count);
+        bar.put("WAP", WAP);
+        bar.put("hasGaps", hasGaps);
+        this.eventBus.send(replyData, bar);
     }
 
     @Override
