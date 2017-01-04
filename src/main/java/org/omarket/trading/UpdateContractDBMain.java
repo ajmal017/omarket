@@ -4,12 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
-import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
-import io.vertx.rxjava.core.eventbus.Message;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;
@@ -79,29 +76,6 @@ public class UpdateContractDBMain {
             logger.info("completed");
             System.exit(0);
         });
-        /*
-        contractsStream.flatMap(contractMessage -> {
-            JsonObject envelopJson = contractMessage.body();
-            JsonObject product = envelopJson.getJsonObject("content");
-                    JsonObject contract = product.getJsonObject("m_contract");
-                    logger.info("processing contract: " + contract);
-            DeliveryOptions deliveryOptions = new DeliveryOptions();
-            deliveryOptions.setSendTimeout(10000);
-            ObservableFuture<Message<JsonArray>> eodStream = io.vertx.rx.java.RxHelper.observableFuture();
-            vertx.eventBus().send(MarketDataVerticle.ADDRESS_EOD_REQUEST, product, deliveryOptions, eodStream
-            .toHandler());
-            return eodStream;
-        }).subscribe(barsMessage -> {
-            JsonArray bars = barsMessage.body();
-            logger.info("next: " + bars);
-        }, failed -> {
-            logger.error("terminating - unrecoverable error occurred:" + failed);
-            System.exit(0);
-        }, () -> {
-            logger.info("completed");
-            System.exit(0);
-        });
-        */
     }
 
 }

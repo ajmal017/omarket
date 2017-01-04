@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import rx.Observable;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
@@ -68,29 +67,6 @@ public class UpdateEODMain {
             logger.info("completed");
             System.exit(0);
         });
-        /*
-        contractsStream.flatMap(contractMessage -> {
-            JsonObject envelopJson = contractMessage.body();
-            JsonObject product = envelopJson.getJsonObject("content");
-                    JsonObject contract = product.getJsonObject("m_contract");
-                    logger.info("processing contract: " + contract);
-            DeliveryOptions deliveryOptions = new DeliveryOptions();
-            deliveryOptions.setSendTimeout(10000);
-            ObservableFuture<Message<JsonArray>> eodStream = io.vertx.rx.java.RxHelper.observableFuture();
-            vertx.eventBus().send(MarketDataVerticle.ADDRESS_EOD_REQUEST, product, deliveryOptions, eodStream
-            .toHandler());
-            return eodStream;
-        }).subscribe(barsMessage -> {
-            JsonArray bars = barsMessage.body();
-            logger.info("next: " + bars);
-        }, failed -> {
-            logger.error("terminating - unrecoverable error occurred:" + failed);
-            System.exit(0);
-        }, () -> {
-            logger.info("completed");
-            System.exit(0);
-        });
-        */
     }
 
 }
