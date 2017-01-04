@@ -121,7 +121,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         int requestId = newRequestId();
         Files.createDirectories(storageDirPath);
         logger.info("min tick for contract " + ibCode + ": " + minTick);
-        Path productStorage = prepareTickPath(contractsDBPath, contractDetails);
+        Path productStorage = prepareTickPath(storageDirPath, contractDetails);
         saveContract(contractsDBPath, contractDetails);
         subscribed.put(ibCode, productStorage);
         orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()),

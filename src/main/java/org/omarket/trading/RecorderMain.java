@@ -32,7 +32,7 @@ public class RecorderMain {
                 vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
                 contractStream.subscribe((Message<JsonObject> contractMessage) -> {
                     JsonObject envelopJson = contractMessage.body();
-                    if(!envelopJson.getString("error").equals("")){
+                    if(!envelopJson.getJsonObject("error").isEmpty()){
                         return;
                     }
                     JsonObject contractJson = envelopJson.getJsonObject("content");

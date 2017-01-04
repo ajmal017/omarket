@@ -94,6 +94,9 @@ public class ContractDB {
     public static void saveContract(Path contractsDirPath, JsonObject product) throws IOException {
         JsonObject contract = product.getJsonObject("m_contract");
         String primaryExchange = contract.getString("m_primaryExch");
+        if(primaryExchange == null){
+            primaryExchange = contract.getString("m_exchange");
+        }
         Integer conId = contract.getInteger("m_conid");
         String securityType = contract.getString("m_secType");
         String currency = contract.getString("m_currency");
