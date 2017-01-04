@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Created by Christophe on 04/01/2017.
@@ -50,12 +51,8 @@ public class ContractDB {
         if(descriptionFilePath == null){
             throw new IOException("missing data for contract: " + productCode);
         }
-        BufferedReader reader = Files.newBufferedReader(descriptionFilePath, StandardCharsets.UTF_8);
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        Map productMap = gson.fromJson(reader, Map.class);
-        reader.close();
-        return new JsonObject(productMap);
+        String content = Files.lines(descriptionFilePath, StandardCharsets.UTF_8).collect(Collectors.joining());
+        return new JsonObject(content);
     }
 
     public static void saveContract(Path contractsDirPath, JsonObject product) throws IOException {
@@ -96,12 +93,8 @@ public class ContractDB {
             {
                 if(filter.accept(file)){
                     logger.info("processing file: " + file);
-                    BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8);
-                    GsonBuilder gsonBuilder = new GsonBuilder();
-                    Gson gson = gsonBuilder.create();
-                    Map productMap = gson.fromJson(reader, Map.class);
-                    reader.close();
-                    JsonObject contract = new JsonObject(productMap);
+                    String content = Files.lines(file, StandardCharsets.UTF_8).collect(Collectors.joining());
+                    JsonObject contract =  new JsonObject(content);
                     output.add(contract);
                 }
                 return FileVisitResult.CONTINUE;
