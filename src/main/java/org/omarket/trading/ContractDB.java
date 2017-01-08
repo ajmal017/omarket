@@ -1,23 +1,18 @@
 package org.omarket.trading;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
+import rx.subjects.PublishSubject;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -123,8 +118,8 @@ public class ContractDB {
         logger.info("saved contract: " + filePath);
     }
 
-    public static JsonArray loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
-        JsonArray output = new JsonArray();
+    public static Observable<JsonObject> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
+        PublishSubject<JsonObject> contractsStream = PublishSubject.create();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
@@ -132,13 +127,13 @@ public class ContractDB {
             {
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
-                    logger.info("processing file: " + file);
+                    logger.debug("processing file: " + file);
                     JsonObject contract =  new JsonObject(content);
-                    output.add(contract);
+                    contractsStream.onNext(contract);
                 }
                 return FileVisitResult.CONTINUE;
             }
         });
-        return output;
+        return contractsStream;
     }
 }

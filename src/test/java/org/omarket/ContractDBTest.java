@@ -1,15 +1,14 @@
 package org.omarket;
 
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.omarket.trading.ContractDB;
+import rx.Observable;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.omarket.trading.ContractDB.loadContract;
@@ -24,8 +23,8 @@ public class ContractDBTest {
     public void loadContractsAll() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         ContractDB.ContractFilter filter = ContractDB.ALL;
-        JsonArray values = loadContracts(contractsDirPath, filter);
-        assertEquals(98, values.size());
+        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
     }
 
     @Test
@@ -37,8 +36,8 @@ public class ContractDBTest {
             }
         };
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        JsonArray values = loadContracts(contractsDirPath, filter);
-        assertEquals(17, values.size());
+        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));
     }
 
     @Test

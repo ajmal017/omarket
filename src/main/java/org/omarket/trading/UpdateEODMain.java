@@ -21,7 +21,19 @@ import java.util.concurrent.TimeUnit;
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, IOException {
+        ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
+            @Override
+            public boolean accept(String content) {
+                return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK") && getCurrency().equals
+                        ("USD");
+            }
+        };
+        Observable<JsonObject> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
+        contracts.subscribe(contract -> logger.info("loaded contracts: " + contract));
+    }
+
+    public static void main2(String[] args) throws InterruptedException {
 
         final Vertx vertx = Vertx.vertx();
         int defaultClientId = 4;
@@ -32,32 +44,29 @@ public class UpdateEODMain {
             ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
                 @Override
                 public boolean accept(String content) {
-                    return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK")  && getCurrency().equals("USD");
+                    return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK") && getCurrency()
+                            .equals("USD");
                 }
             };
-            JsonArray contracts = null;
+            Observable<JsonObject> contracts = Observable.empty();
             try {
-                contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
+               contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
             } catch (IOException e) {
                 logger.error("an error occured while accessing contracts DB", e);
             }
-            if(contracts != null) {
-                return Observable.from(contracts);
-            }else {
-                return Observable.empty();
-            }
+            return contracts;
         }).concatMap(object -> Observable.just(object).delay(100, TimeUnit.MILLISECONDS))  // throttling
-          .flatMap(object -> {
-            JsonObject product = (JsonObject)object;
-            JsonObject contract = product.getJsonObject("m_contract");
-            logger.info("processing contract: " + contract);
-            DeliveryOptions deliveryOptions = new DeliveryOptions();
-            deliveryOptions.setSendTimeout(10000);
-            ObservableFuture<Message<JsonArray>> eodStream = io.vertx.rx.java.RxHelper.observableFuture();
-            vertx.eventBus().send(MarketDataVerticle.ADDRESS_EOD_REQUEST, product, deliveryOptions, eodStream
-                    .toHandler());
-            return eodStream;
-        }).subscribe(barsMessage -> {
+                .flatMap(object -> {
+                    JsonObject product = (JsonObject) object;
+                    JsonObject contract = product.getJsonObject("m_contract");
+                    logger.info("processing contract: " + contract);
+                    DeliveryOptions deliveryOptions = new DeliveryOptions();
+                    deliveryOptions.setSendTimeout(10000);
+                    ObservableFuture<Message<JsonArray>> eodStream = io.vertx.rx.java.RxHelper.observableFuture();
+                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_EOD_REQUEST, product, deliveryOptions, eodStream
+                            .toHandler());
+                    return eodStream;
+                }).subscribe(barsMessage -> {
             JsonArray bars = barsMessage.body();
             logger.info("next: " + bars);
         }, failed -> {
