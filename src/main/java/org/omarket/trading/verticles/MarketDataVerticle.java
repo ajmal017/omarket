@@ -20,7 +20,6 @@ import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import rx.Observable;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,6 +36,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_UNSUBSCRIBE_TICK = "oot.marketData.unsubscribeTick";
     public final static String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
     public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
+    public final static String ADDRESS_CONTRACT_DOWNLOAD = "oot.marketData.contractDownload";
     public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
     public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
     public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
@@ -69,18 +69,16 @@ public class MarketDataVerticle extends AbstractVerticle {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
-            final Security contractDetails = Security.fromJson(message.body());
-            logger.info("received tick subscription request for: " + contractDetails);
-            String productCode = contractDetails.getCode();
+            final Security security = Security.fromJson(message.body());
+            logger.info("received tick subscription request for: " + security);
+            String productCode = security.getCode();
             if (!subscribedProducts.containsKey(productCode)) {
                 vertx.executeBlocking(future -> {
                     try {
-                        logger.info("subscribing: " + productCode.toString());
-                        Double minTick = contractDetails.minTick();
-                        subscribedProducts.put(productCode, contractDetails);
-                        String errorChannel =
-                                ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext
-                                        .DECIMAL32).stripTrailingZeros());
+                        logger.info("subscribing: " + productCode);
+                        BigDecimal minTick = security.getMinTick();
+                        subscribedProducts.put(productCode, security);
+                        String errorChannel = ibrokersClient.subscribe(security);
                         if (errorChannel != null) {
                             Observable<JsonObject> errorStream =
                                     vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
@@ -134,7 +132,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private static void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -143,7 +141,7 @@ public class MarketDataVerticle extends AbstractVerticle {
             final int productCode = Integer.parseInt(body.getString("conId"));
             Contract contract = new Contract();
             contract.conid(productCode);
-            String errorChannel = ibrokersClient.request(contract, message);
+            String errorChannel = ibrokersClient.requestContract(contract, message);
             Observable<JsonObject> errorStream =
                     vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
             errorStream.subscribe(errorMessage -> {
@@ -155,7 +153,29 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
+    private static void setupContractDownload(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+        final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DOWNLOAD);
+        Observable<Message<JsonObject>> contractStream = consumer.toObservable();
+        contractStream.subscribe(message -> {
+            final JsonObject body = message.body();
+            logger.info("requesting contract: " + body);
+            final int productCode = Integer.parseInt(body.getString("conId"));
+            Contract contract = new Contract();
+            contract.conid(productCode);
+            String errorChannel = ibrokersClient.requestContract(contract);
+            Observable<JsonObject> errorStream =
+                    vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
+            errorStream.subscribe(errorMessage -> {
+                logger.error("failed to request contract '" + productCode + "': " + errorMessage);
+                Gson gson = new GsonBuilder().create();
+                JsonObject product = new JsonObject(gson.toJson(contract));
+                message.reply(createErrorReply(errorMessage, product));
+            });
+            message.reply(createSuccessReply(body));
+        });
+    }
+
+    private static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
         JsonObject result = new JsonObject();
         result.put("error", errorMessage);
         result.put("content", content);
@@ -194,14 +214,6 @@ public class MarketDataVerticle extends AbstractVerticle {
             }
             message.reply(result);
         });
-    }
-
-    public static ObservableFuture<Message<JsonObject>> createContractStream(Vertx vertx, Integer ibCode) {
-        JsonObject product = new JsonObject().put("conId", Integer.toString(ibCode));
-        ObservableFuture<Message<JsonObject>> contractStream = RxHelper.observableFuture();
-        logger.info("requesting subscription for product: " + ibCode);
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, product, contractStream.toHandler());
-        return contractStream;
     }
 
     public static void adminCommand(Vertx vertx, String commandLine) {
@@ -263,6 +275,7 @@ public class MarketDataVerticle extends AbstractVerticle {
                 org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,
                         ibrokersClient);
                 setupContractRetrieve(vertx, ibrokersClient);
+                setupContractDownload(vertx, ibrokersClient);
                 setupHistoricalEOD(vertx, ibrokersClient);
                 setupSubscribeTick(vertx, ibrokersClient);
                 setupUnsubscribeTick(vertx);

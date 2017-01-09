@@ -9,11 +9,9 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.MutableQuote;
-import org.omarket.trading.quote.Quote;
-import org.omarket.trading.quote.QuoteConverter;
-import org.omarket.trading.quote.QuoteFactory;
+import org.omarket.trading.quote.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +21,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -30,10 +29,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 
 import static org.omarket.trading.ContractDB.saveContract;
 import static org.omarket.trading.MarketData.createChannelQuote;
@@ -56,6 +52,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private final SimpleDateFormat formatYearMonthDay;
     private final SimpleDateFormat formatHour;
     private Integer lastRequestId = null;
+    private Set<Integer> updateContractDB = new TreeSet<>();
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
@@ -88,9 +85,16 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return lastRequestId;
     }
 
-    public String request(Contract contract, Message<JsonObject> message) {
+    public String requestContract(Contract contract, Message<JsonObject> message) {
         Integer newRequestId = newRequestId();
         callbackMessages.put(newRequestId, message);
+        getClient().reqContractDetails(newRequestId, contract);
+        return getErrorChannel(newRequestId);
+    }
+
+    public String requestContract(Contract contract) {
+        Integer newRequestId = newRequestId();
+        this.updateContractDB.add(newRequestId);
         getClient().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
     }
@@ -110,22 +114,21 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return getErrorChannel(requestId);
     }
 
-    public String subscribe(Security contractDetails, BigDecimal minTick) throws IOException {
-        Contract contract = contractDetails.toContractDetails().contract();
+    public String subscribe(Security security) throws IOException {
+        int requestId = newRequestId();
+        Contract contract = security.toContractDetails().contract();
         Integer ibCode = contract.conid();
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
             return null;
         }
-        int requestId = newRequestId();
         Files.createDirectories(storageDirPath);
-        logger.info("min tick for contract " + ibCode + ": " + minTick);
-        Path productStorage = prepareTickPath(storageDirPath, contractDetails);
-        saveContract(contractsDBPath, contractDetails);
+        Path productStorage = prepareTickPath(storageDirPath, security);
+        saveContract(contractsDBPath, security);
         subscribed.put(ibCode, productStorage);
-        orderBooks.put(requestId, new ImmutablePair<>(QuoteFactory.createMutable(minTick, ibCode.toString()),
-                contract));
-        logger.info("requesting market data for " + contractDetails);
+        MutableQuote quote = QuoteFactory.createMutable(security.getMinTick(), security.getCode());
+        orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
+        logger.info("requesting market data for " + security);
         getClient().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
     }
@@ -134,8 +137,19 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     public void contractDetails(int requestId, ContractDetails contractDetails) {
         Gson gson = new GsonBuilder().create();
         JsonObject product = new JsonObject(gson.toJson(contractDetails));
-        Message<JsonObject> message = callbackMessages.get(requestId);
-        message.reply(createSuccessReply(product));
+        if(callbackMessages.containsKey(requestId)) {
+            Message<JsonObject> message = callbackMessages.get(requestId);
+            message.reply(createSuccessReply(product));
+        }
+        if(updateContractDB.contains(requestId)) {
+            Security security = Security.fromContractDetails(contractDetails);
+            try {
+                ContractDB.saveContract(Paths.get("data", "contracts"), security);
+                updateContractDB.remove(requestId);
+            } catch (IOException e) {
+                logger.error("failed to update contract db", e);
+            }
+        }
     }
 
     @Override

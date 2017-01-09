@@ -58,11 +58,11 @@ public class StatsUtilsTest {
         long seed = 73339045431L; // Fixed seed means same results every time
         RandomGenerator rg0 = RandomGeneratorFactory.createRandomGenerator(new Random(seed));
         UniformRandomGenerator randomGenerator = new UniformRandomGenerator(rg0);
-        RandomVectorGenerator rg = new UncorrelatedRandomVectorGenerator(20000, randomGenerator);
+        RandomVectorGenerator rg = new UncorrelatedRandomVectorGenerator(10000, randomGenerator);
         double[] sample = rg.nextVector();
         RealVector vector = MatrixUtils.createRealVector(sample);
         RealMatrix ones = StatsUtils.ones(vector.getDimension());
-        assertEquals(140.2754110, ones.operate(vector).getEntry(0), 1E-7);
+        assertEquals(33.5067181, ones.operate(vector).getEntry(0), 1E-7);
     }
 
     @Test

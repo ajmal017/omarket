@@ -22,12 +22,12 @@ public class ContractFetcher implements Func1<String, Observable<? extends Messa
 
     @Override
     public Observable<? extends Message<JsonObject>> call(String code) {
-        JsonObject contract = new JsonObject().put("conId", code);
+        JsonObject contractCode = new JsonObject().put("conId", code);
         ObservableFuture<Message<JsonObject>> contractStream =
                 io.vertx.rx.java.RxHelper.observableFuture();
         DeliveryOptions deliveryOptions = new DeliveryOptions();
         deliveryOptions.setSendTimeout(10000);
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract,
+        vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_DOWNLOAD, contractCode,
                 deliveryOptions, contractStream.toHandler());
         return contractStream;
     }

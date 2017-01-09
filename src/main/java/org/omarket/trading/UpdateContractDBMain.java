@@ -28,7 +28,6 @@ public class UpdateContractDBMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateContractDBMain.class);
 
     public static void main(String[] args) throws InterruptedException {
-
         final Vertx vertx = Vertx.vertx();
         int defaultClientId = 2;
         DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
@@ -39,44 +38,38 @@ public class UpdateContractDBMain {
             try {
                 URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");
                 if (etfsResource != null) {
-                        URI resourceURI = etfsResource.toURI();
-                        Path etfsPath = Paths.get(resourceURI);
-                        JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
-                        Type typeOfEtfsList = new TypeToken<List<String>>() {
-                        }.getType();
-                        Gson gson = new Gson();
-                        List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
-                        codesStream = Observable.from(ibCodesETFs);
+                    URI resourceURI = etfsResource.toURI();
+                    Path etfsPath = Paths.get(resourceURI);
+                    JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
+                    Type typeOfEtfsList = new TypeToken<List<String>>() {
+                    }.getType();
+                    Gson gson = new Gson();
+                    List<String> ibCodesETFs = gson.fromJson(reader, typeOfEtfsList);
+                    codesStream = Observable.from(ibCodesETFs);
                 }
             } catch (URISyntaxException | IOException e) {
                 logger.error("failed to load resource: ", e);
                 vertx.close();
             }
             return codesStream;
-        }).concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
-                .flatMap(new ContractFetcher(vertx)).doOnNext(result -> {
-            JsonObject error = result.body().getJsonObject("error");
-            if (!error.equals(MarketDataVerticle.EMPTY)) {
-                logger.error("error occured:" + error);
-            }
-        }).filter(response -> response.body().getJsonObject("error").equals(MarketDataVerticle.EMPTY)).subscribe
-                (response -> {
-            JsonObject envelopJson = response.body();
-            JsonObject product = envelopJson.getJsonObject("content");
-            try {
-                // TODO: parameters
-                Security contractDetails = Security.fromJson(product);
-                ContractDB.saveContract(Paths.get("data", "contracts"), contractDetails);
-            } catch (IOException e) {
-                logger.error("failed to save to contracts db", e);
-            }
-        }, failed -> {
-            logger.error("terminating - unrecoverable error occurred:" + failed);
-            System.exit(0);
-        }, () -> {
-            logger.info("completed");
-            System.exit(0);
-        });
+        })
+                .concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
+                .flatMap(new ContractFetcher(vertx))
+                .doOnNext(result -> {
+                    JsonObject error = result.body().getJsonObject("error");
+                    if (!error.equals(MarketDataVerticle.EMPTY)) {
+                        logger.error("error occured:" + error);
+                    }
+                })
+                .subscribe(response -> {
+                    logger.info("processed: " + response);
+                }, failed -> {
+                    logger.error("terminating - unrecoverable error occurred:", failed);
+                    System.exit(0);
+                }, () -> {
+                    logger.info("completed");
+                    System.exit(0);
+                });
     }
 
 }

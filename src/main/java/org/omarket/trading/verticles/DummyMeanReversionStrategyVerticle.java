@@ -121,8 +121,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
          */
         @Override
         public RealMatrix getProcessNoise() {
-            // TODO
-            return null;
+            return new DiagonalMatrix(new double[]{1., 1.});
         }
 
         @Override
@@ -154,8 +153,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
          */
         @Override
         public RealMatrix getMeasurementNoise() {
-            // TODO
-            return null;
+            return MatrixUtils.createRowRealMatrix(new double[]{1., 1.});
         }
 
         void setMeasurement(double value){

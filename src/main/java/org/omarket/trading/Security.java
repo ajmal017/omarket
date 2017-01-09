@@ -4,6 +4,9 @@ import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.core.json.JsonObject;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+
 /**
  * Created by christophe on 09/01/17.
  */
@@ -58,8 +61,8 @@ public class Security {
         return securityType;
     }
 
-    public Double minTick() {
-        return minTick;
+    public BigDecimal getMinTick() {
+        return new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros();
     }
 
     public ContractDetails toContractDetails(){
@@ -78,5 +81,17 @@ public class Security {
 
     public String getSymbol() {
         return symbol;
+    }
+
+    public static Security fromContractDetails(ContractDetails contractDetails) {
+        Contract contract = contractDetails.contract();
+        String code = String.valueOf(contractDetails.conid());
+        String symbol = contract.localSymbol();
+        String currency = contract.currency();
+        String primaryExchange = contract.primaryExch();
+        String exchange = contract.exchange();
+        String securityType = contract.getSecType();
+        Double minTick = contractDetails.minTick();
+        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick);
     }
 }
