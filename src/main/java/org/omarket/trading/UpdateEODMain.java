@@ -9,13 +9,16 @@ import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
+    private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");;
 
     public static void main(String[] args) throws InterruptedException, IOException {
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
@@ -44,11 +47,19 @@ public class UpdateEODMain {
                             fromDate.add(Calendar.YEAR, -5);
                             fromDate.set(Calendar.DAY_OF_MONTH, 1);
                             fromDate.set(Calendar.MONTH, Calendar.JANUARY);
-                            List<HistoricalQuote> bars = stock.getHistory(fromDate);
-                            // TODO: load map from file, override with new bars and write back
+                            List<HistoricalQuote> bars = stock.getHistory(fromDate, Interval.DAILY);
                             Paths.get("eod", "contracts");
+                            String exchange = stock.getStockExchange();
                             for(HistoricalQuote bar: bars){
-                                logger.info("bar: " + bar);
+                                Calendar date = bar.getDate();
+                                BigDecimal high = bar.getHigh();
+                                BigDecimal open = bar.getOpen();
+                                BigDecimal low = bar.getLow();
+                                BigDecimal close = bar.getClose();
+                                Long volume = bar.getVolume();
+                                BigDecimal adjustedClose = bar.getAdjClose();
+                                logger.info("date: " + FORMAT_YYYYMMDD.format(date));
+                                logger.info("close: " + adjustedClose);
                             }
                         }
                     } catch (IOException e) {
