@@ -32,6 +32,7 @@ public class UpdateEODMain {
                 .first()
                 .subscribe(symbols -> {
                     try {
+                        logger.info("processing: " + symbols);
                         Map<String, Stock> stocks = YahooFinance.get(symbols.toArray(new String[]{}), true);
                         logger.info("retrieved: " + stocks);
                     } catch (IOException e) {

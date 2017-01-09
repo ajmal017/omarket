@@ -8,10 +8,22 @@ import io.vertx.core.json.JsonObject;
  * Created by christophe on 09/01/17.
  */
 public class Security {
-    private ContractDetails underlying;
+    private final String code;
+    private final String symbol;
+    private final String currency;
+    private final String primaryExchange;
+    private final String exchange;
+    private final String securityType;
+    private final Double minTick;
 
-    public Security(ContractDetails contractDetails){
-        underlying = contractDetails;
+    public Security(String code, String symbol, String currency, String primaryExchange, String exchange, String securityType, Double minTick) {
+        this.code = code;
+        this.symbol = symbol;
+        this.currency = currency;
+        this.primaryExchange = primaryExchange;
+        this.exchange = exchange;
+        this.securityType = securityType;
+        this.minTick = minTick;
     }
 
     public static Security fromJson(JsonObject contractDetails){
@@ -20,47 +32,51 @@ public class Security {
         String primaryExchange = contract.getString("m_primaryExch");
         String exchange = contract.getString("m_exchange");
         String securityType = contract.getString("m_secType");
-        Integer conId = contract.getInteger("m_conid");
+        String conId = String.valueOf(contract.getInteger("m_conid"));
+        String localSymbol = contract.getString("m_localSymbol");
+        Double minTick = contractDetails.getDouble("m_minTick");
+        return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick);
+    }
+
+    public String getCode(){
+        return code;
+    }
+
+    public String getCurrency(){
+        return currency;
+    }
+    public String getExchange(){
+        String defaultExchange;
+        if(primaryExchange != null){
+            defaultExchange = primaryExchange;
+        } else {
+            defaultExchange = exchange;
+        }
+        return defaultExchange;
+    }
+    public String getSecurityType(){
+        return securityType;
+    }
+
+    public Double minTick() {
+        return minTick;
+    }
+
+    public ContractDetails toContractDetails(){
         ContractDetails ibContractDetails = new ContractDetails();
+        ibContractDetails.minTick(minTick);
         Contract ibContract = new Contract();
-        ibContract.conid(conId);
+        ibContract.conid(Integer.valueOf(code));
         ibContract.currency(currency);
         ibContract.primaryExch(primaryExchange);
         ibContract.secType(securityType);
         ibContract.exchange(exchange);
+        ibContract.localSymbol(symbol);
         ibContractDetails.contract(ibContract);
-        return new Security(ibContractDetails);
-    }
-
-    public String getCode(){
-        return String.valueOf(underlying.conid());
-    }
-
-    public String getCurrency(){
-        return underlying.contract().currency();
-    }
-    public String getExchange(){
-        String exchange = null;
-        if(underlying.contract().primaryExch() != null){
-            exchange = underlying.contract().primaryExch();
-        } else {
-            exchange = underlying.contract().exchange();
-        }
-        return exchange;
-    }
-    public String getSecurityType(){
-        return underlying.contract().getSecType();
-    }
-
-    public Double minTick() {
-        return underlying.minTick();
-    }
-
-    public ContractDetails toContractDetails(){
-        return underlying;
+        return ibContractDetails;
     }
 
     public String getSymbol() {
-        return underlying.contract().localSymbol();
+        return symbol;
     }
 }
