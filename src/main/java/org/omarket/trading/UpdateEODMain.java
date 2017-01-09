@@ -25,12 +25,16 @@ public class UpdateEODMain {
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
             @Override
             public boolean accept(String content) {
-                return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK") && getCurrency().equals
-                        ("USD");
+                boolean exchangeMatch = getPrimaryExchange().equals("ARCA");
+                boolean typeMatch = getSecurityType().equals("STK");
+                boolean currencyMatch = getCurrency().equals("USD");
+                return exchangeMatch && typeMatch && currencyMatch;
             }
         };
         Observable<JsonObject> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
-        contracts.subscribe(contract -> logger.info("loaded contracts: " + contract));
+        contracts.subscribe(contract -> {
+            logger.info("loaded contracts: " + contract);
+        });
     }
 
     public static void main2(String[] args) throws InterruptedException {
@@ -50,7 +54,7 @@ public class UpdateEODMain {
             };
             Observable<JsonObject> contracts = Observable.empty();
             try {
-               contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
+                contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
             } catch (IOException e) {
                 logger.error("an error occured while accessing contracts DB", e);
             }

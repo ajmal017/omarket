@@ -122,8 +122,7 @@ public class ContractDB {
         PublishSubject<JsonObject> contractsStream = PublishSubject.create();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
             {
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
