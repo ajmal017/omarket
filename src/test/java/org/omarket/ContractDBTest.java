@@ -3,12 +3,12 @@ package org.omarket;
 import io.vertx.core.json.JsonObject;
 import org.junit.Test;
 import org.omarket.trading.ContractDB;
-import rx.Observable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.omarket.trading.ContractDB.loadContract;
@@ -19,10 +19,12 @@ import static org.omarket.trading.ContractDB.loadContracts;
  */
 public class ContractDBTest {
 
+    private static Logger logger = LoggerFactory.getLogger(ContractDBTest.class);
+
     @Test
     public void loadContractsAll() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        ContractDB.ContractFilter filter = ContractDB.ALL;
+        ContractDB.ContractFilter filter = ContractDB.FILTER_NONE;
         rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
     }
@@ -52,5 +54,37 @@ public class ContractDBTest {
     public void loadOneContractFail() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         loadContract(contractsDirPath, "abcdef");
+    }
+
+    @Test
+    public void loadContractsChainedFilters() throws Exception {
+        ContractDB.ContractFilter currencyFilter = ContractDB.filterCurrency("USD");
+        ContractDB.ContractFilter exchangeFilter = ContractDB.filterExchange("ARCA");
+        ContractDB.ContractFilter typeFilter = ContractDB.filterSecurityType("STK");
+        ContractDB.ContractFilter filter = ContractDB.composeFilter(currencyFilter, exchangeFilter,typeFilter);
+        Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
+        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));
+        contractsStream.subscribe(details -> {
+            JsonObject contract = details.getJsonObject("m_contract");
+            assertEquals("USD", contract.getString("m_currency"));
+            assertEquals("STK", contract.getString("m_secType"));
+            assertEquals("ARCA", contract.getString("m_primaryExch"));
+        });
+    }
+
+    @Test
+    public void loadMoreContractsChainedFilters() throws Exception {
+        ContractDB.ContractFilter currencyFilter = ContractDB.filterCurrency("USD");
+        ContractDB.ContractFilter typeFilter = ContractDB.filterSecurityType("STK");
+        ContractDB.ContractFilter filter = ContractDB.composeFilter(currencyFilter, typeFilter);
+        Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
+        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
+        contractsStream.subscribe(details -> {
+            JsonObject contract = details.getJsonObject("m_contract");
+            assertEquals("USD", contract.getString("m_currency"));
+            assertEquals("STK", contract.getString("m_secType"));
+        });
     }
 }

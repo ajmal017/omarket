@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -21,13 +23,70 @@ import java.util.stream.Collectors;
 public class ContractDB {
 
     private final static Logger logger = LoggerFactory.getLogger(ContractDB.class);
-    public static ContractFilter ALL = new ContractFilter(){
+    public final static ContractFilter FILTER_NONE = new ContractFilter(){
 
         @Override
         protected boolean accept(String content) {
             return true;
         }
     };
+
+    public final static ContractFilter filterCurrency(String currencyCode){
+        return new ContractFilter() {
+            @Override
+            protected boolean accept(String content) {
+                return getCurrency().equals(currencyCode);
+            }
+        };
+    }
+
+    public final static ContractFilter filterExchange(String exchangeCode){
+        return new ContractFilter() {
+            @Override
+            protected boolean accept(String content) {
+                return getPrimaryExchange().equals(exchangeCode);
+            }
+        };
+    }
+
+    public final static ContractFilter filterSecurityType(String securityType){
+        return new ContractFilter() {
+            @Override
+            protected boolean accept(String content) {
+                return getSecurityType().equals(securityType);
+            }
+        };
+    }
+
+    public static ContractFilter composeFilter(ContractFilter... filters) {
+        return new ContractFilter() {
+
+            @Override
+            protected String prepare(Path path) throws IOException {
+                int count = path.getNameCount();
+                for(ContractFilter filter: filters){
+                    filter.prepare(path);
+                    filter.filename = path.getFileName();
+                    filter.primaryExchange = path.getName(count - 3);
+                    filter.currency = path.getName(count - 4);
+                    filter.securityType = path.getName(count - 5);
+                }
+                return super.prepare(path);
+            }
+
+            @Override
+            protected boolean accept(String content) {
+                boolean accepted = true;
+                for(ContractFilter filter: filters){
+                    if(!filter.accept(content)){
+                        accepted = false;
+                        break;
+                    }
+                }
+                return accepted;
+            }
+        };
+    }
 
     public abstract static class ContractFilter{
 
@@ -60,7 +119,9 @@ public class ContractDB {
         public String getSecurityType() {
             return securityType.toString();
         }
+
         protected abstract boolean accept(String content);
+
     }
 
     public static JsonObject loadContract(Path contractsDirPath, String productCode) throws IOException {
@@ -119,20 +180,20 @@ public class ContractDB {
     }
 
     public static Observable<JsonObject> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
-        PublishSubject<JsonObject> contractsStream = PublishSubject.create();
+        List<JsonObject> contracts = new LinkedList<>();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
             {
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
-                    logger.debug("processing file: " + file);
                     JsonObject contract =  new JsonObject(content);
-                    contractsStream.onNext(contract);
+                    contracts.add(contract);
+                    logger.debug("added contract: " + contract);
                 }
                 return FileVisitResult.CONTINUE;
             }
         });
-        return contractsStream;
+        return Observable.from(contracts);
     }
 }
