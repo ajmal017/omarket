@@ -9,7 +9,7 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.ContractConverter;
+import org.omarket.trading.Security;
 import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
@@ -72,7 +72,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static Path prepareTickPath(Path storageDirPath, ContractDetails contractDetails) throws IOException {
+    private static Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
         Integer ibCode = contractDetails.conid();
         Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
         logger.info("preparing storage for contract: " + productStorage);
@@ -110,7 +110,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return getErrorChannel(requestId);
     }
 
-    public String subscribe(ContractDetails contractDetails, BigDecimal minTick) throws IOException {
+    public String subscribe(Security contractDetails, BigDecimal minTick) throws IOException {
         Contract contract = contractDetails.contract();
         Integer ibCode = contract.conid();
         if (subscribed.containsKey(ibCode)) {

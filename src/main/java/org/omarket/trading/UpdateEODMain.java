@@ -1,5 +1,7 @@
 package org.omarket.trading;
 
+import com.ib.client.Contract;
+import com.ib.client.ContractDetails;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
@@ -34,11 +36,10 @@ public class UpdateEODMain {
                 return exchangeMatch && typeMatch && currencyMatch;
             }
         };
-        Observable<JsonObject> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
+        Observable<Security> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
         contracts
                 .map(details -> {
-                    JsonObject contract = details.getJsonObject("m_contract");
-                    return contract.getString("m_localSymbol");
+                    return details.contract().localSymbol();
                 })
                 .buffer(10)
                 .first()
@@ -50,51 +51,6 @@ public class UpdateEODMain {
                         logger.error("failed to retrieve yahoo data", e);
                     }
                 });
-    }
-
-    public static void main2(String[] args) throws InterruptedException {
-
-        final Vertx vertx = Vertx.vertx();
-        int defaultClientId = 4;
-        DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
-        marketDataDeployment.flatMap(deploymentId -> {
-            logger.info("succesfully deployed market data verticle: " + deploymentId);
-            ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
-                @Override
-                public boolean accept(String content) {
-                    return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK") && getCurrency()
-                            .equals("USD");
-                }
-            };
-            Observable<JsonObject> contracts = Observable.empty();
-            try {
-                contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
-            } catch (IOException e) {
-                logger.error("an error occured while accessing contracts DB", e);
-            }
-            return contracts;
-        }).concatMap(object -> Observable.just(object).delay(100, TimeUnit.MILLISECONDS))  // throttling
-                .flatMap(object -> {
-                    JsonObject product = (JsonObject) object;
-                    JsonObject contract = product.getJsonObject("m_contract");
-                    logger.info("processing contract: " + contract);
-                    DeliveryOptions deliveryOptions = new DeliveryOptions();
-                    deliveryOptions.setSendTimeout(10000);
-                    ObservableFuture<Message<JsonArray>> eodStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_EOD_REQUEST, product, deliveryOptions, eodStream
-                            .toHandler());
-                    return eodStream;
-                }).subscribe(barsMessage -> {
-            JsonArray bars = barsMessage.body();
-            logger.info("next: " + bars);
-        }, failed -> {
-            logger.error("terminating - unrecoverable error occurred:" + failed);
-            System.exit(0);
-        }, () -> {
-            logger.info("completed");
-            System.exit(0);
-        });
     }
 
 }

@@ -1,5 +1,6 @@
 package org.omarket.trading.verticles;
 
+import com.ib.client.ContractDetails;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -8,6 +9,7 @@ import org.apache.commons.math3.filter.KalmanFilter;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
 import org.apache.commons.math3.linear.*;
+import org.omarket.trading.Security;
 import org.omarket.trading.quote.Quote;
 
 import java.math.BigDecimal;
@@ -56,7 +58,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
      * @param sampledQuotes sampled data
      */
     @Override
-    public void processQuotes(Map<String, JsonObject> contracts, Map<String, Deque<Quote>> quotes, Map<String, DataFrame> sampledQuotes) {
+    public void processQuotes(Map<String, Security> contracts, Map<String, Deque<Quote>> quotes, Map<String, DataFrame> sampledQuotes) {
         if (sampledQuotes.get(IB_CODE_GCG7) == null || sampledQuotes.get(IB_CODE_GDX_ARCA) == null) {
             return;
         }
@@ -93,50 +95,6 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             logger.info("estimates: " + Arrays.asList(filter.getStateEstimation()));
         }
 
-        /*
-        for(String productCode: sampledQuotes.keySet()){
-            Deque<Quote> productQuotes = sampledQuotes.get(productCode);
-            int length = 0;
-            if (productQuotes != null){
-                length = productQuotes.size();
-            }
-            logger.info("length of sampled quotes history for " + productCode + ": " + length);
-        }
-        for(String productCode: sampledQuotes.keySet()){
-            Deque<Quote> productQuotes = sampledQuotes.get(productCode);
-            String range = null;
-            if (productQuotes != null){
-                range = "[" + productQuotes.getFirst().getLastModified() + ", " + productQuotes.getLast().getLastModified() + "]";
-            }
-            logger.info("range samples: " + range);
-        }
-        for(String productCode: quotes.keySet()){
-            Deque<Quote> productQuotes = quotes.get(productCode);
-            int length = 0;
-            if (productQuotes != null){
-                length = productQuotes.size();
-            }
-            logger.info("length of quotes history for " + productCode + ": " + length);
-        }
-        */
-        /*
-        for(String productCode: sampledQuotes.keySet()){
-            if (!productCode.equals(IB_CODE_EUR_CHF)) {
-                continue;
-            }
-            Deque<Quote> samples = sampledQuotes.get(productCode);
-            for(Quote sample: samples){
-                logger.info("available sample: " + sample.getLastModified());
-            }
-            Quote quote = quoteRecordsByProduct.get(productCode);
-            BigDecimal midPrice = quote.getBestBidPrice().add(quote.getBestAskPrice()).divide(BigDecimal.valueOf(2));
-            JsonObject message = new JsonObject();
-            message.put("signal", midPrice.doubleValue());
-            message.put("thresholdLow1", (1 - 3 * getParameters().getDouble("thresholdStep")) * midPrice.doubleValue());
-            logger.debug("emitting: " + message + " (timestamp: " + quote.getLastModified() + ")");
-            vertx.eventBus().send(ADDRESS_STRATEGY_SIGNAL, message);
-        }
-        */
         logger.info("*** completed processing quote ***");
     }
 

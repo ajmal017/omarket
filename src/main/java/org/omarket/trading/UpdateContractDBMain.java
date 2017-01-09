@@ -66,7 +66,7 @@ public class UpdateContractDBMain {
             JsonObject product = envelopJson.getJsonObject("content");
             try {
                 // TODO: parameters
-                ContractDetails contractDetails = ContractConverter.fromJson(product);
+                Security contractDetails = Security.fromJson(product);
                 ContractDB.saveContract(Paths.get("data", "contracts"), contractDetails);
             } catch (IOException e) {
                 logger.error("failed to save to contracts db", e);

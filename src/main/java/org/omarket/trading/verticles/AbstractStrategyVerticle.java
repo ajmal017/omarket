@@ -1,5 +1,6 @@
 package org.omarket.trading.verticles;
 
+import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -7,6 +8,7 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import joinery.DataFrame;
+import org.omarket.trading.Security;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import rx.Observable;
@@ -74,15 +76,15 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         return parameters;
     }
 
-    private Map<String, JsonObject> createProducts() throws IOException {
+    private Map<String, Security> createProducts() throws IOException {
         JsonArray pathElements = config().getJsonArray(VerticleProperties.PROPERTY_CONTRACT_DB_PATH);
         String contractDBPathName = String.join(File.separator, pathElements.getList());
         Path contractDBPath = FileSystems.getDefault().getPath(contractDBPathName);
         String[] productCodes = getProductCodes();
-        Map<String, JsonObject> products = new HashMap<>();
+        Map<String, Security> products = new HashMap<>();
         for(String productCode: productCodes){
-            JsonObject product = loadContract(contractDBPath, productCode);
-            products.put(productCode, product);
+            Security contract = loadContract(contractDBPath, productCode);
+            products.put(productCode, contract);
         }
         return products;
     }
@@ -111,7 +113,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                             }
                         });
 
-                Map<String, JsonObject> contracts = createProducts();
+                Map<String, Security> contracts = createProducts();
                 final QuoteProcessor tickDataProcessor = new QuoteProcessor(getSampleDataUnit(), contracts);
                 tickStream.subscribe(
                                 tickDataProcessor,
@@ -265,9 +267,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     private class QuoteProcessor implements Action1<Quote> {
         private final SampledQuoteHistory sampleQuotes;
         private final QuoteHistory quotes;
-        private final Map<String, JsonObject> contracts;
+        private final Map<String, Security> contracts;
 
-        QuoteProcessor(ChronoUnit samplingUnit, Map<String, JsonObject> contracts) {
+        QuoteProcessor(ChronoUnit samplingUnit, Map<String, Security> contracts) {
             this.sampleQuotes = new SampledQuoteHistory(getSampledDataSize(), samplingUnit);
             this.quotes = new QuoteHistory(getSampledDataSize());
             this.contracts = contracts;

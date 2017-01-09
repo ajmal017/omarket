@@ -1,23 +1,17 @@
 package org.omarket.trading;
 
-import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
-import rx.subjects.PublishSubject;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -134,7 +128,7 @@ public class ContractDB {
 
     }
 
-    public static JsonObject loadContract(Path contractsDirPath, String productCode) throws IOException {
+    public static Security loadContract(Path contractsDirPath, String productCode) throws IOException {
         final Path[] targetFile = new Path[1];
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
@@ -154,10 +148,10 @@ public class ContractDB {
             throw new IOException("missing data for contract: " + productCode);
         }
         String content = Files.lines(descriptionFilePath, StandardCharsets.UTF_8).collect(Collectors.joining());
-        return new JsonObject(content);
+        return Security.fromJson(new JsonObject(content));
     }
 
-    public static void saveContract(Path contractsDirPath, ContractDetails product) throws IOException {
+    public static void saveContract(Path contractsDirPath, Security product) throws IOException {
         String primaryExchange = product.contract().primaryExch();
         if(primaryExchange == null){
             primaryExchange = product.contract().exchange();
@@ -188,8 +182,8 @@ public class ContractDB {
         logger.info("saved contract: " + filePath);
     }
 
-    public static Observable<JsonObject> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
-        List<JsonObject> contracts = new LinkedList<>();
+    public static Observable<Security> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
+        List<Security> contracts = new LinkedList<>();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
@@ -201,7 +195,7 @@ public class ContractDB {
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
                     JsonObject contract =  new JsonObject(content);
-                    contracts.add(contract);
+                    contracts.add(Security.fromJson(contract));
                     logger.debug("added contract: " + contract);
                 }
                 return FileVisitResult.CONTINUE;
@@ -209,6 +203,7 @@ public class ContractDB {
         });
         return Observable.from(contracts);
     }
+
     public static void updateEOD(JsonObject contractDetails){
 
 

@@ -15,7 +15,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
-import org.omarket.trading.ContractConverter;
+import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import rx.Observable;
@@ -43,7 +43,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
     public static final JsonObject EMPTY = new JsonObject();
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
-    private final static Map<String, ContractDetails> subscribedProducts = new HashMap<>();
+    private final static Map<String, Security> subscribedProducts = new HashMap<>();
 
     public static String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
@@ -54,7 +54,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     }
 
     private static String getProductAsString(String ibCode) {
-        ContractDetails product = subscribedProducts.get(ibCode);
+        Security product = subscribedProducts.get(ibCode);
         if (product == null) {
             logger.error("product not found for : " + ibCode);
             return null;
@@ -70,7 +70,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
-            final ContractDetails contractDetails = ContractConverter.fromJson(message.body());
+            final Security contractDetails = Security.fromJson(message.body());
             logger.info("received tick subscription request for: " + contractDetails);
             Integer productCode = contractDetails.conid();
             if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
@@ -220,11 +220,11 @@ public class MarketDataVerticle extends AbstractVerticle {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {
-            final ContractDetails contractDetails = ContractConverter.fromJson(request.body());
+            final Security contractDetails = Security.fromJson(request.body());
             Integer productCode = contractDetails.conid();
             logger.info("received historical eod request for: " + productCode);
             String replyAddress = ADDRESS_EOD_DATA_PREFIX + "." + productCode;
-            String errorChannel = ibrokersClient.eod(contractDetails, replyAddress);
+            String errorChannel = ibrokersClient.eod(contractDetails.toContractDetails(), replyAddress);
             if (errorChannel != null) {
                 MessageConsumer<JsonObject> errorConsumer = vertx.eventBus().consumer(errorChannel);
                 Observable<JsonObject> errorStream = errorConsumer.bodyStream().toObservable();

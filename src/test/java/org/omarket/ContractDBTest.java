@@ -1,8 +1,8 @@
 package org.omarket;
 
-import io.vertx.core.json.JsonObject;
 import org.junit.Test;
 import org.omarket.trading.ContractDB;
+import org.omarket.trading.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,7 @@ public class ContractDBTest {
     public void loadContractsAll() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         ContractDB.ContractFilter filter = ContractDB.FILTER_NONE;
-        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
     }
 
@@ -38,16 +38,15 @@ public class ContractDBTest {
             }
         };
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));
     }
 
     @Test
     public void loadOneContract() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        JsonObject contract = loadContract(contractsDirPath, "114584777");
-        JsonObject contractJson = contract.getJsonObject("m_contract");
-        assertEquals(new Integer(114584777), contractJson.getInteger("m_conid"));
+        Security contract = loadContract(contractsDirPath, "114584777");
+        assertEquals(114584777, contract.conid());
     }
 
     @Test(expected = IOException.class)
@@ -63,13 +62,12 @@ public class ContractDBTest {
         ContractDB.ContractFilter typeFilter = ContractDB.filterSecurityType("STK");
         ContractDB.ContractFilter filter = ContractDB.composeFilter(currencyFilter, exchangeFilter,typeFilter);
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));
         contractsStream.subscribe(details -> {
-            JsonObject contract = details.getJsonObject("m_contract");
-            assertEquals("USD", contract.getString("m_currency"));
-            assertEquals("STK", contract.getString("m_secType"));
-            assertEquals("ARCA", contract.getString("m_primaryExch"));
+            assertEquals("USD", details.contract().currency());
+            assertEquals("STK", details.contract().getSecType());
+            assertEquals("ARCA", details.contract().primaryExch());
         });
     }
 
@@ -79,12 +77,11 @@ public class ContractDBTest {
         ContractDB.ContractFilter typeFilter = ContractDB.filterSecurityType("STK");
         ContractDB.ContractFilter filter = ContractDB.composeFilter(currencyFilter, typeFilter);
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
-        rx.Observable<JsonObject> contractsStream = loadContracts(contractsDirPath, filter);
+        rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
         contractsStream.subscribe(details -> {
-            JsonObject contract = details.getJsonObject("m_contract");
-            assertEquals("USD", contract.getString("m_currency"));
-            assertEquals("STK", contract.getString("m_secType"));
+            assertEquals("USD", details.contract().currency());
+            assertEquals("STK", details.contract().getSecType());
         });
     }
 }
