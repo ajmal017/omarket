@@ -46,7 +46,7 @@ public class ContractDBTest {
     public void loadOneContract() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         Security contract = loadContract(contractsDirPath, "114584777");
-        assertEquals(114584777, contract.conid());
+        assertEquals("114584777", contract.getCode());
     }
 
     @Test(expected = IOException.class)
@@ -65,9 +65,9 @@ public class ContractDBTest {
         rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));
         contractsStream.subscribe(details -> {
-            assertEquals("USD", details.contract().currency());
-            assertEquals("STK", details.contract().getSecType());
-            assertEquals("ARCA", details.contract().primaryExch());
+            assertEquals("USD", details.getCurrency());
+            assertEquals("STK", details.getSecurityType());
+            assertEquals("ARCA", details.getExchange());
         });
     }
 
@@ -80,8 +80,8 @@ public class ContractDBTest {
         rx.Observable<Security> contractsStream = loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(98), x));
         contractsStream.subscribe(details -> {
-            assertEquals("USD", details.contract().currency());
-            assertEquals("STK", details.contract().getSecType());
+            assertEquals("USD", details.getCurrency());
+            assertEquals("STK", details.getSecurityType());
         });
     }
 }

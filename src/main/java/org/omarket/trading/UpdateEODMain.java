@@ -1,17 +1,5 @@
 package org.omarket.trading;
 
-import com.ib.client.Contract;
-import com.ib.client.ContractDetails;
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.eventbus.DeliveryOptions;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rxjava.core.RxHelper;
-import io.vertx.rxjava.core.Vertx;
-import io.vertx.rxjava.core.eventbus.Message;
-import org.omarket.trading.verticles.MarketDataVerticle;
-import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -21,7 +9,6 @@ import yahoofinance.YahooFinance;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
@@ -39,7 +26,7 @@ public class UpdateEODMain {
         Observable<Security> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
         contracts
                 .map(details -> {
-                    return details.contract().localSymbol();
+                    return details.getSymbol();
                 })
                 .buffer(10)
                 .first()

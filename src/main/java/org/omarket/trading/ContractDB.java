@@ -1,6 +1,5 @@
 package org.omarket.trading;
 
-import com.ib.client.ContractDetails;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -87,7 +86,7 @@ public class ContractDB {
         };
     }
 
-    public static Path findPath(ContractDetails contractDetails){
+    public static Path findPath(Security contractDetails){
         Path path = Paths.get("");
         return path;
     }
@@ -152,14 +151,10 @@ public class ContractDB {
     }
 
     public static void saveContract(Path contractsDirPath, Security product) throws IOException {
-        String primaryExchange = product.contract().primaryExch();
-        if(primaryExchange == null){
-            primaryExchange = product.contract().exchange();
-        }
-        Integer conId = product.contract().conid();
-        String securityType = product.contract().getSecType();
-        String currency = product.contract().currency();
-        String fileBaseName = conId.toString();
+        String primaryExchange = product.getExchange();
+        String securityType = product.getSecurityType();
+        String currency = product.getCurrency();
+        String fileBaseName = product.getCode();
         String fileName = fileBaseName + ".json";
         Path exchangePath = contractsDirPath.resolve(securityType).resolve(currency).resolve(primaryExchange);
         String initials;

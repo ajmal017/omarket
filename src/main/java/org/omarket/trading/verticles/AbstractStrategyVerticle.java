@@ -1,6 +1,5 @@
 package org.omarket.trading.verticles;
 
-import com.ib.client.ContractDetails;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

@@ -3,7 +3,6 @@ package org.omarket.trading.verticles;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
-import com.ib.client.ContractDetails;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.rx.java.ObservableFuture;
@@ -72,13 +71,13 @@ public class MarketDataVerticle extends AbstractVerticle {
         consumer.subscribe(message -> {
             final Security contractDetails = Security.fromJson(message.body());
             logger.info("received tick subscription request for: " + contractDetails);
-            Integer productCode = contractDetails.conid();
-            if (!subscribedProducts.containsKey(Integer.toString(productCode))) {
+            String productCode = contractDetails.getCode();
+            if (!subscribedProducts.containsKey(productCode)) {
                 vertx.executeBlocking(future -> {
                     try {
                         logger.info("subscribing: " + productCode.toString());
                         Double minTick = contractDetails.minTick();
-                        subscribedProducts.put(Integer.toString(productCode), contractDetails);
+                        subscribedProducts.put(productCode, contractDetails);
                         String errorChannel =
                                 ibrokersClient.subscribe(contractDetails, new BigDecimal(minTick, MathContext
                                         .DECIMAL32).stripTrailingZeros());
@@ -221,10 +220,10 @@ public class MarketDataVerticle extends AbstractVerticle {
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {
             final Security contractDetails = Security.fromJson(request.body());
-            Integer productCode = contractDetails.conid();
+            String productCode = contractDetails.getCode();
             logger.info("received historical eod request for: " + productCode);
             String replyAddress = ADDRESS_EOD_DATA_PREFIX + "." + productCode;
-            String errorChannel = ibrokersClient.eod(contractDetails.toContractDetails(), replyAddress);
+            String errorChannel = ibrokersClient.eod(contractDetails, replyAddress);
             if (errorChannel != null) {
                 MessageConsumer<JsonObject> errorConsumer = vertx.eventBus().consumer(errorChannel);
                 Observable<JsonObject> errorStream = errorConsumer.bodyStream().toObservable();

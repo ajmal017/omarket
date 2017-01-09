@@ -1,7 +1,5 @@
 package org.omarket.trading.verticles;
 
-import com.ib.client.ContractDetails;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;

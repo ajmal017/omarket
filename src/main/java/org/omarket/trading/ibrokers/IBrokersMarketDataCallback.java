@@ -73,8 +73,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     }
 
     private static Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
-        Integer ibCode = contractDetails.conid();
-        Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
+        String code = contractDetails.getCode();
+        Path productStorage = storageDirPath.resolve(createChannelQuote(code));
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         return productStorage;
@@ -95,7 +95,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return getErrorChannel(newRequestId);
     }
 
-    public String eod(ContractDetails contractDetails, String replyAddress){
+    public String eod(Security contractDetails, String replyAddress){
         int requestId = newRequestId();
         ZonedDateTime endDate = ZonedDateTime.of(LocalDateTime.now(), ZoneId.from(ZoneOffset.UTC));
         DateTimeFormatter ibrokersFormat = DateTimeFormatter.ofPattern("yyyyMMdd hh:mm:ss");
@@ -106,12 +106,12 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         int rth = 1;
         int useLongDate = 2;
         eodReplies.put(requestId, replyAddress);
-        getClient().reqHistoricalData(requestId, contractDetails.contract(), endDateString, duration , bar, what, rth, useLongDate, null);
+        getClient().reqHistoricalData(requestId, contractDetails.toContractDetails().contract(), endDateString, duration , bar, what, rth, useLongDate, null);
         return getErrorChannel(requestId);
     }
 
     public String subscribe(Security contractDetails, BigDecimal minTick) throws IOException {
-        Contract contract = contractDetails.contract();
+        Contract contract = contractDetails.toContractDetails().contract();
         Integer ibCode = contract.conid();
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);

@@ -8,7 +8,7 @@ import io.vertx.core.json.JsonObject;
  * Created by christophe on 09/01/17.
  */
 public class Security {
-    ContractDetails underlying;
+    private ContractDetails underlying;
 
     public Security(ContractDetails contractDetails){
         underlying = contractDetails;
@@ -32,17 +32,21 @@ public class Security {
         return new Security(ibContractDetails);
     }
 
-    public int conid(){
-        return underlying.conid();
+    public String getCode(){
+        return String.valueOf(underlying.conid());
     }
-    public Contract contract(){
-        return underlying.contract();
-    }
+
     public String getCurrency(){
         return underlying.contract().currency();
     }
-    public String getPrimaryExchange(){
-        return underlying.contract().primaryExch();
+    public String getExchange(){
+        String exchange = null;
+        if(underlying.contract().primaryExch() != null){
+            exchange = underlying.contract().primaryExch();
+        } else {
+            exchange = underlying.contract().exchange();
+        }
+        return exchange;
     }
     public String getSecurityType(){
         return underlying.contract().getSecType();
@@ -54,5 +58,9 @@ public class Security {
 
     public ContractDetails toContractDetails(){
         return underlying;
+    }
+
+    public String getSymbol() {
+        return underlying.contract().localSymbol();
     }
 }
