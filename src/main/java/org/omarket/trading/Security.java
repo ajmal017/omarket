@@ -2,6 +2,7 @@ package org.omarket.trading;
 
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 
 import java.math.BigDecimal;
@@ -93,5 +94,19 @@ public class Security {
         String securityType = contract.getSecType();
         Double minTick = contractDetails.minTick();
         return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick);
+    }
+
+    public String toJson() {
+        JsonObject contractDetails = new JsonObject();
+        JsonObject contract = new JsonObject();
+        contract.put("m_currency", currency);
+        contract.put("m_primaryExch", primaryExchange);
+        contract.put("m_exchange", exchange);
+        contract.put("m_secType", securityType);
+        contract.put("m_conid", Integer.valueOf(code));
+        contract.put("m_localSymbol", symbol);
+        contractDetails.put("m_contract", contract);
+        contractDetails.put("m_minTick", minTick);
+        return Json.encode(contractDetails);
     }
 }

@@ -48,7 +48,7 @@ public class UpdateEODMain {
                             // TODO: load map from file, override with new bars and write back
                             Paths.get("eod", "contracts");
                             for(HistoricalQuote bar: bars){
-
+                                logger.info("bar: " + bar);
                             }
                         }
                     } catch (IOException e) {

@@ -172,7 +172,7 @@ public class ContractDB {
             Files.createFile(filePath);
         }
         BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-        writer.write(Json.encode(product));
+        writer.write(product.toJson());
         writer.close();
         logger.info("saved contract: " + filePath);
     }
