@@ -9,7 +9,7 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.MarketData;
+import org.omarket.trading.ContractConverter;
 import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
@@ -72,8 +72,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static Path prepareTickPath(Path storageDirPath, JsonObject contractDetails) throws IOException {
-        Integer ibCode = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
+    private static Path prepareTickPath(Path storageDirPath, ContractDetails contractDetails) throws IOException {
+        Integer ibCode = contractDetails.conid();
         Path productStorage = storageDirPath.resolve(createChannelQuote(ibCode.toString()));
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
@@ -95,8 +95,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         return getErrorChannel(newRequestId);
     }
 
-    public String eod(JsonObject contractDetails, String replyAddress){
-        Contract contract = makeContract(contractDetails);
+    public String eod(ContractDetails contractDetails, String replyAddress){
         int requestId = newRequestId();
         ZonedDateTime endDate = ZonedDateTime.of(LocalDateTime.now(), ZoneId.from(ZoneOffset.UTC));
         DateTimeFormatter ibrokersFormat = DateTimeFormatter.ofPattern("yyyyMMdd hh:mm:ss");
@@ -107,12 +106,12 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         int rth = 1;
         int useLongDate = 2;
         eodReplies.put(requestId, replyAddress);
-        getClient().reqHistoricalData(requestId, contract, endDateString, duration , bar, what, rth, useLongDate, null);
+        getClient().reqHistoricalData(requestId, contractDetails.contract(), endDateString, duration , bar, what, rth, useLongDate, null);
         return getErrorChannel(requestId);
     }
 
-    public String subscribe(JsonObject contractDetails, BigDecimal minTick) throws IOException {
-        Contract contract = makeContract(contractDetails);
+    public String subscribe(ContractDetails contractDetails, BigDecimal minTick) throws IOException {
+        Contract contract = contractDetails.contract();
         Integer ibCode = contract.conid();
         if (subscribed.containsKey(ibCode)) {
             logger.info("already subscribed: " + ibCode);
@@ -129,16 +128,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("requesting market data for " + contractDetails);
         getClient().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
-    }
-
-    private Contract makeContract(JsonObject contractDetails) {
-        Integer ibCode0 = contractDetails.getJsonObject("m_contract").getInteger("m_conid");
-        Contract contract = new Contract();
-        contract.conid(ibCode0);
-        contract.currency(contractDetails.getJsonObject("m_contract").getString("m_currency"));
-        contract.exchange(contractDetails.getJsonObject("m_contract").getString("m_exchange"));
-        contract.secType(contractDetails.getJsonObject("m_contract").getString("m_sectype"));
-        return contract;
     }
 
     @Override

@@ -13,9 +13,12 @@ import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
+import yahoofinance.Stock;
+import yahoofinance.YahooFinance;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class UpdateEODMain {
@@ -32,9 +35,21 @@ public class UpdateEODMain {
             }
         };
         Observable<JsonObject> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
-        contracts.subscribe(contract -> {
-            logger.info("loaded contracts: " + contract);
-        });
+        contracts
+                .map(details -> {
+                    JsonObject contract = details.getJsonObject("m_contract");
+                    return contract.getString("m_localSymbol");
+                })
+                .buffer(10)
+                .first()
+                .subscribe(symbols -> {
+                    try {
+                        Map<String, Stock> stocks = YahooFinance.get(symbols.toArray(new String[]{}), true);
+                        logger.info("retrieved: " + stocks);
+                    } catch (IOException e) {
+                        logger.error("failed to retrieve yahoo data", e);
+                    }
+                });
     }
 
     public static void main2(String[] args) throws InterruptedException {

@@ -1,5 +1,7 @@
 package org.omarket.trading;
 
+import com.ib.client.Contract;
+import com.ib.client.ContractDetails;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -9,10 +11,13 @@ import rx.Observable;
 import rx.subjects.PublishSubject;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -88,6 +93,11 @@ public class ContractDB {
         };
     }
 
+    public static Path findPath(ContractDetails contractDetails){
+        Path path = Paths.get("");
+        return path;
+    }
+
     public abstract static class ContractFilter{
 
         private Path filename;
@@ -147,15 +157,14 @@ public class ContractDB {
         return new JsonObject(content);
     }
 
-    public static void saveContract(Path contractsDirPath, JsonObject product) throws IOException {
-        JsonObject contract = product.getJsonObject("m_contract");
-        String primaryExchange = contract.getString("m_primaryExch");
+    public static void saveContract(Path contractsDirPath, ContractDetails product) throws IOException {
+        String primaryExchange = product.contract().primaryExch();
         if(primaryExchange == null){
-            primaryExchange = contract.getString("m_exchange");
+            primaryExchange = product.contract().exchange();
         }
-        Integer conId = contract.getInteger("m_conid");
-        String securityType = contract.getString("m_secType");
-        String currency = contract.getString("m_currency");
+        Integer conId = product.contract().conid();
+        String securityType = product.contract().getSecType();
+        String currency = product.contract().currency();
         String fileBaseName = conId.toString();
         String fileName = fileBaseName + ".json";
         Path exchangePath = contractsDirPath.resolve(securityType).resolve(currency).resolve(primaryExchange);
@@ -185,6 +194,10 @@ public class ContractDB {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
             {
+                PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:*.json");
+                if(!matcher.matches(file.getFileName())){
+                    return FileVisitResult.CONTINUE;
+                }
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
                     JsonObject contract =  new JsonObject(content);
@@ -195,5 +208,9 @@ public class ContractDB {
             }
         });
         return Observable.from(contracts);
+    }
+    public static void updateEOD(JsonObject contractDetails){
+
+
     }
 }

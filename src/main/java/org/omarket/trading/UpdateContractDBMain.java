@@ -3,6 +3,7 @@ package org.omarket.trading;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
+import com.ib.client.ContractDetails;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
@@ -65,7 +66,8 @@ public class UpdateContractDBMain {
             JsonObject product = envelopJson.getJsonObject("content");
             try {
                 // TODO: parameters
-                ContractDB.saveContract(Paths.get("data", "contracts"), product);
+                ContractDetails contractDetails = ContractConverter.fromJson(product);
+                ContractDB.saveContract(Paths.get("data", "contracts"), contractDetails);
             } catch (IOException e) {
                 logger.error("failed to save to contracts db", e);
             }
