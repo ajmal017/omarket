@@ -113,22 +113,6 @@ public class Scratchpad {
         sleep(10000);
     }
 
-    public static void saveYahooExamples() throws Exception {
-        String[] symbols = new String[]{"EWC", "EWA", "USO"};
-        Calendar from = Calendar.getInstance();
-        from.add(Calendar.YEAR, -5);
-        Map<String, Stock> stocks = YahooFinance.get(symbols, from, Interval.DAILY);
-        Stock ewc = stocks.get("EWC");
-        Stock ewa = stocks.get("EWA");
-        Stock uso = stocks.get("USO");
-        List<HistoricalQuote> historyEWC = ewc.getHistory();
-        List<HistoricalQuote> historyEWA = ewa.getHistory();
-        List<HistoricalQuote> historyUSO = uso.getHistory();
-        storeObject(Paths.get("data", "ewc-hist.bin"), historyEWC);
-        storeObject(Paths.get("data", "ewa-hist.bin"), historyEWA);
-        storeObject(Paths.get("data", "uso-hist.bin"), historyUSO);
-    }
-
     public static void main(String[] args) throws Exception {
         Path pricesPath = Paths.get("python-lab", "prices.csv");
         DataFrame df = DataFrame.readCsv(Files.newInputStream(pricesPath));
@@ -197,38 +181,6 @@ public class Scratchpad {
             this.measurementMatrix = newMeasurementMatrix;
             this.measurementMatrixT = newMeasurementMatrix.transpose();
         }
-    }
-
-    public static void main1(String[] args) throws Exception {
-        JsonArray defaultStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
-        int defaultClientId = 1;
-        String defaultHost = "127.0.0.1";
-        int defaultPort = 7497;
-        JsonObject jsonConfig = new JsonObject()
-                .put(PROPERTY_IBROKERS_TICKS_PATH, defaultStoragePath)
-                .put("ibrokers.clientId", defaultClientId)
-                .put("ibrokers.host", defaultHost)
-                .put("ibrokers.port", defaultPort)
-                .put("runBacktestFlag", false);
-        DeploymentOptions options = new DeploymentOptions().setConfig(jsonConfig);
-
-        final Vertx vertx = Vertx.vertx();
-
-        JsonArray storageDirs = new JsonArray();
-        storageDirs.add("data");
-        storageDirs.add("ticks");
-        List<String> dirs = storageDirs.getList();
-        Observable<Quote> stream1 = getHistoricalQuoteStream(dirs, "12087817");
-        Observable<Quote> stream2 = getHistoricalQuoteStream(dirs, "12087820");
-        List<Observable<Quote>> quoteStreams = Arrays.asList(stream1, stream2);
-        mergeQuoteStreams(quoteStreams)
-                .map(QuoteConverter::toJSON)
-                .forEach(
-                        quoteJson -> {
-                            logger.info("sending: " + quoteJson);
-                            vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, quoteJson);
-                        }
-                );
     }
 
     private static class RegressionProcessModel implements ProcessModel {

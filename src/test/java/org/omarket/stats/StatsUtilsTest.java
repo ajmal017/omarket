@@ -8,6 +8,8 @@ import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.random.*;
 import org.apache.commons.math3.util.Precision;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +28,8 @@ import static org.omarket.stats.CoIntegration.cointegration_johansen;
  * Created by christophe on 30/12/16.
  */
 public class StatsUtilsTest {
+    private static Logger logger = LoggerFactory.getLogger(StatsUtilsTest.class);
+
     @Test
     public void testDetrend() throws Exception {
         double[][] data = {
@@ -176,7 +180,18 @@ public class StatsUtilsTest {
         }
         RealMatrix matrix = MatrixUtils.createRealMatrix(values);
         CoIntegration.Result result = cointegration_johansen(matrix);
-        // TODO
+        logger.info("result" + result);
+        RealMatrix eigenVectors = MatrixUtils.createRealMatrix(new double[][]{
+                {-1.1871251519, -0.760829071, 0.00019992599},
+                {2.3741590407, 1.5214962767, 0.0472191474},
+                {-3.1458724348, -0.3281778453, -0.046295635}
+        });
+
+        for (int i = 0; i < eigenVectors.getRowDimension(); ++i) {
+            for (int j = 0; j < eigenVectors.getColumnDimension(); ++j) {
+                assertEquals(eigenVectors.getEntry(i, j), result.getEigenVectors().getEntry(i, j), 1.0E-09);
+            }
+        }
     }
 
     @Test

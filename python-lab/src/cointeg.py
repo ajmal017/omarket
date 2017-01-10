@@ -217,11 +217,7 @@ def cointegration_johansen(input_df, lag=1):
     sig = numpy.dot(sk0, numpy.dot(linalg.inv(s00), sk0.T))
     eigenvalues, eigenvectors = linalg.eig(numpy.dot(linalg.inv(skk), sig))
 
-    print('eigenvalues={}'.format(eigenvalues))
-    print('eigenvectors={}'.format(eigenvectors))
-
     # normalizing the eigenvectors such that (du'skk*du) = I
-    print('matrix = {}'.format(numpy.dot(eigenvectors.T, numpy.dot(skk, eigenvectors))))
     temp = linalg.inv(linalg.cholesky(numpy.dot(eigenvectors.T, numpy.dot(skk, eigenvectors))))
     dt = numpy.dot(eigenvectors, temp)
 
