@@ -1,7 +1,11 @@
 import logging
 import argparse
 import os
+
+import itertools
 import pandas
+
+import cointeg
 
 
 def load_security(path_db, exchange, symbol):
@@ -30,7 +34,7 @@ def list_securities(path):
             yield exchange, stock
 
 
-def main(args):
+def prepare_data(args):
     eod_path = args.eod_path
     if eod_path is None:
         eod_path = '.'
@@ -41,14 +45,35 @@ def main(args):
         exchange, stock = data
         securities.append((exchange, stock))
 
-    logging.info('%s' % str(securities))
     df = pandas.DataFrame()
-    for exchange, stock in securities:
+    for count, data in enumerate(securities):
+        exchange, stock = data
         eod_data = load_security(eod_path, exchange, stock)
         df['%s/%s' % (exchange, stock)] = eod_data['close_adj']
+        logging.info('processed: %s/%s %d/%d' % (exchange, stock, count + 1, len(securities)))
 
     logging.info("result:\n%s" % df)
-    df.to_pickle('eod.pkl')
+    df.to_pickle(os.sep.join([eod_path, 'eod.pkl']))
+
+
+def main(args):
+    eod_path = args.eod_path
+    if eod_path is None:
+        eod_path = '.'
+
+    df = pandas.read_pickle(os.sep.join([eod_path, 'eod.pkl']))
+    columns = [column for column in df.columns if column.startswith('PCX/')]
+    logging.info('combining %d series' % len(columns))
+    for count, combination in enumerate(itertools.combinations(columns, 5)):
+        current_df = df[list(combination)].dropna()
+        logging.info('processing:\n%s' % current_df)
+        result = cointeg.cointegration_johansen(current_df)
+        trace_statistic = result['trace_statistic']
+        eigen_vectors = result['eigenvectors']
+        logging.info(trace_statistic)
+        logging.info(eigen_vectors)
+        if count == 10:
+            break
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
@@ -56,6 +81,7 @@ if __name__ == '__main__':
     formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
     file_handler.setFormatter(formatter)
     logging.getLogger().addHandler(file_handler)
+    logging.info('starting script')
     parser = argparse.ArgumentParser(description='Grid using johansen test.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
