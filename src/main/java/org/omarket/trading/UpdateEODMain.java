@@ -25,6 +25,7 @@ public class UpdateEODMain {
     ;
 
     public static void main(String[] args) throws InterruptedException, IOException {
+        final Path eodStorage = Paths.get("data", "eod");
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
             @Override
             public boolean accept(String content) {
@@ -42,62 +43,67 @@ public class UpdateEODMain {
                     try {
                         logger.info("processing: " + symbols);
                         Map<String, Stock> stocks = YahooFinance.get(symbols.toArray(new String[]{}), true);
-                        Path eodStorage = Paths.get("data", "eod");
                         for (String symbol : stocks.keySet()) {
                             logger.info("processing: " + symbol);
                             Stock stock = stocks.get(symbol);
-                            String exchange = stock.getStockExchange();
-                            Path exchangeStorage = eodStorage.resolve(exchange);
-                            Path stockStorage = exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
-                            Calendar fromDate = Calendar.getInstance();
-                            fromDate.add(Calendar.YEAR, -5);
-                            fromDate.set(Calendar.DAY_OF_MONTH, 1);
-                            fromDate.set(Calendar.MONTH, Calendar.JANUARY);
-                            List<HistoricalQuote> bars = stock.getHistory(fromDate, Interval.DAILY);
-                            Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
-                            for (HistoricalQuote bar : bars) {
-                                Calendar date = bar.getDate();
-                                if (!byYear.containsKey(date.get(Calendar.YEAR))) {
-                                    Comparator<HistoricalQuote> sorter = Comparator.comparing(HistoricalQuote::getDate);
-                                    byYear.put(date.get(Calendar.YEAR), new TreeSet<>(sorter));
-                                }
-                                Set<HistoricalQuote> quotes = byYear.get(date.get(Calendar.YEAR));
-                                quotes.add(bar);
-                            }
-                            if (!Files.exists(stockStorage)) {
-                                Files.createDirectories(stockStorage);
-                            }
-                            for (Integer year : byYear.keySet()) {
-                                Set<HistoricalQuote> quotes = byYear.get(year);
-                                Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");
-                                BufferedWriter file = Files.newBufferedWriter(yearEOD, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                                CSVWriter writer = new CSVWriter(file);
-                                quotes.forEach(bar -> {
-                                    Calendar date = bar.getDate();
-                                    BigDecimal high = bar.getHigh();
-                                    BigDecimal open = bar.getOpen();
-                                    BigDecimal low = bar.getLow();
-                                    BigDecimal close = bar.getClose();
-                                    Long volume = bar.getVolume();
-                                    BigDecimal adjustedClose = bar.getAdjClose();
-                                    String[] row = new String[]{
-                                            FORMAT_YYYYMMDD.format(date.getTime()),
-                                            open.toPlainString(),
-                                            high.toPlainString(),
-                                            low.toPlainString(),
-                                            close.toPlainString(),
-                                            adjustedClose.toPlainString(),
-                                            String.valueOf(volume)
-                                    };
-                                    writer.writeNext(row, false);
-                                });
-                                file.close();
-                            }
+                            downloadEOD(stock, eodStorage);
                         }
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
                     }
                 });
+    }
+
+    private static void downloadEOD(Stock stock, Path eodStorage) throws IOException {
+        Calendar fromDate = Calendar.getInstance();
+        fromDate.add(Calendar.YEAR, -5);
+        fromDate.set(Calendar.DAY_OF_MONTH, 1);
+        fromDate.set(Calendar.MONTH, Calendar.JANUARY);
+        List<HistoricalQuote> bars = stock.getHistory(fromDate, Interval.DAILY);
+        Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
+        for (HistoricalQuote bar : bars) {
+            Calendar date = bar.getDate();
+            if (!byYear.containsKey(date.get(Calendar.YEAR))) {
+                Comparator<HistoricalQuote> sorter = Comparator.comparing(HistoricalQuote::getDate);
+                byYear.put(date.get(Calendar.YEAR), new TreeSet<>(sorter));
+            }
+            Set<HistoricalQuote> quotes = byYear.get(date.get(Calendar.YEAR));
+            quotes.add(bar);
+        }
+        Set<Integer> years = byYear.keySet();
+        String exchange = stock.getStockExchange();
+        Path exchangeStorage = eodStorage.resolve(exchange);
+        String symbol = stock.getSymbol();
+        Path stockStorage = exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
+        if (!Files.exists(stockStorage)) {
+            Files.createDirectories(stockStorage);
+        }
+        for (Integer year : years) {
+            Set<HistoricalQuote> quotes = byYear.get(year);
+            Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");
+            BufferedWriter file = Files.newBufferedWriter(yearEOD, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            CSVWriter writer = new CSVWriter(file);
+            quotes.forEach(bar -> {
+                Calendar date = bar.getDate();
+                BigDecimal high = bar.getHigh();
+                BigDecimal open = bar.getOpen();
+                BigDecimal low = bar.getLow();
+                BigDecimal close = bar.getClose();
+                Long volume = bar.getVolume();
+                BigDecimal adjustedClose = bar.getAdjClose();
+                String[] row = new String[]{
+                        FORMAT_YYYYMMDD.format(date.getTime()),
+                        open.toPlainString(),
+                        high.toPlainString(),
+                        low.toPlainString(),
+                        close.toPlainString(),
+                        adjustedClose.toPlainString(),
+                        String.valueOf(volume)
+                };
+                writer.writeNext(row, false);
+            });
+            file.close();
+        }
     }
 
 }
