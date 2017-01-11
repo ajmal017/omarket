@@ -66,10 +66,10 @@ def main(args):
     logging.info('combining %d series' % len(columns))
     for count, combination in enumerate(itertools.combinations(columns, 5)):
         current_df = df[list(combination)].dropna()
-        logging.info('processing:\n%s' % current_df)
         result = cointeg.cointegration_johansen(current_df)
         trace_statistic = result['trace_statistic']
         eigen_vectors = result['eigenvectors']
+
         logging.info(trace_statistic)
         logging.info(eigen_vectors)
         if count == 10:

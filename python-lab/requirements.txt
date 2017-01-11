@@ -1,6 +1,6 @@
 cycler==0.10.0
-matplotlib>=1.5.3
-numpy==1.11.3
+matplotlib==2.0.0rc2
+numpy==1.12.0rc2
 pandas==0.19.2
 pandas-datareader==0.2.1
 patsy==0.4.1

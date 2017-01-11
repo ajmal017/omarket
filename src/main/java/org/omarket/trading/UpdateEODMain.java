@@ -22,7 +22,6 @@ import java.util.*;
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
-    ;
 
     public static void main(String[] args) throws InterruptedException, IOException {
         final Path eodStorage = Paths.get("data", "eod");
