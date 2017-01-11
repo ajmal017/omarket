@@ -3,7 +3,11 @@ import argparse
 import os
 
 import itertools
+import pickle
+import shelve
+
 import pandas
+from statsmodels.compat import numpy
 
 import cointeg
 
@@ -64,15 +68,24 @@ def main(args):
     df = pandas.read_pickle(os.sep.join([eod_path, 'eod.pkl']))
     columns = [column for column in df.columns if column.startswith('PCX/')]
     logging.info('combining %d series' % len(columns))
-    for count, combination in enumerate(itertools.combinations(columns, 5)):
-        current_df = df[list(combination)].dropna()
-        result = cointeg.cointegration_johansen(current_df)
-        trace_statistic = result['trace_statistic']
-        eigen_vectors = result['eigenvectors']
 
-        logging.info(trace_statistic)
-        logging.info(eigen_vectors)
-        if count == 10:
+    def to_key(symbols):
+        return str(symbols)
+
+    for count, combination in enumerate(itertools.combinations(columns, 5)):
+        with shelve.open(os.sep.join([eod_path, 'results'])) as results:
+            if to_key(combination) not in results:
+                logging.info('processing: %s' % str(combination))
+                current_df = df[list(combination)].dropna()
+                try:
+                    result = cointeg.cointegration_johansen(current_df)
+                    keepers = ('eigenvectors', 'trace_statistic', 'eigenvalue_statistics', 'critical_values_trace', 'critical_values_max_eigenvalue')
+                    results[to_key(combination)] = dict((k, result[k]) for k in keepers if k in result)
+
+                except Exception as err:
+                    logging.error('failed for combination: %s' % str(combination))
+
+        if count == 100000:
             break
 
 if __name__ == '__main__':
