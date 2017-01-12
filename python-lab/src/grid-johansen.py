@@ -71,7 +71,7 @@ def generate_data(eod_path):
     def to_key(symbols):
         return str(symbols)
 
-    for count, combination in enumerate(itertools.combinations(columns, 5)):
+    for count, combination in enumerate(itertools.combinations(columns, 3)):
         with shelve.open(os.sep.join([eod_path, 'results'])) as results:
             if to_key(combination) not in results:
                 logging.info('processing: %s' % str(combination))
