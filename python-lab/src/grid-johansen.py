@@ -84,9 +84,6 @@ def generate_data(eod_path):
                 except Exception as err:
                     logging.error('failed for combination: %s' % str(combination))
 
-        if count == 100:
-            break
-
 
 def main(args):
     eod_path = args.eod_path
