@@ -1,8 +1,9 @@
+import json
 import logging
 import argparse
 import os
 from datetime import timedelta
-
+import pickle
 import math
 
 import itertools
@@ -87,7 +88,7 @@ def generate_data(eod_path):
     volume_df = pandas.read_pickle(os.sep.join([eod_path, 'volume.pkl']))
     recent_history = volume_df.index.max() - timedelta(days=60)
     median_volumes = volume_df[volume_df.index > recent_history].fillna(0).median()
-    most_traded = median_volumes[median_volumes > 1E6].keys().values.tolist()
+    most_traded = median_volumes[median_volumes > 1E5].keys().values.tolist()
     columns = [column for column in most_traded if column.startswith('PCX/')]
     logging.info('combining %d series' % len(columns))
 
@@ -97,22 +98,26 @@ def generate_data(eod_path):
     total = ncr(len(columns), 3)
     logging.info('Possible combinations: %d' % total)
 
-    with shelve.open(os.sep.join([eod_path, 'results'])) as results:
-        last_completed = None
-        for count, combination in enumerate(itertools.combinations(columns, 3)):
-            if int((count / total) * 100) % 5 == 0 and int((count / total) * 100) != last_completed:
-                last_completed = int((count / total) * 100)
-                logging.info('%d%% completed' % last_completed)
+    results = dict()
 
-            if to_key(combination) not in results:
-                current_df = close_df[list(combination)].dropna()
-                try:
-                    result = cointeg.cointegration_johansen(current_df)
-                    keepers = ('eigenvectors', 'trace_statistic', 'eigenvalue_statistics', 'critical_values_trace', 'critical_values_max_eigenvalue')
-                    results[to_key(combination)] = dict((k, result[k]) for k in keepers if k in result)
+    last_completed = None
+    for count, combination in enumerate(itertools.combinations(columns, 3)):
+        if int((count / total) * 100) % 5 == 0 and int((count / total) * 100) != last_completed:
+            last_completed = int((count / total) * 100)
+            logging.info('%d%% completed' % last_completed)
 
-                except Exception as err:
-                    logging.error('failed for combination: %s' % str(combination))
+        if to_key(combination) not in results:
+            current_df = close_df[list(combination)].dropna()
+            try:
+                result = cointeg.cointegration_johansen(current_df)
+                keepers = ('eigenvectors', 'trace_statistic', 'eigenvalue_statistics', 'critical_values_trace', 'critical_values_max_eigenvalue')
+                results[to_key(combination)] = dict((k, result[k]) for k in keepers if k in result)
+
+            except Exception as err:
+                logging.error('failed for combination: %s' % str(combination))
+
+    with open(os.sep.join([eod_path, 'results']), 'wb') as handle:
+        pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def analyse(eod_path):
@@ -129,6 +134,37 @@ def analyse(eod_path):
                 continue
 
             if 'PCX/IJH' in combination and 'PCX/MDY' in combination:
+                continue
+
+            if 'PCX/BKLN' in combination and 'PCX/HYG' in combination:
+                continue
+
+            # DANGEROUS
+            if 'PCX/VIXY' in combination:
+                continue
+            if 'PCX/VXX' in combination:
+                continue
+            if 'PCX/OIL' in combination:
+                continue
+
+            # LEVERAGED
+            if 'PCX/LABU' in combination:
+                continue
+            if 'PCX/LABD' in combination:
+                continue
+            if 'PCX/NUGT' in combination:
+                continue
+            if 'PCX/EDZ' in combination:
+                continue
+            if 'PCX/EDC' in combination:
+                continue
+            if 'PCX/JDST' in combination:
+                continue
+            if 'PCX/JNUG' in combination:
+                continue
+            if 'PCX/TMF' in combination:
+                continue
+            if 'PCX/TMV' in combination:
                 continue
 
             if combination not in results.keys():

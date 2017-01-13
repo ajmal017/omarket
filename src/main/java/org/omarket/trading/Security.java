@@ -19,8 +19,10 @@ public class Security {
     private final String exchange;
     private final String securityType;
     private final Double minTick;
+    private final String priceMagnifier;
+    private final String longName;
 
-    public Security(String code, String symbol, String currency, String primaryExchange, String exchange, String securityType, Double minTick) {
+    public Security(String code, String symbol, String currency, String primaryExchange, String exchange, String securityType, Double minTick, String priceMagnifier, String longName) {
         this.code = code;
         this.symbol = symbol;
         this.currency = currency;
@@ -28,6 +30,8 @@ public class Security {
         this.exchange = exchange;
         this.securityType = securityType;
         this.minTick = minTick;
+        this.priceMagnifier = priceMagnifier;
+        this.longName = longName;
     }
 
     public static Security fromJson(JsonObject contractDetails){
@@ -39,7 +43,9 @@ public class Security {
         String conId = String.valueOf(contract.getInteger("m_conid"));
         String localSymbol = contract.getString("m_localSymbol");
         Double minTick = contractDetails.getDouble("m_minTick");
-        return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick);
+        String priceMagnifier = contractDetails.getString("m_priceMagnifier");
+        String longName = contractDetails.getString("m_longName");
+        return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
     public String getCode(){
@@ -93,7 +99,9 @@ public class Security {
         String exchange = contract.exchange();
         String securityType = contract.getSecType();
         Double minTick = contractDetails.minTick();
-        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick);
+        String priceMagnifier = String.valueOf(contractDetails.priceMagnifier());
+        String longName = contractDetails.longName();
+        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
     public String toJson() {
@@ -107,6 +115,8 @@ public class Security {
         contract.put("m_localSymbol", symbol);
         contractDetails.put("m_contract", contract);
         contractDetails.put("m_minTick", minTick);
+        contractDetails.put("m_longName", longName);
+        contractDetails.put("m_priceMagnifier", priceMagnifier);
         return Json.encode(contractDetails);
     }
 }

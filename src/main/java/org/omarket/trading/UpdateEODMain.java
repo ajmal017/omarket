@@ -77,6 +77,10 @@ public class UpdateEODMain {
         if (!Files.exists(stockStorage)) {
             Files.createDirectories(stockStorage);
         }
+        Path description = stockStorage.resolve("name.txt");
+        try (BufferedWriter writer = Files.newBufferedWriter(description)) {
+            writer.write(stock.getName());
+        }
         for (Integer year : years) {
             Set<HistoricalQuote> quotes = byYear.get(year);
             Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");

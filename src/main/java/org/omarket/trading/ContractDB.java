@@ -1,6 +1,5 @@
 package org.omarket.trading;
 
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,11 +83,6 @@ public class ContractDB {
                 return accepted;
             }
         };
-    }
-
-    public static Path findPath(Security contractDetails){
-        Path path = Paths.get("");
-        return path;
     }
 
     public abstract static class ContractFilter{
@@ -199,8 +193,4 @@ public class ContractDB {
         return Observable.from(contracts);
     }
 
-    public static void updateEOD(JsonObject contractDetails){
-
-
-    }
 }

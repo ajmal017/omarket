@@ -32,9 +32,11 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
-import static org.omarket.trading.verticles.VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH;
-import static org.omarket.trading.verticles.HistoricalDataVerticle.mergeQuoteStreams;
-import static org.omarket.trading.verticles.HistoricalDataVerticle.getHistoricalQuoteStream;
+
+import yahoofinance.Stock;
+import yahoofinance.YahooFinance;
+import yahoofinance.histquotes.HistoricalQuote;
+import yahoofinance.histquotes.Interval;
 import static rx.Observable.combineLatest;
 import static rx.Observable.interval;
 import static yahoofinance.Utils.storeObject;
@@ -111,6 +113,15 @@ public class Scratchpad {
             logger.info("filtered value = " + value);
         });
         sleep(10000);
+    }
+
+    public static void main1(String[] args) throws Exception {
+        Map<String, Stock> stocks = YahooFinance.get(new String[]{"LABD", "LABU"}, true);
+        for (String symbol : stocks.keySet()) {
+            logger.info("processing: " + symbol);
+            Stock stock = stocks.get(symbol);
+            logger.info("stock: " + stock);
+        }
     }
 
     public static void main(String[] args) throws Exception {
