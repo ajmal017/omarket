@@ -1,4 +1,4 @@
-import json
+import csv
 import logging
 import argparse
 import os
@@ -7,12 +7,20 @@ import pickle
 import math
 
 import itertools
-import shelve
 
 import pandas
 import numpy
 
 import cointeg
+
+_ETFS = (
+    'SCHF', 'AMJ', 'FEZ', 'EMB', 'EWC', 'UUP', 'EWY', 'IWF', 'HEDJ', 'VOO', 'BND', 'VEU', 'ITB', 'IWD',
+    'DBC', 'VTI', 'EWG', 'USMV', 'EWH', 'PGX', 'EPI', 'IEFA', 'AGG', 'KBE', 'VGK', 'DIA', 'IVV',
+    'PFF', 'EWW', 'VNQ', 'XME', 'XLB', 'BKLN', 'XLY', 'XRT', 'LQD', 'XBI', 'DXJ', 'IEMG', 'GLD',
+    'DUST', 'KRE', 'SLV', 'IYR', 'XLV', 'AMLP', 'VEA', 'XLK', 'IAU', 'RSX',
+    'XLI', 'JNK', 'HYG', 'XLE', 'XOP', 'VWO', 'XLP', 'XLU', 'FXI', 'EWZ', 'EFA',
+    'UNG', 'GDXJ', 'IWM', 'USO', 'EEM', 'GDX', 'SPY', 'XLF'
+)
 
 
 def load_security(path_db, exchange, symbol, excludes_func=None):
@@ -63,10 +71,14 @@ def prepare_data(eod_path):
         result |= '3X' in name.upper()
         result |= '2X' in name.upper()
         result |= 'ULTRA' in name.upper()
+
         return result
 
     for count, data in enumerate(securities):
         exchange, stock = data
+        if not stock in _ETFS:
+            continue
+
         eod_data = load_security(eod_path, exchange, stock, excludes_func=excludes)
         if eod_data is not None:
             close_df['%s/%s' % (exchange, stock)] = eod_data['close_adj']
@@ -78,9 +90,9 @@ def prepare_data(eod_path):
     volume_df.to_pickle(os.sep.join([eod_path, 'volume.pkl']))
 
 
-def ncr(n,r):
+def ncr(total, samples):
     f = math.factorial
-    return f(n) / f(r) / f(n-r)
+    return f(total) // f(samples) // f(total - samples)
 
 
 def generate_data(eod_path):
@@ -93,7 +105,7 @@ def generate_data(eod_path):
     logging.info('combining %d series' % len(columns))
 
     def to_key(symbols):
-        return str(symbols)
+        return ','.join(symbols)
 
     total = ncr(len(columns), 3)
     logging.info('Possible combinations: %d' % total)
@@ -110,89 +122,73 @@ def generate_data(eod_path):
             current_df = close_df[list(combination)].dropna()
             try:
                 result = cointeg.cointegration_johansen(current_df)
-                keepers = ('eigenvectors', 'trace_statistic', 'eigenvalue_statistics', 'critical_values_trace', 'critical_values_max_eigenvalue')
+                keepers = ('eigenvectors', 'trace_statistic', 'eigenvalue_statistics', 'critical_values_trace',
+                           'critical_values_max_eigenvalue')
                 results[to_key(combination)] = dict((k, result[k]) for k in keepers if k in result)
 
             except Exception as err:
                 logging.error('failed for combination: %s' % str(combination))
 
-    with open(os.sep.join([eod_path, 'results']), 'wb') as handle:
+    with open(os.sep.join([eod_path, 'results.pkl']), 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def analyse(eod_path):
-    by_eigenvalue_stats = dict()
-    by_trace_stats = dict()
-    with shelve.open(os.sep.join([eod_path, 'results'])) as results:
+    all_eigenvalue_stats = list()
+    all_trace_stats = list()
+    with open(os.sep.join([eod_path, 'results.pkl']), 'rb') as handle:
+        results = pickle.load(handle)
         total = len(results.keys())
         for count, combination in enumerate(results.keys()):
-
-            if 'PCX/GLD' in combination and 'PCX/IAU' in combination:
+            if 'PCX/IAU' and 'PCX/GLD' in combination:
                 continue
-
-            if 'PCX/DBEF' in combination and 'PCX/HEFA' in combination:
+            if 'PCX/BKLN' and 'PCX/HYG' in combination:
                 continue
-
-            if 'PCX/IJH' in combination and 'PCX/MDY' in combination:
+            if 'PCX/HYG' and 'PCX/JNK' in combination:
                 continue
-
-            if 'PCX/BKLN' in combination and 'PCX/HYG' in combination:
+            if 'PCX/IEMG' and 'PCX/EEM' in combination:
                 continue
-
-            # DANGEROUS
-            if 'PCX/VIXY' in combination:
+            if 'PCX/GDX' and 'PCX/IAU' in combination:
                 continue
-            if 'PCX/VXX' in combination:
+            if 'PCX/AGG' and 'PCX/BND' in combination:
                 continue
-            if 'PCX/OIL' in combination:
+            if 'PCX/GDX' and 'PCX/SLV' in combination:
                 continue
-
-            # LEVERAGED
-            if 'PCX/LABU' in combination:
+            if 'PCX/AGG' and 'PCX/PFF' in combination:
                 continue
-            if 'PCX/LABD' in combination:
-                continue
-            if 'PCX/NUGT' in combination:
-                continue
-            if 'PCX/EDZ' in combination:
-                continue
-            if 'PCX/EDC' in combination:
-                continue
-            if 'PCX/JDST' in combination:
-                continue
-            if 'PCX/JNUG' in combination:
-                continue
-            if 'PCX/TMF' in combination:
-                continue
-            if 'PCX/TMV' in combination:
-                continue
-
-            if combination not in results.keys():
+            if 'PCX/EMB' and 'PCX/LQD' in combination:
                 continue
 
             stats = results[combination]
             eigenvalue_stats = stats['eigenvalue_statistics']
             trace_stats = stats['trace_statistic']
-            if trace_stats[0] > 25:
-                by_eigenvalue_stats[eigenvalue_stats[0]] = (combination, results[combination])
-                by_trace_stats[trace_stats[0]] = (combination, results[combination])
+            if trace_stats[0] > stats['critical_values_trace'][0][0] and eigenvalue_stats[0] > stats['critical_values_max_eigenvalue'][0][0]:
+                all_eigenvalue_stats.append((eigenvalue_stats[0], combination, results[combination]))
+                all_trace_stats.append((eigenvalue_stats[0], combination, results[combination]))
 
             if count % 10000 == 9999:
                 logging.info('processed %d / %d' % (count + 1, total))
 
-    trace_stats = sorted(by_trace_stats.keys())
-    trace_df = pandas.DataFrame(trace_stats)
+    all_trace_stats.sort(key=lambda x: -x[0])
+    trace_df = pandas.DataFrame(all_trace_stats)
     logging.info(trace_df.describe())
     logging.info('best results')
-    for count in range(min(50, len(trace_stats))):
-        portfolio, result = by_trace_stats[trace_stats[-count]]
-        weights = result['eigenvectors'].transpose()[0]
-        logging.info('portfolio: %s' % portfolio)
-        logging.info('normalized weights: %s' % numpy.divide(weights, numpy.absolute(weights).min()))
-        logging.info('stats eigenvalues: %s' % result['eigenvalue_statistics'])
-        logging.info('critical eigenvalues: %s' % result['critical_values_max_eigenvalue'])
-        logging.info('stats trace: %s' % result['trace_statistic'])
-        logging.info('critical trace: %s' % result['critical_values_trace'])
+
+    with open('results.csv', 'w', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+        for count in range(len(all_trace_stats)):
+            stat, portfolio, result = all_trace_stats[count]
+            portfolio = [name.split('/')[1] for name in portfolio.replace("'", '').replace('(', '').replace(')', '').split(',')]
+            weights = result['eigenvectors'].transpose()[0]
+            norm_weights = [round(x, 2) for x in numpy.divide(weights, numpy.absolute(weights).min()).tolist()]
+            logging.info('portfolio: %s' % str(portfolio))
+            logging.info('normalized weights: %s' % norm_weights)
+            logging.info('stat trace: %s' % result['trace_statistic'][0])
+            logging.info('critical trace : %s' % result['critical_values_trace'][0][0])
+            logging.info('stat eigenvalue: %s' % result['eigenvalue_statistics'][0])
+            logging.info('critical eigenvalue : %s' % result['critical_values_max_eigenvalue'][0][0])
+            stat_fields = result['trace_statistic'][0], result['critical_values_trace'][0][0], result['eigenvalue_statistics'][0], result['critical_values_max_eigenvalue'][0][0]
+            csvwriter.writerow(portfolio + norm_weights + list(stat_fields))
 
 
 def main(args):
@@ -209,6 +205,7 @@ def main(args):
 
     if args.analyse:
         analyse(eod_path)
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
