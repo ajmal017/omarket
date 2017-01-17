@@ -8,6 +8,8 @@ from datetime import date
 from statsmodels.formula.api import OLS
 from statsmodels.api import add_constant
 
+from fls import FlexibleLeastSquare
+
 
 def main():
     pyplot.style.use('ggplot')
@@ -27,11 +29,24 @@ def main():
 
     Y = in_sample_prices[securities[0]]
     X = add_constant(in_sample_prices[securities[1:]])
+
     regress = OLS(Y, X).fit()
     print(regress.params)
     output = pandas.DataFrame()
     output['signal'] = regress.resid
     returns = output['signal'].resample('1D').pct_change()
+
+    v_epsilon = 0.0001
+    delta = 0.001
+    fls = FlexibleLeastSquare(len(securities) - 1, delta, v_epsilon)
+
+    def fls_func(row):
+        target = row[0]
+        factors = row[1:]
+        estimated, beta, dev = fls.estimate(target, factors.values.tolist())
+        return estimated
+
+    output['signal0'] = in_sample_prices.apply(fls_func, axis=1)
     print(returns.std())
 
     # the number of 1 day intervals in 8 days
