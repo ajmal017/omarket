@@ -34,30 +34,55 @@ def main():
     print(regress.params)
     output = pandas.DataFrame()
     output['signal'] = regress.resid
-    returns = output['signal'].resample('1D').pct_change()
+    changes = output['signal'].resample('1D ').last().pct_change()
 
-    v_epsilon = 0.0001
-    delta = 0.001
+    v_epsilon = 0.001
+    delta = 0.0001
     fls = FlexibleLeastSquare(len(securities) - 1, delta, v_epsilon)
 
-    def fls_func(row):
+    def fls_signal(row):
         target = row[0]
         factors = row[1:]
-        estimated, beta, dev = fls.estimate(target, factors.values.tolist())
-        return estimated
+        result = fls.estimate(target, factors.values.tolist())
+        beta_values = numpy.array([round(beta, 2) for beta in result.beta])
+        estimate = factors.values.dot(beta_values[:-1]) + beta_values[-1]
+        return target - estimate
 
-    output['signal0'] = in_sample_prices.apply(fls_func, axis=1)
-    print(returns.std())
+    def fls_bollinger(row):
+        target = row[0]
+        factors = row[1:]
+        result = fls.estimate(target, factors.values.tolist())
+        return result.var_output_error
+
+    output['signal0'] = in_sample_prices.apply(fls_signal, axis=1)
+    output['sup'] = output['signal0'] + in_sample_prices.apply(fls_bollinger, axis=1)
+    output['inf'] = output['signal0'] - in_sample_prices.apply(fls_bollinger, axis=1)
 
     # the number of 1 day intervals in 8 days
     #window_size = pandas.Timedelta('D') / pandas.Timedelta('1D')
     #df['std'] = pd.rolling_std(df['val'], window=window_size)
 
-    ema = output['signal'].ewm(halflife=200).mean()
+    ema = output['signal0'].ewm(halflife=200).mean()
     output['ewma'] = ema
-    output['bolsup'] = ema + 2. * returns.std() / numpy.math.sqrt(returns.size)
-    output['bolinf'] = ema - 2. * returns.std() / numpy.math.sqrt(returns.size)
-    output.plot()
+    output['bolsup'] = ema + 1. * changes.std() / numpy.math.sqrt(changes.size)
+    output['bolinf'] = ema - 1. * changes.std() / numpy.math.sqrt(changes.size)
+    output[['signal0', 'sup', 'inf']].plot()
+
+    def fls_beta(beta_id):
+        def func(row):
+            target = row[0]
+            factors = row[1:]
+            result = fls.estimate(target, factors.values.tolist())
+            return result.beta[beta_id]
+
+        return func
+
+    beta_chart = pandas.DataFrame()
+    beta_chart['beta0'] = in_sample_prices.apply(fls_beta(0), axis=1)
+    beta_chart['beta1'] = in_sample_prices.apply(fls_beta(1), axis=1)
+    beta_chart['beta2'] = in_sample_prices.apply(fls_beta(2), axis=1)
+    beta_chart.plot()
+
     pyplot.show()
 
 
