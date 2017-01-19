@@ -1,17 +1,47 @@
-from pandas_datareader import data
+import argparse
+import logging
 from pykalman import KalmanFilter
 import numpy
 import pandas
-import os
 from matplotlib import pyplot
 from datetime import date
 from statsmodels.formula.api import OLS
 from statsmodels.api import add_constant
+import math
 
-from fls import FlexibleLeastSquare
+from fls import FlexibleLeastSquare, DynamicLinearRegression
 
 
-def main():
+def calc_slope_intercept_kalman(etfs, prices, delta, v_epsilon):
+    """
+    Utilise the Kalman Filter from the pyKalman package
+    to calculate the slope and intercept of the regressed
+    ETF prices.
+    """
+    trans_cov = delta / (1 - delta) * numpy.eye(len(etfs))
+
+    obs_mat = numpy.vstack([prices[etfs[1:]].values.T, numpy.ones(prices[etfs[1]].shape)]).T[:, numpy.newaxis]
+    kf = KalmanFilter(
+        n_dim_obs=1,
+        n_dim_state=len(etfs),
+        initial_state_mean=numpy.zeros(len(etfs)),
+        initial_state_covariance=numpy.identity((len(etfs))),
+        transition_matrices=numpy.eye(len(etfs)),
+        observation_matrices=obs_mat,
+        observation_covariance=v_epsilon,
+        transition_covariance=trans_cov
+    )
+    inputs = prices[etfs[0]]
+    state_means, state_covs = kf.filter(inputs.values)
+    return state_means, state_covs
+
+
+def discretize(value, step, shift=0.):
+    adj_value = value + shift
+    return int(adj_value * (1. / step)) * step + 0.5 * step * (-1., 1.)[adj_value > 0]
+
+
+def main(args):
     pyplot.style.use('ggplot')
 
     securities = ['PCX/' + symbol for symbol in ['BKLN','HYG','JNK']]
@@ -31,49 +61,38 @@ def main():
     X = add_constant(in_sample_prices[securities[1:]])
 
     regress = OLS(Y, X).fit()
-    print(regress.params)
+    logging.info('lin regression results:\n%s' % str(regress.params))
     output = pandas.DataFrame()
-    output['signal'] = regress.resid
-    changes = output['signal'].resample('1D ').last().pct_change()
+    #output['signal'] = regress.resid
+    output['target'] = Y
+    output['estim'] = regress.params['const'] + in_sample_prices[securities[1]] * regress.params[securities[1]] + in_sample_prices[securities[2]] * regress.params[securities[2]]
+    output.plot()
+    v_epsilon = 1.
+    delta = 1E-2
 
-    v_epsilon = 0.001
-    delta = 0.0001
-    fls = FlexibleLeastSquare(len(securities) - 1, delta, v_epsilon)
+    fls = DynamicLinearRegression(len(securities), delta, v_epsilon)
+    charting = list()
+    for row in in_sample_prices.iterrows():
+        timestamp, price_data = row
+        p1, p2, p3 = price_data[securities[0]], price_data[securities[1]], price_data[securities[2]]
+        result = fls.estimate(p1, [p2, p3, 1.])
+        dev = math.sqrt(result.var_output_error)
+        samples = {'error': result.error, 'inf': -dev, 'sup': dev}
+        discretitation_level = 0.01
+        beta0 = discretize(result.beta[0], discretitation_level)
+        beta1 = discretize(result.beta[1], discretitation_level)
+        beta2 = discretize(result.beta[2], discretitation_level)
+        #samples = {'estim': p2 * beta0 + p3 * beta1 + beta2, 'target': p1}
+        charting.append(samples)
 
-    def fls_signal(row):
-        target = row[0]
-        factors = row[1:]
-        result = fls.estimate(target, factors.values.tolist())
-        beta_values = numpy.array([round(beta, 2) for beta in result.beta])
-        estimate = factors.values.dot(beta_values[:-1]) + beta_values[-1]
-        return target - estimate
-
-    def fls_bollinger(row):
-        target = row[0]
-        factors = row[1:]
-        result = fls.estimate(target, factors.values.tolist())
-        return result.var_output_error
-
-    output['signal0'] = in_sample_prices.apply(fls_signal, axis=1)
-    output['sup'] = output['signal0'] + in_sample_prices.apply(fls_bollinger, axis=1)
-    output['inf'] = output['signal0'] - in_sample_prices.apply(fls_bollinger, axis=1)
-
-    # the number of 1 day intervals in 8 days
-    #window_size = pandas.Timedelta('D') / pandas.Timedelta('1D')
-    #df['std'] = pd.rolling_std(df['val'], window=window_size)
-
-    ema = output['signal0'].ewm(halflife=200).mean()
-    output['ewma'] = ema
-    output['bolsup'] = ema + 1. * changes.std() / numpy.math.sqrt(changes.size)
-    output['bolinf'] = ema - 1. * changes.std() / numpy.math.sqrt(changes.size)
-    output[['signal0', 'sup', 'inf']].plot()
+    pandas.DataFrame(charting).plot()
 
     def fls_beta(beta_id):
         def func(row):
-            target = row[0]
-            factors = row[1:]
-            result = fls.estimate(target, factors.values.tolist())
-            return result.beta[beta_id]
+            target = row[securities[0]]
+            factors = row[securities[1:]]
+            result = fls.estimate(target, factors.tolist() + [1.])
+            return discretize(result.beta[beta_id], step=0.05)
 
         return func
 
@@ -85,6 +104,25 @@ def main():
 
     pyplot.show()
 
-
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+    file_handler = logging.FileHandler('draft.log', mode='w')
+    formatter = logging.Formatter('%(asctime)s:%(name)s:%(levelname)s:%(message)s')
+    file_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(file_handler)
+    logging.info('starting script')
+    parser = argparse.ArgumentParser(description='draft script.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter
+                                     )
+    args = parser.parse_args()
+    #main(args)
+    values = numpy.linspace(-1, 1, 10000)
+    df = pandas.DataFrame(values, columns=['in'])
+    #df['disc'] = df['in'].apply(lambda x: discretize(x, 0.5))
+    #df['disc0'] = df['in'].apply(lambda x: discretize(x, 0.5, shift=0.05))
+    #df['disc1'] = df['in'].apply(lambda x: discretize(x, 0.5, shift=-0.05))
+    df['disc1'] = df['in'].apply(lambda x: discretize(x, 0.5, 0.1))
+    df['disc2'] = df['in'].apply(lambda x: discretize(x, 0.5, -0.1))
+    df.plot()
+    pyplot.show()
+

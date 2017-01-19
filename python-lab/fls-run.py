@@ -5,7 +5,7 @@ import random
 import pandas
 from matplotlib import pyplot
 
-from fls import FlexibleLeastSquare
+from fls import FlexibleLeastSquare, DynamicLinearRegression
 
 
 def random_walk(start_value, amplitude):
@@ -45,7 +45,7 @@ def main(args):
     walk3 = value3()
     v_epsilon = 0.0001
     delta = 0.001
-    fls = FlexibleLeastSquare(3, delta, v_epsilon)
+    fls = DynamicLinearRegression(4, delta, v_epsilon)
     for count in range(1000):
         v1 = next(walk1)
         v2 = next(walk2)
@@ -54,10 +54,10 @@ def main(args):
         y = combine(v1, v2, v3, epsilon)
 
         # FLS
-        output_estimated, beta, var = fls.estimate(y, [v1, v2, v3])
-        logging.info('beta:\n%s' % beta)
-        logging.info('var: %s' % var)
-        state = {'y': y, 'signal': output_estimated, 'v1': v1, 'v2': v2, 'v3': v3, 'noise': epsilon}
+        result = fls.estimate(y, [v1, v2, v3, 1.])
+        logging.info('beta:\n%s' % result.beta)
+        logging.info('var: %s' % result.var_output_error)
+        state = {'y': y, 'signal': result.estimated_output, 'v1': v1, 'v2': v2, 'v3': v3, 'noise': epsilon}
         states.append(state)
 
     df = pandas.DataFrame(states)
