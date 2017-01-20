@@ -174,7 +174,7 @@ def analyse(eod_path):
     logging.info(trace_df.describe())
     logging.info('best results')
 
-    with open('results.csv', 'w', newline='') as csvfile:
+    with open(os.sep.join(['..', '..', 'data', 'results.csv', 'w']), newline='') as csvfile:
         csvwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
         for count in range(len(all_trace_stats)):
             stat, portfolio, result = all_trace_stats[count]

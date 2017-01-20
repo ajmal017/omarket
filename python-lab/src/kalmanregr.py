@@ -14,7 +14,7 @@ def main():
 
     secs = ['EWA', 'EWC']
     # get adjusted close prices from Yahoo
-    prices_path = 'prices.pkl'
+    prices_path = os.sep.join(['..', '..', 'data', 'ewa-ewc.pkl', 'w'])
     if os.path.exists(prices_path):
         print('loading from cache')
         prices = pandas.read_pickle(prices_path)
@@ -23,8 +23,6 @@ def main():
         print('loading from web')
         prices = data.DataReader(secs, 'yahoo', '2011-12-28', '2016-12-28')['Adj Close']
         prices.to_pickle('prices.pkl')
-
-    prices.to_csv('prices.csv')
 
     prices.reset_index(inplace=True)
     in_sample_prices = prices[prices['Date'] < date(2016, 1, 1)]
