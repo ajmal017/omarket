@@ -1,4 +1,5 @@
 import logging
+import math
 import numpy
 
 
@@ -11,7 +12,6 @@ class FlexibleLeastSquare(object):
         self.beta = numpy.matrix(initial_state_mean).transpose()
         self.cov_beta_prediction = numpy.matrix(initial_state_covariance)
         self.v_omega = numpy.matrix(trans_cov)
-        #
         self.v_epsilon = observation_covariance
         self.first_round = True
         self.cov_beta = None
@@ -34,16 +34,15 @@ class FlexibleLeastSquare(object):
             self.cov_beta_prediction = self.cov_beta + self.v_omega
 
         factors = numpy.matrix(inputs)
-        output = numpy.matrix([output_value])
         output_estimated = numpy.dot(factors, self.beta)
-        output_error = output - output_estimated
+        output_error = output_value - output_estimated
         var_output_error = numpy.dot(numpy.dot(factors, self.cov_beta_prediction), factors.transpose()) + self.v_epsilon
         kalman_gain = numpy.dot(self.cov_beta_prediction, factors.transpose()) / var_output_error
         self.beta += kalman_gain * output_error.item()
         self.cov_beta = self.cov_beta_prediction - numpy.dot(numpy.dot(kalman_gain, factors), self.cov_beta_prediction)
         if self.first_round:
             self.first_round = False
-            result = FlexibleLeastSquare.Result(output_value, self.beta, 0., 0.)
+            result = FlexibleLeastSquare.Result(math.nan, self.beta, math.nan, math.nan)
 
         else:
             result = FlexibleLeastSquare.Result(output_estimated.item(), self.beta, var_output_error, output_error.item())
