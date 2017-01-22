@@ -11,8 +11,8 @@ class DiscretizeTest(unittest.TestCase):
     def test_simple(self):
         inputs = numpy.linspace(-1, 1, 10000)
         df = pandas.DataFrame(inputs)
-        df['output1'] = df.apply(lambda row: discretize(row[0], 0.5, 0.1), axis=1)
-        df['output2'] = df.apply(lambda row: discretize(row[0], 0.5, -0.1), axis=1)
+        df['output1'] = df.apply(lambda row: discretize(row[0], 0.25, 0.1), axis=1)
+        df['output2'] = df.apply(lambda row: discretize(row[0], 0.25, -0.1), axis=1)
         diff = (df['output1'] - df['output2']).diff()
         diff = diff[diff != 0.]
         expected = numpy.array([numpy.nan, 0.5, -0.5,  0.5, -0.5,  0.5, -0.5,  0.5, -0.5])
@@ -38,13 +38,13 @@ class DiscretizeTest(unittest.TestCase):
         basis = numpy.linspace(-2. * math.pi, 2. * math.pi, 10000)
         inputs = 1.5 * numpy.sin(basis) + 0.15 * numpy.sin(basis * 100)
         df = pandas.DataFrame(inputs, columns=['input'])
-        df['output1'] = df.apply(lambda row: discretize(row[0], 0.5, 0.1), axis=1)
-        df['output2'] = df.apply(lambda row: discretize(row[0], 0.5, -0.1), axis=1)
+        df['output1'] = df.apply(lambda row: discretize(row[0], 0.25, 0.1), axis=1)
+        df['output2'] = df.apply(lambda row: discretize(row[0], 0.25, -0.1), axis=1)
         hyst = HysteresisDiscretize(0.5, ratio=0.3)
         df['hyst'] = df.apply(lambda row: hyst(row[0]), axis=1)
         diff = df['hyst'].diff()
         diff = diff[diff != 0.]
-        self.assertEqual(diff.dropna().shape, (19, ))
+        self.assertEqual(diff.dropna().shape, (11, ))
 
 if __name__ == '__main__':
     unittest.main()

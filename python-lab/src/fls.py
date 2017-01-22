@@ -33,20 +33,27 @@ class FlexibleLeastSquare(object):
         if not self.first_round:
             self.cov_beta_prediction = self.cov_beta + self.v_omega
 
+        # estimation phase
         factors = numpy.matrix(inputs)
         output_estimated = numpy.dot(factors, self.beta)
+        logging.debug('factors: %s' % factors)
+        logging.debug('beta: %s' % self.beta.T)
+        logging.debug('output: %s' % output_value)
         output_error = output_value - output_estimated
         var_output_error = numpy.dot(numpy.dot(factors, self.cov_beta_prediction), factors.transpose()) + self.v_epsilon
-        kalman_gain = numpy.dot(self.cov_beta_prediction, factors.transpose()) / var_output_error
-        self.beta += kalman_gain * output_error.item()
-        self.cov_beta = self.cov_beta_prediction - numpy.dot(numpy.dot(kalman_gain, factors), self.cov_beta_prediction)
+
         if self.first_round:
             self.first_round = False
-            result = FlexibleLeastSquare.Result(math.nan, self.beta, math.nan, math.nan)
+            fake_betas = numpy.array([(math.nan, ) for value in self.beta.tolist()])
+            result = FlexibleLeastSquare.Result(math.nan, fake_betas, math.nan, math.nan)
 
         else:
             result = FlexibleLeastSquare.Result(output_estimated.item(), self.beta, var_output_error, output_error.item())
 
+        # update phase
+        kalman_gain = numpy.dot(self.cov_beta_prediction, factors.transpose()) / var_output_error
+        self.beta += kalman_gain * output_error.item()
+        self.cov_beta = self.cov_beta_prediction - numpy.dot(numpy.dot(kalman_gain, factors), self.cov_beta_prediction)
         return result
 
 

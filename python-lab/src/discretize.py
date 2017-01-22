@@ -1,4 +1,4 @@
-
+import math
 
 class HysteresisDiscretize(object):
     """
@@ -11,9 +11,12 @@ class HysteresisDiscretize(object):
         self.previous_output = None
 
     def __call__(self, value):
+        if value is None or math.isnan(value):
+            return math.nan
+
         output1 = discretize(value, self.step, shift=self.step * self.ratio)
         output2 = discretize(value, self.step, shift=-self.step * self.ratio)
-        output = None
+        output = math.nan
         if output1 == output2:
             output = output1
 
@@ -29,5 +32,9 @@ class HysteresisDiscretize(object):
 
 
 def discretize(value, step, shift=0.):
+    adj_step = 2. * step
+    if value is None or math.isnan(value):
+        return math.nan
+
     adj_value = value - shift
-    return int(adj_value * (1. / step)) * step + 0.5 * step * (-1., 1.)[adj_value > 0]
+    return int(adj_value * (1. / adj_step)) * adj_step + 0.5 * adj_step * (-1., 1.)[adj_value > 0]
