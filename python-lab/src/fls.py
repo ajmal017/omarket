@@ -8,7 +8,6 @@ class FlexibleLeastSquare(object):
     def __init__(self,
                  initial_state_mean, initial_state_covariance,
                  observation_covariance, trans_cov):
-
         self.beta = numpy.matrix(initial_state_mean).transpose()
         self.cov_beta_prediction = numpy.matrix(initial_state_covariance)
         self.v_omega = numpy.matrix(trans_cov)

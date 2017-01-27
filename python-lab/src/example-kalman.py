@@ -31,21 +31,21 @@ class Trader(object):
             self.cost_value = self.positions.dot(numpy.array(close_prices))
             position_values = self.positions * numpy.array(close_prices)
             self.cash_position -= position_values.sum()
-            for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
-                logging.info('entering position %s: %s at %s' % (sec, pos, px))
+            #for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
+            #    logging.info('entering position %s: %s at %s' % (sec, pos, px))
 
-            logging.info('%s: entering total position value=%f' % (timestamp, self.cost_value))
+            #logging.info('%s: entering total position value=%f' % (timestamp, self.cost_value))
 
     def _position_close(self, timestamp, close_prices):
         value = self.positions.dot(numpy.array(close_prices))
         position_values = self.positions * numpy.array(close_prices)
         self.cash_position += position_values.sum()
-        for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
-            logging.info('solding out position %s: %s at %s' % (sec, pos, px))
+        #for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
+        #    logging.info('solding out position %s: %s at %s' % (sec, pos, px))
 
-        logging.info('%s: solding out positions %s, value=%s' % (timestamp, self.positions, value))
+        #logging.info('%s: solding out positions %s, value=%s' % (timestamp, self.positions, value))
         pnl = value - self.cost_value
-        logging.info('-----> P&L: %f' % pnl)
+        #logging.info('-----> P&L: %f' % pnl)
         self.trade_pnl.append({'date': timestamp, 'pnl': pnl})
         self.positions = numpy.zeros(len(close_prices))
 
@@ -69,21 +69,43 @@ class Trader(object):
 
 class RegressionModelFLS(object):
 
-    def __init__(self, initial_state_mean, initial_state_covariance, observation_covariance, trans_cov):
+    def __init__(self, securities, with_constant_term=True):
+        self.with_constant_term = with_constant_term
+        delta = 5E-6
+        size = len(securities) - 1
+        if self.with_constant_term:
+            size += 1
+
+        initial_state_mean = numpy.zeros(size)
+        initial_state_covariance = numpy.ones((size, size))
+        observation_covariance = 5E-5
+        trans_cov = delta / (1. - delta) * numpy.eye(size)
+
         self.result = None
         self.fls = FlexibleLeastSquare(initial_state_mean, initial_state_covariance, observation_covariance, trans_cov)
 
     def compute_regression(self, y_value, x_values):
-        self.result = self.fls.estimate(y_value, x_values)
+        independent_values = x_values
+        if self.with_constant_term:
+            independent_values += [1.]
+
+        self.result = self.fls.estimate(y_value, independent_values)
 
     def get_residual_error(self):
-        return math.sqrt(self.result.var_output_error) / 20.
+        return math.sqrt(self.result.var_output_error) * 5.
 
     def get_factors(self):
         return self.result.beta
 
+    def get_estimate(self):
+        return self.result.estimated_output
+
     def get_weights(self):
-        return numpy.array([-1.] + self.get_factors()[:-1])
+        weights = self.get_factors()
+        if self.with_constant_term:
+            weights = weights[:-1.]
+
+        return numpy.array([-1.] + weights)
 
     def get_residual(self):
         return self.result.error
@@ -91,33 +113,55 @@ class RegressionModelFLS(object):
 
 class RegressionModelOLS(object):
 
-    def __init__(self, securities, y_values, x_values):
+    def __init__(self, securities, y_values, x_values, with_constant_term=True):
+        self.with_constant_term = with_constant_term
         self.current_x = None
         self.current_y = None
-        self.ols = OLS(y_values, add_constant(x_values))
+        if self.with_constant_term:
+            self.ols = OLS(y_values, add_constant(x_values))
+
+        else:
+            self.ols = OLS(y_values, x_values)
+
         self.result = self.ols.fit()
         self.securities = securities
 
     def compute_regression(self, y_value, x_values):
-        self.current_x = x_values
+        independent_values = x_values
+        if self.with_constant_term:
+            independent_values += [1.]
+
+        self.current_x = independent_values
         self.current_y = y_value
 
     def get_residual_error(self):
-        return self.result.mse_resid * 20.
+        return self.result.mse_resid * 2.
 
     def get_factors(self):
-        return self.result.params[self.securities[1:] + ['const']]
+        if self.with_constant_term:
+            return self.result.params[self.securities[1:] + ['const']]
+
+        else:
+            return self.result.params[self.securities[1:]]
+
+    def get_estimate(self):
+        if self.with_constant_term:
+            return self.result.params[self.securities[1:] + ['const']].dot(self.current_x)
+
+        else:
+            return self.result.params[self.securities[1:]].dot(self.current_x)
 
     def get_weights(self):
         return numpy.array([-1.] + self.result.params[self.securities[1:]].tolist())
 
     def get_residual(self):
-        return self.current_y - self.result.params[self.securities[1:] + ['const']].dot(self.current_x)
+        return self.current_y - self.get_estimate()
 
 
 def process_with_regression(securities, prices, regression, warmup_period):
     chart_bollinger = list()
     chart_beta = list()
+    chart_regression = list()
     signal_fls = 0.
     trigger_up = numpy.nan
     trigger_down = numpy.nan
@@ -127,7 +171,7 @@ def process_with_regression(securities, prices, regression, warmup_period):
         row_count, price_data = row
         timestamp = price_data['date']
         dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
-        regression.compute_regression(dependent_price, independent_prices.tolist() + [1.])
+        regression.compute_regression(dependent_price, independent_prices.tolist())
         dev_fls = regression.get_residual_error()
         if numpy.isnan(trigger_down):
             trigger_down = -dev_fls
@@ -156,18 +200,22 @@ def process_with_regression(securities, prices, regression, warmup_period):
 
         trader_fls.evaluate(timestamp, close_prices)
 
-        samples = {'limit_inf': trigger_down, 'limit_sup': trigger_up, 'signal_fls': signal_fls}
-        chart_bollinger.append(samples)
+        signal_data = {'date': timestamp, 'limit_inf': trigger_down, 'limit_sup': trigger_up, 'signal_fls': signal_fls}
+        chart_bollinger.append(signal_data)
 
         beta_data = dict()
         for count, weight in enumerate(regression.get_factors()):
             beta_data['beta%d' % count] = weight
-
+        beta_data['date'] = timestamp
         chart_beta.append(beta_data)
 
+        regression_data = {'date': timestamp, 'y*': regression.get_estimate(), 'y': dependent_price, 'portfolio': regression.get_estimate() - regression.get_factors()[-1]}
+        chart_regression.append(regression_data)
+
     trader_fls.df_daily_nav().plot()
-    pandas.DataFrame(chart_beta).plot(subplots=True)
-    pandas.DataFrame(chart_bollinger).plot(subplots=False)
+    pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
+    pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
+    pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
 
 
 def main(args):
@@ -177,7 +225,8 @@ def main(args):
 
     #securities = ['PCX/' + symbol for symbol in ['PFF','XLV','XRT']]
     #securities = ['PCX/' + symbol for symbol in ['SPY','VOO']]
-    securities = ['PCX/' + symbol for symbol in ['IAU','GLD']]
+    #securities = ['PCX/' + symbol for symbol in ['IAU','GDX']]
+    securities = ['PCX/' + symbol for symbol in ['SPY','IWM']]
     #securities = ['PCX/' + symbol for symbol in ['SPY','UUP','VOO']]
     #securities = ['PCX/' + symbol for symbol in ['VWO','XLB','XLI']]
     #securities = ['PCX/' + symbol for symbol in ['EFA','SCHF','VEU']]
@@ -195,18 +244,11 @@ def main(args):
     prices.reset_index(inplace=True)
     in_sample_prices = prices  # [prices['date'] < date(2015, 1, 1)]
 
-    delta = 5E-6
-
-    initial_state_mean = numpy.zeros(len(securities))
-    initial_state_covariance = numpy.ones((len(securities), len(securities)))
-    observation_covariance = 5E-5
-    trans_cov = delta / (1. - delta) * numpy.eye(len(securities))
-
     warmup_period = 10
     regress = OLS(in_sample_prices[securities[0]], add_constant(in_sample_prices[securities[1:]])).fit()
     logging.info('regression results: %s' % str(regress.params))
-    regression = RegressionModelFLS(initial_state_mean, initial_state_covariance, observation_covariance, trans_cov)
-    regression2 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]])
+    regression = RegressionModelFLS(securities, with_constant_term=False)
+    regression2 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]], with_constant_term=False)
     process_with_regression(securities, in_sample_prices, regression, warmup_period)
     process_with_regression(securities, in_sample_prices, regression2, warmup_period)
     pyplot.show()
