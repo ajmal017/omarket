@@ -67,7 +67,7 @@ class KalmanTest(unittest.TestCase):
 
             chart_beta.append(beta_data)
 
-        numpy.testing.assert_array_almost_equal(pandas.DataFrame(chart_beta).values, state_means, decimal=6)
+        numpy.testing.assert_array_almost_equal(pandas.DataFrame(chart_beta[1:]).values, state_means[:-1], decimal=6)
 
 if __name__ == '__main__':
     unittest.main()
