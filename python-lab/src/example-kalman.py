@@ -103,7 +103,7 @@ class RegressionModelFLS(object):
     def get_weights(self):
         weights = self.get_factors()
         if self.with_constant_term:
-            weights = weights[:-1.]
+            weights = weights[:-1]
 
         return numpy.array([-1.] + weights)
 
@@ -250,7 +250,7 @@ def main(args):
     regression = RegressionModelFLS(securities, with_constant_term=False)
     regression2 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]], with_constant_term=False)
     process_with_regression(securities, in_sample_prices, regression, warmup_period)
-    process_with_regression(securities, in_sample_prices, regression2, warmup_period)
+    #process_with_regression(securities, in_sample_prices, regression2, warmup_period)
     pyplot.show()
 
 if __name__ == "__main__":

@@ -29,17 +29,9 @@ class FlexibleLeastSquare(object):
         :param inputs: list of measured input values
         :return:
         """
-        if not self.first_round:
-            self.cov_beta_prediction = self.cov_beta + self.v_omega
-
-        # estimation phase
         factors = numpy.matrix(inputs)
-        output_estimated = numpy.dot(factors, self.beta)
-        logging.debug('factors: %s' % factors)
-        logging.debug('beta: %s' % self.beta.T)
-        logging.debug('output: %s' % output_value)
-        output_error = output_value - output_estimated
-        var_output_error = numpy.dot(numpy.dot(factors, self.cov_beta_prediction), factors.transpose()) + self.v_epsilon
+        output_predicted, var_output_error = self._phase_predict(output_value, factors)
+        output_error = output_value - output_predicted
 
         if self.first_round:
             self.first_round = False
@@ -47,13 +39,24 @@ class FlexibleLeastSquare(object):
             result = FlexibleLeastSquare.Result(math.nan, fake_betas, math.nan, math.nan)
 
         else:
-            result = FlexibleLeastSquare.Result(output_estimated.item(), self.beta, var_output_error, output_error.item())
+            result = FlexibleLeastSquare.Result(output_predicted.item(), self.beta, var_output_error, output_error.item())
 
-        # update phase
+        self._phase_update(output_error, var_output_error, factors)
+        return result
+
+    def _phase_predict(self, output_value, factors):
+        output_estimated = numpy.dot(factors, self.beta)
+        logging.debug('factors: %s' % factors)
+        logging.debug('beta: %s' % self.beta.T)
+        logging.debug('output: %s' % output_value)
+        var_output_error = numpy.dot(numpy.dot(factors, self.cov_beta_prediction), factors.transpose()) + self.v_epsilon
+        return output_estimated, var_output_error
+
+    def _phase_update(self, output_error, var_output_error, factors):
         kalman_gain = numpy.dot(self.cov_beta_prediction, factors.transpose()) / var_output_error
         self.beta += kalman_gain * output_error.item()
         self.cov_beta = self.cov_beta_prediction - numpy.dot(numpy.dot(kalman_gain, factors), self.cov_beta_prediction)
-        return result
+        self.cov_beta_prediction = self.cov_beta + self.v_omega
 
 
 class DynamicLinearRegression(FlexibleLeastSquare):
