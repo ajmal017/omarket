@@ -1,5 +1,5 @@
-`fls` <-
-function (A, b, mu=1, ncap=length(b), smoothed=TRUE)
+fls <-
+function (A, b, mu=1, ncap=length(b))
 {
   m <- nrow (A)
   n <- ncol (A)
@@ -12,8 +12,7 @@ function (A, b, mu=1, ncap=length(b), smoothed=TRUE)
     Z <- solve(qr(R + tcrossprod(A[j,]),LAPACK=TRUE),diag(1.0,n));
     M[,,j] <- mu*Z             # (5.7b)
     v <- b[j]*A[j,]
-    if(j==1) p <- rep(0,n)
-    else p <- mu*E[,j-1]
+    if(j==1) p <- rep(0,n) else p <- mu*E[,j-1]
     w <- p + v
     E[,j] <- Z %*% w           # (5.7c)
     R <- -mu*mu*Z
@@ -27,16 +26,6 @@ function (A, b, mu=1, ncap=length(b), smoothed=TRUE)
   d <- mu*E[,ncap-1,drop=FALSE] + b[ncap]*t(Ancap)
   X[,ncap] <- C %*% d
   X[,ncap] <- solve(qr(C,LAPACK=TRUE),d)
-  if (smoothed) {
-# Use eqn (5.16) to obtain smoothed FLS estimates for
-# X[,1], X[,2], ..., X[,ncap-1]
-    for (j in 1:(ncap-1)) {
-      l <- ncap - j
-      X[,l] <- E[,l] + M[,,l] %*% X[,l+1]
-    }
-  }
-  else {
-    X <- X[,ncap]
-  }
+  X <- X[,ncap]
   X
 }

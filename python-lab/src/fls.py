@@ -65,5 +65,4 @@ class DynamicLinearRegression(FlexibleLeastSquare):
         observation_covariance = v_epsilon
         initial_state_mean = numpy.zeros(size)
         trans_cov = delta / (1. - delta) * numpy.eye(size)
-        super().__init__(initial_state_mean, initial_state_covariance,
-                         observation_covariance, trans_cov)
+        super().__init__(initial_state_mean, initial_state_covariance, observation_covariance, trans_cov)

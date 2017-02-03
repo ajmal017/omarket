@@ -69,9 +69,8 @@ class Trader(object):
 
 class RegressionModelFLS(object):
 
-    def __init__(self, securities, with_constant_term=True):
+    def __init__(self, securities, delta, with_constant_term=True):
         self.with_constant_term = with_constant_term
-        delta = 5E-6
         size = len(securities) - 1
         if self.with_constant_term:
             size += 1
@@ -212,10 +211,10 @@ def process_with_regression(securities, prices, regression, warmup_period):
         regression_data = {'date': timestamp, 'y*': regression.get_estimate(), 'y': dependent_price, 'portfolio': regression.get_estimate() - regression.get_factors()[-1]}
         chart_regression.append(regression_data)
 
-    trader_fls.df_daily_nav().plot()
+    #trader_fls.df_daily_nav().plot()
     pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
-    pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
-    pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
+    #pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
+    #pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
 
 
 def main(args):
@@ -247,9 +246,15 @@ def main(args):
     warmup_period = 10
     regress = OLS(in_sample_prices[securities[0]], add_constant(in_sample_prices[securities[1:]])).fit()
     logging.info('regression results: %s' % str(regress.params))
-    regression = RegressionModelFLS(securities, with_constant_term=False)
-    regression2 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]], with_constant_term=False)
-    process_with_regression(securities, in_sample_prices, regression, warmup_period)
+
+    delta = 5E-6
+    regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
+    regression1 = RegressionModelFLS(securities, 0.5, with_constant_term=False)
+    regression2 = RegressionModelFLS(securities, 0.9, with_constant_term=False)
+    regression10 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]], with_constant_term=False)
+    process_with_regression(securities, in_sample_prices, regression0, warmup_period)
+    process_with_regression(securities, in_sample_prices, regression1, warmup_period)
+    process_with_regression(securities, in_sample_prices, regression2, warmup_period)
     #process_with_regression(securities, in_sample_prices, regression2, warmup_period)
     pyplot.show()
 
