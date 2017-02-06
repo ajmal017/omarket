@@ -13,58 +13,55 @@ from discretize import HysteresisDiscretize, discretize
 from fls import FlexibleLeastSquare
 
 
+class PositionAdjuster(object):
+    def __init__(self, securities):
+        self.securities = securities
+
+    def adjust(self, timestamp, weights, close_prices, target_position):
+        pass
+
+
 class Trader(object):
 
     def __init__(self, scaling, securities):
-        self.scaling = scaling
-        self.securities = securities
-        self.positions = numpy.zeros(len(securities))
-        self.cost_value = 0.
-        self.trade_pnl = list()
-        self.daily_nav = list()
-        self.cash_position = 0.
+        self.current_level = 0.
+        self.target_position = 0
+        self.trigger_level_inf = None
+        self.trigger_level_sup = None
+        self.position_adjuster = PositionAdjuster(securities)
 
-    def position_enter(self, timestamp, target_level, weights, close_prices):
-            self._position_close(timestamp, close_prices)
-            positions = weights * target_level * self.scaling
-            self.positions = positions.round(0)
-            self.cost_value = self.positions.dot(numpy.array(close_prices))
-            position_values = self.positions * numpy.array(close_prices)
-            self.cash_position -= position_values.sum()
-            #for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
-            #    logging.info('entering position %s: %s at %s' % (sec, pos, px))
+    def update_state(self, timestamp, signal, deviation, weights, close_prices):
+        if deviation == 0.:
+            return
 
-            #logging.info('%s: entering total position value=%f' % (timestamp, self.cost_value))
+        if self.trigger_level_inf is None:
+            self.trigger_level_inf = -deviation
 
-    def _position_close(self, timestamp, close_prices):
-        value = self.positions.dot(numpy.array(close_prices))
-        position_values = self.positions * numpy.array(close_prices)
-        self.cash_position += position_values.sum()
-        #for sec, pos, px in zip(self.securities, self.positions.tolist(), close_prices):
-        #    logging.info('solding out position %s: %s at %s' % (sec, pos, px))
+        if self.trigger_level_sup is None:
+            self.trigger_level_sup = deviation
 
-        #logging.info('%s: solding out positions %s, value=%s' % (timestamp, self.positions, value))
-        pnl = value - self.cost_value
-        #logging.info('-----> P&L: %f' % pnl)
-        self.trade_pnl.append({'date': timestamp, 'pnl': pnl})
-        self.positions = numpy.zeros(len(close_prices))
+        if signal >= self.trigger_level_sup:
+            self.current_level = self.trigger_level_sup
+            self.target_position += 1
+            self.position_adjuster.adjust(timestamp, weights, close_prices, self.target_position)
+            self.trigger_level_inf = (self.target_position - 1) * deviation
+            self.trigger_level_sup = (self.target_position + 1) * deviation
 
-    def df_trade_pnl(self):
-        df_pnl = None
-        if len(self.trade_pnl) > 0:
-            df_pnl = pandas.DataFrame(self.trade_pnl)
-            df_pnl.set_index('date', inplace=True)
+        if signal <= self.trigger_level_inf:
+            self.current_level = self.trigger_level_inf
+            self.target_position -= 1
+            self.position_adjuster.adjust(timestamp, weights, close_prices, self.target_position)
+            self.trigger_level_inf = (self.target_position - 1) * deviation
+            self.trigger_level_sup = (self.target_position + 1) * deviation
 
-        return df_pnl
+    def level_current(self):
+        return self.current_level
 
-    def df_daily_nav(self):
-        df_nav = pandas.DataFrame(self.daily_nav)
-        df_nav.set_index('date', inplace=True)
-        return df_nav
+    def level_inf(self):
+        return self.trigger_level_inf
 
-    def evaluate(self, timestamp, close_prices):
-        value = self.positions.dot(numpy.array(close_prices))
-        self.daily_nav.append({'date': timestamp, 'nav': self.cash_position + value})
+    def level_sup(self):
+        return self.trigger_level_sup
 
 
 class RegressionModelFLS(object):
@@ -91,7 +88,7 @@ class RegressionModelFLS(object):
         self.result = self.fls.estimate(y_value, independent_values)
 
     def get_residual_error(self):
-        return math.sqrt(self.result.var_output_error) * 5.
+        return math.sqrt(self.result.var_output_error)
 
     def get_factors(self):
         return self.result.beta
@@ -112,39 +109,57 @@ class RegressionModelFLS(object):
 
 class RegressionModelOLS(object):
 
-    def __init__(self, securities, y_values, x_values, with_constant_term=True):
-        self.with_constant_term = with_constant_term
+    def __init__(self, securities, with_constant_term=True, lookback_period=200):
+        self._lookback = lookback_period
         self.current_x = None
         self.current_y = None
-        if self.with_constant_term:
-            self.ols = OLS(y_values, add_constant(x_values))
-
-        else:
-            self.ols = OLS(y_values, x_values)
-
-        self.result = self.ols.fit()
+        self._with_constant_term= with_constant_term
+        self._counter = 0
+        self._y_values = list()
+        self._x_values = [list() for item in securities[1:]]
         self.securities = securities
+        self.result = None
+        self.ols = None
 
     def compute_regression(self, y_value, x_values):
+        self._counter += 1
+        self._y_values.append(y_value)
+        if self._counter > self._lookback:
+            self._y_values.pop(0)
+            for target_lists in self._x_values:
+                target_lists.pop(0)
+
+        for target_list, new_item in zip(self._x_values, x_values):
+            target_list.append(new_item)
+
+        dependent = pandas.DataFrame({self.securities[0]: self._y_values})
+        independent = pandas.DataFrame({key: self._x_values[count] for count, key in enumerate(self.securities[1:])})
+        if self._with_constant_term:
+            self.ols = OLS(dependent, add_constant(independent))
+
+        else:
+            self.ols = OLS(dependent, independent)
+
+        self.result = self.ols.fit()
         independent_values = x_values
-        if self.with_constant_term:
+        if self._with_constant_term:
             independent_values += [1.]
 
         self.current_x = independent_values
         self.current_y = y_value
 
     def get_residual_error(self):
-        return self.result.mse_resid * 2.
+        return math.sqrt(self.result.mse_resid)
 
     def get_factors(self):
-        if self.with_constant_term:
+        if self._with_constant_term:
             return self.result.params[self.securities[1:] + ['const']]
 
         else:
             return self.result.params[self.securities[1:]]
 
     def get_estimate(self):
-        if self.with_constant_term:
+        if self._with_constant_term:
             return self.result.params[self.securities[1:] + ['const']].dot(self.current_x)
 
         else:
@@ -162,49 +177,37 @@ def process_with_regression(securities, prices, regression, warmup_period):
     chart_beta = list()
     chart_regression = list()
     signal_fls = 0.
-    trigger_up = numpy.nan
-    trigger_down = numpy.nan
-    enter_next_fls = None
     trader_fls = Trader(scaling=100., securities=securities)
+
     for count, row in enumerate(prices.iterrows()):
         row_count, price_data = row
         timestamp = price_data['date']
         dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
         regression.compute_regression(dependent_price, independent_prices.tolist())
         dev_fls = regression.get_residual_error()
-        if numpy.isnan(trigger_down):
-            trigger_down = -dev_fls
+        deviation = 2. * dev_fls
+        #deviation = 3.  # DEBUG
 
-        if numpy.isnan(trigger_up):
-            trigger_up = dev_fls
-
-        weights_fls = regression.get_weights()
         close_prices = [dependent_price] + independent_prices.tolist()
-
         if count > warmup_period:
+            weights_fls = regression.get_weights()
             signal_fls = regression.get_residual()
-            if signal_fls > trigger_up:
-                enter_next_fls = int(regression.get_residual() / dev_fls) * -1., weights_fls
-                trigger_up += dev_fls
-                trigger_down += dev_fls
+            trader_fls.update_state(timestamp, signal_fls, deviation, weights_fls, close_prices)
 
-            if signal_fls < trigger_down:
-                enter_next_fls = int(regression.get_residual() / dev_fls) * 1., weights_fls
-                trigger_up -= dev_fls
-                trigger_down -= dev_fls
-
-            if enter_next_fls is not None:
-                target_level, target_weights = enter_next_fls
-                trader_fls.position_enter(timestamp, target_level, target_weights, close_prices)
-
-        trader_fls.evaluate(timestamp, close_prices)
-
-        signal_data = {'date': timestamp, 'limit_inf': trigger_down, 'limit_sup': trigger_up, 'signal_fls': signal_fls}
+        signal_data = {
+            'date': timestamp,
+            'limit_inf': -deviation,
+            'limit_sup': deviation,
+            'level_inf': trader_fls.level_inf(),
+            'level_sup': trader_fls.level_sup(),
+            'position': trader_fls.target_position * 5,
+            'signal_fls': signal_fls}
         chart_bollinger.append(signal_data)
 
         beta_data = dict()
         for count, weight in enumerate(regression.get_factors()):
             beta_data['beta%d' % count] = weight
+
         beta_data['date'] = timestamp
         chart_beta.append(beta_data)
 
@@ -213,7 +216,7 @@ def process_with_regression(securities, prices, regression, warmup_period):
 
     #trader_fls.df_daily_nav().plot()
     pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
-    #pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
+    pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
     #pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
 
 
@@ -244,18 +247,16 @@ def main(args):
     in_sample_prices = prices  # [prices['date'] < date(2015, 1, 1)]
 
     warmup_period = 10
-    regress = OLS(in_sample_prices[securities[0]], add_constant(in_sample_prices[securities[1:]])).fit()
-    logging.info('regression results: %s' % str(regress.params))
 
     delta = 5E-6
-    regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
-    regression1 = RegressionModelFLS(securities, 0.5, with_constant_term=False)
-    regression2 = RegressionModelFLS(securities, 0.9, with_constant_term=False)
-    regression10 = RegressionModelOLS(securities, in_sample_prices[securities[0]], in_sample_prices[securities[1:]], with_constant_term=False)
-    process_with_regression(securities, in_sample_prices, regression0, warmup_period)
-    process_with_regression(securities, in_sample_prices, regression1, warmup_period)
-    process_with_regression(securities, in_sample_prices, regression2, warmup_period)
+    #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
+    #regression1 = RegressionModelFLS(securities, 0.5, with_constant_term=False)
+    #regression2 = RegressionModelFLS(securities, 0.9, with_constant_term=False)
+    regression10 = RegressionModelOLS(securities, with_constant_term=False)
+    #process_with_regression(securities, in_sample_prices, regression0, warmup_period)
+    #process_with_regression(securities, in_sample_prices, regression1, warmup_period)
     #process_with_regression(securities, in_sample_prices, regression2, warmup_period)
+    process_with_regression(securities, in_sample_prices, regression10, warmup_period)
     pyplot.show()
 
 if __name__ == "__main__":

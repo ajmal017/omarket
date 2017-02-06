@@ -97,5 +97,30 @@ class KalmanTest(unittest.TestCase):
         self.assertTrue(numpy.isnan(chart_beta[0]['beta1']))
         self.assertDictEqual(chart_beta[-1], {'beta0': 0.2854202469956791, 'beta1': 0.3791521942363885})
 
+    def test_triple_no_const_large_delta(self):
+        securities = ['PCX/' + symbol for symbol in ['PFF','XLV','XRT']]
+        in_sample_prices = pandas.read_pickle(os.sep.join(['..', 'resources', 'test_kalman.pickle']))
+        delta = 0.99999
+        dim = len(securities) - 1
+        initial_state_mean = numpy.zeros(dim)
+        initial_state_covariance = numpy.ones((dim, dim))
+        observation_covariance = 1E-3
+        trans_cov = delta / (1. - delta) * numpy.eye(dim)
+        fls = FlexibleLeastSquare(initial_state_mean, initial_state_covariance, observation_covariance, trans_cov)
+        chart_beta = list()
+        for row in in_sample_prices.iterrows():
+            timestamp, price_data = row
+            dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
+            result = fls.estimate(dependent_price, independent_prices.tolist())
+            beta_data = dict()
+            for count, beta in enumerate(result.beta):
+                beta_data['beta%d' % count] = beta
+
+            chart_beta.append(beta_data)
+
+        self.assertTrue(numpy.isnan(chart_beta[0]['beta0']))
+        self.assertTrue(numpy.isnan(chart_beta[0]['beta1']))
+        self.assertDictEqual(chart_beta[-1], {'beta0': 0.2854202469956791, 'beta1': 0.3791521942363885})
+
 if __name__ == '__main__':
     unittest.main()
