@@ -16,6 +16,9 @@ from fls import FlexibleLeastSquare
 class PositionAdjuster(object):
     def __init__(self, securities):
         self.securities = securities
+        self.inventory = dict()
+        self.current_position = 0
+        self.scaling = 100.
 
     def adjust(self, timestamp, weights, close_prices, target_position):
         pass
