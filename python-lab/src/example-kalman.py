@@ -1,5 +1,4 @@
 import argparse
-from datetime import date
 import logging
 import math
 import numpy
@@ -9,29 +8,48 @@ import pandas
 from statsmodels.formula.api import OLS
 from statsmodels.tools import add_constant
 
-from discretize import HysteresisDiscretize, discretize
 from fls import FlexibleLeastSquare
+from pnl import AverageCostProfitAndLoss
 
 
 class PositionAdjuster(object):
-    def __init__(self, securities):
-        self.securities = securities
-        self.inventory = dict()
-        self.current_position = 0
-        self.scaling = 100.
 
-    def adjust(self, timestamp, weights, close_prices, target_position):
-        pass
+    def __init__(self, securities, scaling):
+        self.securities = securities
+        self.securities_index = {security: count for count, security in enumerate(securities)}
+        self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
+        self.current_quantities = [0.] * len(securities)
+        self.scaling = scaling
+
+    def move_to(self, timestamp, weights, close_prices, target_position):
+        logging.info('moving to position: %d at %s' % (target_position, timestamp.strftime('%Y-%m-%d')))
+        for count, weight_price in enumerate(zip(weights, close_prices)):
+            weight, price = weight_price
+            target_weight = target_position * weight
+            target_quantity = round(self.scaling * target_weight / price)
+            fill_qty = target_quantity - self.current_quantities[count]
+            self.trades_tracker[self.securities[count]].add_fill(fill_qty, price)
+            self.current_quantities[count] = target_quantity
+
+    def get_nav(self, close_prices):
+        total_pnl = 0.
+        for security in self.trades_tracker:
+            pnl_calc = self.trades_tracker[security]
+            price = close_prices[self.securities_index[security]]
+            total_pnl += pnl_calc.get_total_pnl(price)
+
+        return total_pnl
 
 
 class Trader(object):
 
     def __init__(self, scaling, securities):
         self.current_level = 0.
-        self.target_position = 0
+        self.signal_zone = 0
         self.trigger_level_inf = None
         self.trigger_level_sup = None
-        self.position_adjuster = PositionAdjuster(securities)
+        self.position_adjuster = PositionAdjuster(securities, scaling)
+        self.equity = list()
 
     def update_state(self, timestamp, signal, deviation, weights, close_prices):
         if deviation == 0.:
@@ -45,17 +63,19 @@ class Trader(object):
 
         if signal >= self.trigger_level_sup:
             self.current_level = self.trigger_level_sup
-            self.target_position += 1
-            self.position_adjuster.adjust(timestamp, weights, close_prices, self.target_position)
-            self.trigger_level_inf = (self.target_position - 1) * deviation
-            self.trigger_level_sup = (self.target_position + 1) * deviation
+            self.signal_zone += 1
+            self.position_adjuster.move_to(timestamp, weights, close_prices, self.signal_zone)
+            self.trigger_level_inf = (self.signal_zone - 1) * deviation
+            self.trigger_level_sup = (self.signal_zone + 1) * deviation
 
         if signal <= self.trigger_level_inf:
             self.current_level = self.trigger_level_inf
-            self.target_position -= 1
-            self.position_adjuster.adjust(timestamp, weights, close_prices, self.target_position)
-            self.trigger_level_inf = (self.target_position - 1) * deviation
-            self.trigger_level_sup = (self.target_position + 1) * deviation
+            self.signal_zone -= 1
+            self.position_adjuster.move_to(timestamp, weights, close_prices, self.signal_zone)
+            self.trigger_level_inf = (self.signal_zone - 1) * deviation
+            self.trigger_level_sup = (self.signal_zone + 1) * deviation
+
+        self.equity.append({'date': timestamp, 'pnl': self.position_adjuster.get_nav(close_prices)})
 
     def level_current(self):
         return self.current_level
@@ -65,6 +85,9 @@ class Trader(object):
 
     def level_sup(self):
         return self.trigger_level_sup
+
+    def get_equity(self):
+        return pandas.DataFrame(self.equity).set_index('date')
 
 
 class RegressionModelFLS(object):
@@ -180,7 +203,7 @@ def process_with_regression(securities, prices, regression, warmup_period):
     chart_beta = list()
     chart_regression = list()
     signal_fls = 0.
-    trader_fls = Trader(scaling=100., securities=securities)
+    trader_fls = Trader(scaling=10000., securities=securities)
 
     for count, row in enumerate(prices.iterrows()):
         row_count, price_data = row
@@ -203,7 +226,7 @@ def process_with_regression(securities, prices, regression, warmup_period):
             'limit_sup': deviation,
             'level_inf': trader_fls.level_inf(),
             'level_sup': trader_fls.level_sup(),
-            'position': trader_fls.target_position * 5,
+            'position': trader_fls.signal_zone * 5,
             'signal_fls': signal_fls}
         chart_bollinger.append(signal_data)
 
@@ -217,7 +240,7 @@ def process_with_regression(securities, prices, regression, warmup_period):
         regression_data = {'date': timestamp, 'y*': regression.get_estimate(), 'y': dependent_price, 'portfolio': regression.get_estimate() - regression.get_factors()[-1]}
         chart_regression.append(regression_data)
 
-    #trader_fls.df_daily_nav().plot()
+    trader_fls.get_equity().plot()
     pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
     pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
     #pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
