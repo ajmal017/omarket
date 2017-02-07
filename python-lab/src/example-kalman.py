@@ -46,45 +46,31 @@ class Trader(object):
     def __init__(self, scaling, securities):
         self.current_level = 0.
         self.signal_zone = 0
-        self.trigger_level_inf = None
-        self.trigger_level_sup = None
         self.position_adjuster = PositionAdjuster(securities, scaling)
         self.equity = list()
+        self.deviation = 0.
 
     def update_state(self, timestamp, signal, deviation, weights, close_prices):
         if deviation == 0.:
             return
 
-        if self.trigger_level_inf is None:
-            self.trigger_level_inf = -deviation
+        self.deviation = deviation
 
-        if self.trigger_level_sup is None:
-            self.trigger_level_sup = deviation
-
-        if signal >= self.trigger_level_sup:
-            self.current_level = self.trigger_level_sup
+        if signal >= self.level_sup():
             self.signal_zone += 1
             self.position_adjuster.move_to(timestamp, weights, close_prices, self.signal_zone)
-            self.trigger_level_inf = (self.signal_zone - 1) * deviation
-            self.trigger_level_sup = (self.signal_zone + 1) * deviation
 
-        if signal <= self.trigger_level_inf:
-            self.current_level = self.trigger_level_inf
+        if signal <= self.level_inf():
             self.signal_zone -= 1
             self.position_adjuster.move_to(timestamp, weights, close_prices, self.signal_zone)
-            self.trigger_level_inf = (self.signal_zone - 1) * deviation
-            self.trigger_level_sup = (self.signal_zone + 1) * deviation
 
         self.equity.append({'date': timestamp, 'pnl': self.position_adjuster.get_nav(close_prices)})
 
-    def level_current(self):
-        return self.current_level
-
     def level_inf(self):
-        return self.trigger_level_inf
+        return (self.signal_zone - 1) * self.deviation
 
     def level_sup(self):
-        return self.trigger_level_sup
+        return (self.signal_zone + 1) * self.deviation
 
     def get_equity(self):
         return pandas.DataFrame(self.equity).set_index('date')
@@ -226,7 +212,6 @@ def process_with_regression(securities, prices, regression, warmup_period):
             'limit_sup': deviation,
             'level_inf': trader_fls.level_inf(),
             'level_sup': trader_fls.level_sup(),
-            'position': trader_fls.signal_zone * 5,
             'signal_fls': signal_fls}
         chart_bollinger.append(signal_data)
 
@@ -254,13 +239,13 @@ def main(args):
     #securities = ['PCX/' + symbol for symbol in ['PFF','XLV','XRT']]
     #securities = ['PCX/' + symbol for symbol in ['SPY','VOO']]
     #securities = ['PCX/' + symbol for symbol in ['IAU','GDX']]
-    securities = ['PCX/' + symbol for symbol in ['SPY','IWM']]
+    #securities = ['PCX/' + symbol for symbol in ['SPY','IWM']]
     #securities = ['PCX/' + symbol for symbol in ['SPY','UUP','VOO']]
     #securities = ['PCX/' + symbol for symbol in ['VWO','XLB','XLI']]
     #securities = ['PCX/' + symbol for symbol in ['EFA','SCHF','VEU']]
     #securities = ['PCX/' + symbol for symbol in ['EEM','XLB','XLI']]
     #securities = ['PCX/' + symbol for symbol in ['VEA','VEU','VWO']]
-    #securities = ['PCX/' + symbol for symbol in ['IWD','XLE','XOP']]
+    securities = ['PCX/' + symbol for symbol in ['IWD','XLE','XOP']]
     #securities = ['PCX/' + symbol for symbol in ['USMV','XLU','XLY']]
     #securities = ['PCX/' + symbol for symbol in ['GDX','SLV','XLU']]
     #securities = ['PCX/' + symbol for symbol in ['GDX','IAU','KRE']]
