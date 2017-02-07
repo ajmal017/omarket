@@ -43,7 +43,7 @@ public class Security {
         String conId = String.valueOf(contract.getInteger("m_conid"));
         String localSymbol = contract.getString("m_localSymbol");
         Double minTick = contractDetails.getDouble("m_minTick");
-        String priceMagnifier = contractDetails.getString("m_priceMagnifier");
+        String priceMagnifier = String.valueOf(contractDetails.getInteger("m_priceMagnifier"));
         String longName = contractDetails.getString("m_longName");
         return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }

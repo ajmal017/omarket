@@ -47,7 +47,6 @@ public class ProfitAndLossTracker {
         if (oldQuantity == 0) {
             this.quantity = fillQty;
             this.acquisitionCost = fillPrice.multiply(BigDecimal.valueOf(fillQty)).floatValue();
-            this.realizedPnl = 0;
         } else {
             Integer closingQty = 0;
             Integer openingQty = fillQty;
