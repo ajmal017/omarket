@@ -1,19 +1,12 @@
 package org.omarket.trading;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.omarket.trading.verticles.MarketDataVerticle;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.TreeMap;

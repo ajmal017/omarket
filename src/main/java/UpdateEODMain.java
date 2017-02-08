@@ -1,6 +1,9 @@
-package org.omarket.trading;
-
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
+import org.omarket.trading.ContractDB;
+import org.omarket.trading.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -10,21 +13,44 @@ import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
 
-    public static void main(String[] args) throws InterruptedException, IOException {
-        final Path eodStorage = Paths.get("data", "eod");
+    public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
+        final String resourceName = "update-eod.json";
+        URL resource = Thread.currentThread().getContextClassLoader().getResource(resourceName);
+        if (resource == null) {
+            throw new RuntimeException("unable to load resource file in classpath: " + resourceName);
+        }
+        URI resourceURI = resource.toURI();
+        Path etfsPath = Paths.get(resourceURI);
+        JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
+        Type jsonPropertyType = new TypeToken<Map>() {
+        }.getType();
+        Gson gson = new Gson();
+        Map properties = gson.fromJson(reader, jsonPropertyType);
+        final ArrayList<String> dbEODPathElements = (ArrayList<String>) properties.get("db.eod.path");
+        String dbPath = dbEODPathElements.stream().collect(Collectors.joining(File.separator));
+        final ArrayList<String> dbContractsPathElements = (ArrayList<String>) properties.get("db.contracts.path");
+        String dbContractsPath = dbContractsPathElements.stream().collect(Collectors.joining(File.separator));
+        final boolean onlyCurrentYear = (Boolean)properties.get("current.year.flag");
+        final Path eodStorage = Paths.get(dbPath);
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
             @Override
             public boolean accept(String content) {
@@ -34,7 +60,7 @@ public class UpdateEODMain {
                 return exchangeMatch && typeMatch && currencyMatch;
             }
         };
-        Observable<Security> contracts = ContractDB.loadContracts(Paths.get("data", "contracts"), filter);
+        Observable<Security> contracts = ContractDB.loadContracts(Paths.get(dbContractsPath), filter);
         contracts
                 .map(Security::getSymbol)
                 .buffer(20)
@@ -45,19 +71,23 @@ public class UpdateEODMain {
                         for (String symbol : stocks.keySet()) {
                             logger.info("processing: " + symbol);
                             Stock stock = stocks.get(symbol);
-                            downloadEOD(stock, eodStorage);
+                            Calendar fromDate = Calendar.getInstance();
+                            if (!onlyCurrentYear) {
+                                fromDate.add(Calendar.YEAR, -5);
+                            }
+                            fromDate.set(Calendar.DAY_OF_MONTH, 1);
+                            fromDate.set(Calendar.MONTH, Calendar.JANUARY);
+                            downloadEOD(stock, eodStorage, fromDate);
                         }
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
                     }
+                }, onError -> {
+
                 });
     }
 
-    private static void downloadEOD(Stock stock, Path eodStorage) throws IOException {
-        Calendar fromDate = Calendar.getInstance();
-        fromDate.add(Calendar.YEAR, -5);
-        fromDate.set(Calendar.DAY_OF_MONTH, 1);
-        fromDate.set(Calendar.MONTH, Calendar.JANUARY);
+    private static void downloadEOD(Stock stock, Path eodStorage, Calendar fromDate) throws IOException {
         List<HistoricalQuote> bars = stock.getHistory(fromDate, Interval.DAILY);
         Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
         for (HistoricalQuote bar : bars) {

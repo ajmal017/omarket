@@ -1,5 +1,3 @@
-package org.omarket.trading;
-
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
@@ -7,6 +5,7 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
+import org.omarket.trading.ContractFetcher;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.VerticleProperties;
 import org.slf4j.Logger;

@@ -1,5 +1,3 @@
-package org.omarket.trading;
-
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.rxjava.core.Vertx;
