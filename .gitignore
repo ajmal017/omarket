@@ -19,3 +19,5 @@ hs_err_pid*
 /data
 .DS_Store
 /src/main/resources/webroot/node_modules/
+/.R*
+__pycache__
