@@ -17,7 +17,7 @@ _ETFS = (
     'SCHF', 'AMJ', 'FEZ', 'EMB', 'EWC', 'UUP', 'EWY', 'IWF', 'HEDJ', 'VOO', 'BND', 'VEU', 'ITB', 'IWD',
     'DBC', 'VTI', 'EWG', 'USMV', 'EWH', 'PGX', 'EPI', 'IEFA', 'AGG', 'KBE', 'VGK', 'DIA', 'IVV',
     'PFF', 'EWW', 'VNQ', 'XME', 'XLB', 'BKLN', 'XLY', 'XRT', 'LQD', 'XBI', 'DXJ', 'IEMG', 'GLD',
-    'DUST', 'KRE', 'SLV', 'IYR', 'XLV', 'AMLP', 'VEA', 'XLK', 'IAU', 'RSX',
+    'KRE', 'SLV', 'IYR', 'XLV', 'AMLP', 'VEA', 'XLK', 'IAU', 'RSX',
     'XLI', 'JNK', 'HYG', 'XLE', 'XOP', 'VWO', 'XLP', 'XLU', 'FXI', 'EWZ', 'EFA',
     'UNG', 'GDXJ', 'IWM', 'USO', 'EEM', 'GDX', 'SPY', 'XLF'
 )
@@ -56,6 +56,11 @@ def list_securities(path):
 
 
 def prepare_data(eod_path):
+    """
+    Filtering out unwanted ETFs (leveraged)
+    :param eod_path:
+    :return:
+    """
     securities = list()
     for count, data in enumerate(list_securities(eod_path)):
         exchange, stock = data
@@ -95,7 +100,8 @@ def ncr(total, samples):
     return f(total) // f(samples) // f(total - samples)
 
 
-def generate_data(eod_path):
+def generate_data(eod_path, number_securities=3):
+
     close_df = pandas.read_pickle(os.sep.join([eod_path, 'eod.pkl']))
     volume_df = pandas.read_pickle(os.sep.join([eod_path, 'volume.pkl']))
     recent_history = volume_df.index.max() - timedelta(days=60)
@@ -107,13 +113,17 @@ def generate_data(eod_path):
     def to_key(symbols):
         return ','.join(symbols)
 
-    total = ncr(len(columns), 3)
+    total = ncr(len(columns), number_securities)
     logging.info('Possible combinations: %d' % total)
 
     results = dict()
 
     last_completed = None
-    for count, combination in enumerate(itertools.combinations(columns, 3)):
+    for count, combination in enumerate(itertools.combinations(columns, number_securities)):
+        # Almost identical leads to untrade-able discrepancies
+        if 'PCX/IAU' and 'PCX/GLD' in combination:
+            continue
+
         if int((count / total) * 100) % 5 == 0 and int((count / total) * 100) != last_completed:
             last_completed = int((count / total) * 100)
             logging.info('%d%% completed' % last_completed)
@@ -140,25 +150,6 @@ def analyse(eod_path):
         results = pickle.load(handle)
         total = len(results.keys())
         for count, combination in enumerate(results.keys()):
-            if 'PCX/IAU' and 'PCX/GLD' in combination:
-                continue
-            if 'PCX/BKLN' and 'PCX/HYG' in combination:
-                continue
-            if 'PCX/HYG' and 'PCX/JNK' in combination:
-                continue
-            if 'PCX/IEMG' and 'PCX/EEM' in combination:
-                continue
-            if 'PCX/GDX' and 'PCX/IAU' in combination:
-                continue
-            if 'PCX/AGG' and 'PCX/BND' in combination:
-                continue
-            if 'PCX/GDX' and 'PCX/SLV' in combination:
-                continue
-            if 'PCX/AGG' and 'PCX/PFF' in combination:
-                continue
-            if 'PCX/EMB' and 'PCX/LQD' in combination:
-                continue
-
             stats = results[combination]
             eigenvalue_stats = stats['eigenvalue_statistics']
             trace_stats = stats['trace_statistic']
@@ -172,21 +163,22 @@ def analyse(eod_path):
     all_trace_stats.sort(key=lambda x: -x[0])
     trace_df = pandas.DataFrame(all_trace_stats)
     logging.info(trace_df.describe())
-    logging.info('best results')
+    result_file = os.sep.join(['..', '..', 'data', 'results.csv'])
+    logging.info('writing best results to: %s' % os.path.abspath(result_file))
 
-    with open(os.sep.join(['..', '..', 'data', 'results.csv', 'w']), newline='') as csvfile:
+    with open(result_file, mode='w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
         for count in range(len(all_trace_stats)):
             stat, portfolio, result = all_trace_stats[count]
             portfolio = [name.split('/')[1] for name in portfolio.replace("'", '').replace('(', '').replace(')', '').split(',')]
             weights = result['eigenvectors'].transpose()[0]
             norm_weights = [round(x, 2) for x in numpy.divide(weights, numpy.absolute(weights).min()).tolist()]
-            logging.info('portfolio: %s' % str(portfolio))
-            logging.info('normalized weights: %s' % norm_weights)
-            logging.info('stat trace: %s' % result['trace_statistic'][0])
-            logging.info('critical trace : %s' % result['critical_values_trace'][0][0])
-            logging.info('stat eigenvalue: %s' % result['eigenvalue_statistics'][0])
-            logging.info('critical eigenvalue : %s' % result['critical_values_max_eigenvalue'][0][0])
+            logging.debug('portfolio: %s' % str(portfolio))
+            logging.debug('normalized weights: %s' % norm_weights)
+            logging.debug('stat trace: %s' % result['trace_statistic'][0])
+            logging.debug('critical trace : %s' % result['critical_values_trace'][0][0])
+            logging.debug('stat eigenvalue: %s' % result['eigenvalue_statistics'][0])
+            logging.debug('critical eigenvalue : %s' % result['critical_values_max_eigenvalue'][0][0])
             stat_fields = result['trace_statistic'][0], result['critical_values_trace'][0][0], result['eigenvalue_statistics'][0], result['critical_values_max_eigenvalue'][0][0]
             csvwriter.writerow(portfolio + norm_weights + list(stat_fields))
 
@@ -201,7 +193,7 @@ def main(args):
         prepare_data(eod_path)
 
     if args.generate:
-        generate_data(eod_path)
+        generate_data(eod_path, args.number_securities)
 
     if args.analyse:
         analyse(eod_path)
@@ -219,6 +211,7 @@ if __name__ == '__main__':
                                      )
 
     parser.add_argument('--eod-path', type=str, help='path to eod data')
+    parser.add_argument('--number-securities', type=int, help='number of securities', default=3)
     parser.add_argument('--prepare', dest='prepare', action='store_true', help='preparing data')
     parser.add_argument('--generate', dest='generate', action='store_true', help='generating results')
     parser.add_argument('--analyse', dest='analyse', action='store_true', help='analysing results')

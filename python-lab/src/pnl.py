@@ -60,7 +60,7 @@ class AverageCostProfitAndLoss(object):
         :param fees: a dict containing fees that apply on the trade
         :return:
         """
-        logging.info('adding fill: %s at %s', fill_qty, fill_price)
+        logging.debug('adding fill: %s at %s (amount: %.2f)', fill_qty, fill_price, fill_qty * fill_price)
         old_qty = self._quantity
         if old_qty == 0:
             self._quantity = fill_qty

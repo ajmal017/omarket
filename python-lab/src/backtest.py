@@ -2,6 +2,8 @@ import argparse
 import csv
 import logging
 import math
+
+import matplotlib
 import numpy
 import os
 from datetime import date
@@ -14,42 +16,140 @@ from fls import FlexibleLeastSquare
 from pnl import AverageCostProfitAndLoss
 
 
+def load_prices(prices_path, exchange, security_code):
+    letter = security_code[0]
+    dir_path = os.sep.join([prices_path, exchange, letter, security_code])
+    logging.info('accessing prices from: %s' % str(os.path.abspath(dir_path)))
+    prices_df = None
+    for root, dir, files in os.walk(dir_path):
+        csv_files = [csv_file for csv_file in files if csv_file.endswith('.csv')]
+        for csv_file in sorted(csv_files):
+            with open(os.sep.join([root, csv_file]), 'r') as csv_data:
+                fields = ['date', 'open', 'high', 'low', 'close', 'close adj', 'volume']
+                reader = csv.DictReader(csv_data, fieldnames=fields)
+                data = list()
+                type_fields = {
+                    'date': lambda yyyymmdd: date(int(yyyymmdd[:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:])),
+                    'open': float, 'high': float, 'low': float, 'close': float, 'close adj': float,
+                    'volume': int
+                }
+                for row in reader:
+                    converted_row = {key: type_fields[key](row[key]) for key in row}
+                    data.append(converted_row)
+
+                if prices_df is None:
+                    prices_df = pandas.DataFrame(data)
+                    prices_df.set_index('date')
+
+                else:
+                    prices_df = prices_df.append(data, ignore_index=True)
+
+    dividends = prices_df['close'].shift(1) * prices_df['close adj'] / prices_df['close adj'].shift(1) - prices_df['close']
+    prices_df['dividend'] = dividends[dividends > 1E-4]
+    return prices_df.set_index('date')
+
+
 class PositionAdjuster(object):
 
-    def __init__(self, securities, scaling):
+    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale):
         self.securities = securities
         self.securities_index = {security: count for count, security in enumerate(securities)}
         self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
         self.current_quantities = [0.] * len(securities)
-        self.scaling = scaling
+        self.max_net_position = max_net_position
+        self.max_gross_position = max_gross_position
+        self.max_risk_scale = max_risk_scale
+        self.equity = 0.
+        self.open_trades = list()
+        self.closed_trades = list()
+        self.current_risk_scale = 0.
 
-    def move_to(self, timestamp, weights, prices, target_position):
-        logging.info('moving to position: %d at %s' % (target_position, timestamp.strftime('%Y-%m-%d')))
+    def move_to(self, timestamp, weights, prices, risk_scale):
+        if abs(risk_scale) > self.max_risk_scale:
+            logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (risk_scale, self.max_risk_scale))
+            if risk_scale > 0:
+                risk_scale = self.max_risk_scale
+
+            elif risk_scale < 0:
+                risk_scale = -self.max_risk_scale
+
+        if self.current_risk_scale == risk_scale:
+            logging.warning('position already at specified risk scale: ignoring')
+            return
+
+        logging.info('moving to position: %d at %s' % (risk_scale, timestamp.strftime('%Y-%m-%d')))
+        strategy_equity = self.get_nav(prices)
+        scaling = 0
+        if risk_scale != 0:
+            scaling_gross = self.equity * self.max_gross_position / numpy.max(numpy.abs(weights))
+            scaling_net = self.equity * self.max_net_position / numpy.abs(numpy.sum(weights))
+            scaling = min(scaling_net, scaling_gross)
+
         for count, weight_price in enumerate(zip(weights, prices)):
             weight, price = weight_price
-            target_weight = target_position * weight
-            target_quantity = round(self.scaling * target_weight / price)
+            target_position = scaling * risk_scale * weight
+            target_quantity = round(target_position / price)
             fill_qty = target_quantity - self.current_quantities[count]
-            self.trades_tracker[self.securities[count]].add_fill(fill_qty, price)
+            trades_tracker = self.trades_tracker[self.securities[count]]
+            trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
-    def get_nav(self, close_prices):
+        logging.info('current positions: %s' % str(numpy.array(self.current_quantities) * prices))
+        trades_count = int(abs(risk_scale) - abs(self.current_risk_scale))
+        if trades_count > 0:
+            logging.info('opening %d trade(s)' % trades_count)
+            for trade_count in range(trades_count):
+                self.open_trades.append({'open': timestamp,
+                                         'risk_level': risk_scale,
+                                         'equity_start': strategy_equity,
+                                         'equity_end': strategy_equity,
+                                         'pnl': 0.
+                                         })
+
+        else:
+            logging.info('closing %d trade(s)' % abs(trades_count))
+            for trade_count in range(abs(trades_count)):
+                trade_result = self.open_trades.pop()
+                trade_result['close'] = timestamp
+                self.closed_trades.append(trade_result)
+
+            # when multiple risk levels attributes whole pnl to last one
+            self.closed_trades[-1]['equity_end'] = self.get_nav(prices)
+            self.closed_trades[-1]['pnl'] = self.closed_trades[-1]['equity_end'] - self.closed_trades[-1]['equity_start']
+
+        self.current_risk_scale = risk_scale
+
+    def get_nav(self, prices):
         total_pnl = 0.
         for security in self.trades_tracker:
             pnl_calc = self.trades_tracker[security]
-            price = close_prices[self.securities_index[security]]
+            price = prices[self.securities_index[security]]
             total_pnl += pnl_calc.get_total_pnl(price)
 
         return total_pnl
 
+    def update_equity(self, equity):
+        self.equity = equity
+
 
 class Trader(object):
 
-    def __init__(self, scaling, securities, step_size):
+    def __init__(self, securities, step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
+        """
+
+        :param securities:
+        :param step_size:
+        :param start_equity:
+        :param max_net_position: measured in fraction of equity
+        :param max_gross_position: measured in fraction of equity
+        :param max_risk_scale: max number of deviations steps allowed
+        """
         self.current_level = 0.
         self.signal_zone = 0
-        self.position_adjuster = PositionAdjuster(securities, scaling)
-        self.equity = list()
+        self.start_equity = start_equity
+        self.equity_history = list()
+        self.position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale)
+        self.position_adjuster.update_equity(start_equity)
         self.deviation = 0.
         self._step_size = step_size
 
@@ -67,7 +167,9 @@ class Trader(object):
             self.signal_zone -= 1
             self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
 
-        self.equity.append({'date': timestamp, 'pnl': self.position_adjuster.get_nav(traded_prices)})
+        equity = self.position_adjuster.get_nav(traded_prices) + self.start_equity
+        self.position_adjuster.update_equity(equity)
+        self.equity_history.append({'date': timestamp, 'pnl': equity})
 
     def level_inf(self):
         return (self.signal_zone - 1) * self.deviation
@@ -76,7 +178,13 @@ class Trader(object):
         return (self.signal_zone + 1) * self.deviation
 
     def get_equity(self):
-        return pandas.DataFrame(self.equity).set_index('date')
+        return pandas.DataFrame(self.equity_history).set_index('date')
+
+    def get_closed_trades(self):
+        return pandas.DataFrame(self.position_adjuster.closed_trades)
+
+    def get_open_trades(self):
+        return pandas.DataFrame(self.position_adjuster.open_trades)
 
 
 class RegressionModelFLS(object):
@@ -196,8 +304,9 @@ def process_with_regression(securities, signal_data, regression, warmup_period, 
     chart_beta = list()
     chart_regression = list()
     signal = 0.
-    trader_engine = Trader(scaling=10000., securities=securities, step_size=2)
-    for count, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
+    trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
+                           max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
+    for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
         row, row_next = rows
         row_count, price_data = row
         row_count_next, price_data_next = row_next
@@ -208,7 +317,7 @@ def process_with_regression(securities, signal_data, regression, warmup_period, 
         level_inf = trader_engine.level_inf()
         level_sup = trader_engine.level_sup()
         next_date = price_data_next['date']
-        if count > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
+        if count_day > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
             weights = regression.get_weights()
             signal = regression.get_residual()
             traded_prices = list()
@@ -229,23 +338,60 @@ def process_with_regression(securities, signal_data, regression, warmup_period, 
         chart_bollinger.append(signal_data)
 
         beta_data = dict()
-        for count, weight in enumerate(regression.get_factors()):
-            beta_data['beta%d' % count] = weight
+        for count_factor, weight in enumerate(regression.get_factors()):
+            beta_data['beta%d' % count_factor] = weight
 
         beta_data['date'] = timestamp
         chart_beta.append(beta_data)
 
-        regression_data = {'date': timestamp, 'y*': regression.get_estimate(), 'y': dependent_price, 'portfolio': regression.get_estimate() - regression.get_factors()[-1]}
+        regression_data = {'date': timestamp,
+                           'y*': regression.get_estimate(),
+                           'y': dependent_price,
+                           'portfolio': regression.get_estimate() - regression.get_factors()[-1]
+                           }
         chart_regression.append(regression_data)
 
+    logging.info('closed trades:\n%s' % str(trader_engine.get_closed_trades()))
     trader_engine.get_equity().plot()
+    pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
+
     pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
     pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
-    #pandas.DataFrame(chart_regression).set_index('date').plot(subplots=False)
 
 
 def main(args):
     pyplot.style.use('ggplot')
+
+    #securities = ['PCX/' + symbol for symbol in ['AMLP','PFF','PGX']]
+    #securities = ['PCX/' + symbol for symbol in ['BKLN', 'HYG', 'JNK']]
+    #securities = ['PCX/' + symbol for symbol in ['IYR', 'PFF']]
+    #securities = ['PCX/' + symbol for symbol in ['VNQ', 'XLU']]
+    #securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU']]
+    #securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU', 'VNQ']]
+    #securities = ['PCX/' + symbol for symbol in ['IYR', 'XLU']]
+    #securities = ['PCX/' + symbol for symbol in ['GDX', 'SLV']]
+    #securities = ['PCX/' + symbol for symbol in ['IYR', 'LQD']]
+    #securities = ['PCX/' + symbol for symbol in ['EWC', 'EWY']]
+    #securities = ['PCX/' + symbol for symbol in ['BND', 'EMB']]
+    #securities = ['PCX/' + symbol for symbol in ['EMB', 'LQD']]
+    #securities = ['PCX/' + symbol for symbol in ['AGG', 'PGX']]
+    #securities = ['PCX/' + symbol for symbol in ['AGG', 'PFF']]
+    #securities = ['PCX/' + symbol for symbol in ['IAU', 'SLV']]
+    #securities = ['PCX/' + symbol for symbol in ['AGG', 'IYR']]
+    #securities = ['PCX/' + symbol for symbol in ['UNG', 'XOP']]
+    securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
+    #securities = ['PCX/' + symbol for symbol in ['EWZ', 'XME']]
+    #securities = ['PCX/' + symbol for symbol in ['USMV', 'XLU']]
+    #securities = ['PCX/' + symbol for symbol in ['AGG', 'VNQ']]
+    #securities = ['PCX/' + symbol for symbol in ['AGG', 'EMB']]
+    #securities = ['PCX/' + symbol for symbol in ['AMLP', 'EEM']]
+    #securities = ['PCX/' + symbol for symbol in ['LQD', 'VNQ']]
+    #securities = ['PCX/' + symbol for symbol in ['EWC', 'VWO']]
+    #securities = ['PCX/' + symbol for symbol in ['EWH', 'XLB']]
+    #securities = ['PCX/' + symbol for symbol in ['USMV', 'XLP']]
+    #securities = ['PCX/' + symbol for symbol in ['LQD', 'PFF']]
+
+    #
 
     #securities = ['PCX/' + symbol for symbol in ['PFF','XLV','XRT']]
     #securities = ['PCX/' + symbol for symbol in ['SPY','VOO']]
@@ -257,7 +403,7 @@ def main(args):
     #securities = ['PCX/' + symbol for symbol in ['EEM','XLB','XLI']]
     #securities = ['PCX/' + symbol for symbol in ['VEA','VEU','VWO']]
     #securities = ['PCX/' + symbol for symbol in ['IWD','XLE','XOP']]
-    securities = ['PCX/' + symbol for symbol in ['USMV','XLU','XLY']]
+    #securities = ['PCX/' + symbol for symbol in ['USMV','XLU','XLY']]
     #securities = ['PCX/' + symbol for symbol in ['GDX','SLV','XLU']]
     #securities = ['PCX/' + symbol for symbol in ['GDX','IAU','KRE']]
     #securities = ['PCX/' + symbol for symbol in ['AGG','BND','PGX']]
@@ -273,7 +419,7 @@ def main(args):
         prices[security] = prices_df['close adj']
 
     prices.reset_index(inplace=True)
-    signal_data = prices[prices['date'] < date(2015, 1, 1)]
+    signal_data = prices[prices['date'] < date(2017, 1, 1)]
 
     warmup_period = 10
 
@@ -281,45 +427,12 @@ def main(args):
     #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
     #regression1 = RegressionModelFLS(securities, 0.5, with_constant_term=False)
     #regression2 = RegressionModelFLS(securities, 0.9, with_constant_term=False)
-    regression10 = RegressionModelOLS(securities, with_constant_term=False)
+    regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=200)
     #process_with_regression(securities, in_sample_prices, regression0, warmup_period)
     #process_with_regression(securities, in_sample_prices, regression1, warmup_period)
     #process_with_regression(securities, in_sample_prices, regression2, warmup_period)
     process_with_regression(securities, signal_data, regression10, warmup_period, prices_by_security)
     pyplot.show()
-
-
-def load_prices(prices_path, exchange, security_code):
-    letter = security_code[0]
-    dir_path = os.sep.join([prices_path, exchange, letter, security_code])
-    logging.info('accessing prices from: %s' % str(os.path.abspath(dir_path)))
-    prices_df = None
-    for root, dir, files in os.walk(dir_path):
-        csv_files = [csv_file for csv_file in files if csv_file.endswith('.csv')]
-        for csv_file in sorted(csv_files):
-            with open(os.sep.join([root, csv_file]), 'r') as csv_data:
-                fields = ['date', 'open', 'high', 'low', 'close', 'close adj', 'volume']
-                reader = csv.DictReader(csv_data, fieldnames=fields)
-                data = list()
-                type_fields = {
-                    'date': lambda yyyymmdd: date(int(yyyymmdd[:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:])),
-                    'open': float, 'high': float, 'low': float, 'close': float, 'close adj': float,
-                    'volume': int
-                }
-                for row in reader:
-                    converted_row = {key: type_fields[key](row[key]) for key in row}
-                    data.append(converted_row)
-
-                if prices_df is None:
-                    prices_df = pandas.DataFrame(data)
-                    prices_df.set_index('date')
-
-                else:
-                    prices_df = prices_df.append(data, ignore_index=True)
-
-    dividends = prices_df['close'].shift(1) * prices_df['close adj'] / prices_df['close adj'].shift(1) - prices_df['close']
-    prices_df['dividend'] = dividends[dividends > 1E-4]
-    return prices_df.set_index('date')
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
