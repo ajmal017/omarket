@@ -508,7 +508,7 @@ def main(args):
 
             regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=200)
             result = process_backtest(securities, signal_data, regression10, warmup_period, prices_by_security)
-            result['portfolio'] = ','.join(symbols)
+            result['portfolio'] = '/'.join(symbols)
             results.append(result)
 
         result_df = pandas.DataFrame(results).set_index('portfolio')
