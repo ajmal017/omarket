@@ -77,7 +77,7 @@ class PositionAdjuster(object):
             logging.warning('position already at specified risk scale: ignoring')
             return
 
-        logging.info('moving to position: %d at %s' % (risk_scale, timestamp.strftime('%Y-%m-%d')))
+        logging.debug('moving to position: %d at %s' % (risk_scale, timestamp.strftime('%Y-%m-%d')))
         strategy_equity = self.get_nav(prices)
         scaling = 0
         if risk_scale != 0:
@@ -94,10 +94,10 @@ class PositionAdjuster(object):
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
-        logging.info('current positions: %s' % str(numpy.array(self.current_quantities) * prices))
+        logging.debug('current positions: %s' % str(numpy.array(self.current_quantities) * prices))
         trades_count = int(abs(risk_scale) - abs(self.current_risk_scale))
         if trades_count > 0:
-            logging.info('opening %d trade(s)' % trades_count)
+            logging.debug('opening %d trade(s)' % trades_count)
             for trade_count in range(trades_count):
                 self.open_trades.append({'open': timestamp,
                                          'risk_level': risk_scale,
@@ -107,7 +107,7 @@ class PositionAdjuster(object):
                                          })
 
         else:
-            logging.info('closing %d trade(s)' % abs(trades_count))
+            logging.debug('closing %d trade(s)' % abs(trades_count))
             for trade_count in range(abs(trades_count)):
                 trade_result = self.open_trades.pop()
                 trade_result['close'] = timestamp
@@ -185,6 +185,16 @@ class Trader(object):
 
     def get_open_trades(self):
         return pandas.DataFrame(self.position_adjuster.open_trades)
+
+    def get_sharpe_ratio(self):
+        mean_return = self.get_equity().pct_change().mean()
+        std_return = self.get_equity().pct_change().std()
+        value = mean_return / std_return * math.sqrt(250)
+        return value['pnl']
+
+    def get_drawdown(self):
+        cum_returns = (1. + self.get_equity().pct_change()).cumprod()
+        return 1. - cum_returns.div(cum_returns.cummax())
 
 
 class RegressionModelFLS(object):
@@ -299,10 +309,54 @@ class RegressionModelOLS(object):
         return self.current_y - self.get_estimate()
 
 
-def process_with_regression(securities, signal_data, regression, warmup_period, prices_by_security):
+def process_backtest(securities, signal_data, regression, warmup_period, prices_by_security):
+    trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
+                           max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
+    for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
+        row, row_next = rows
+        row_count, price_data = row
+        row_count_next, price_data_next = row_next
+        timestamp = price_data['date']
+        dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
+        regression.compute_regression(dependent_price, independent_prices.tolist())
+        dev_fls = regression.get_residual_error()
+        next_date = price_data_next['date']
+        if count_day > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
+            weights = regression.get_weights()
+            signal = regression.get_residual()
+            traded_prices = list()
+            for security in securities:
+                prices = prices_by_security[security][prices_by_security[security].index == next_date]
+                if len(prices) == 0:
+                    logging.error('no data as of %s' % (next_date))
+
+                traded_prices.append(prices['open'].values[0])
+
+            trader_engine.update_state(timestamp, signal, dev_fls, weights, traded_prices)
+
+    closed_trades = trader_engine.get_closed_trades()
+    mean_trade = closed_trades['pnl'].mean()
+    worst_trade = closed_trades['pnl'].min()
+    count_trades = closed_trades['pnl'].count()
+    max_drawdown = trader_engine.get_drawdown().max()['pnl']
+    final_equity = trader_engine.get_equity()['pnl'][-1]
+    result = {
+        'sharpe_ratio': trader_engine.get_sharpe_ratio(),
+        'average_trade': mean_trade,
+        'worst_trade': worst_trade,
+        'count_trades': count_trades,
+        'max_drawdown_pct': max_drawdown,
+        'final_equity': final_equity
+    }
+    logging.info('result: %s' % str(result))
+    return result
+
+
+def chart_regression(securities, signal_data, regression, warmup_period, prices_by_security):
     chart_bollinger = list()
     chart_beta = list()
     chart_regression = list()
+
     signal = 0.
     trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
                            max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
@@ -352,11 +406,15 @@ def process_with_regression(securities, signal_data, regression, warmup_period, 
         chart_regression.append(regression_data)
 
     logging.info('closed trades:\n%s' % str(trader_engine.get_closed_trades()))
+    logging.info('sharpe ratio: %s' % str(trader_engine.get_sharpe_ratio()))
+
+
     trader_engine.get_equity().plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
 
     pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
     pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
+    pyplot.show()
 
 
 def main(args):
@@ -379,7 +437,7 @@ def main(args):
     #securities = ['PCX/' + symbol for symbol in ['IAU', 'SLV']]
     #securities = ['PCX/' + symbol for symbol in ['AGG', 'IYR']]
     #securities = ['PCX/' + symbol for symbol in ['UNG', 'XOP']]
-    securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
+    #securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
     #securities = ['PCX/' + symbol for symbol in ['EWZ', 'XME']]
     #securities = ['PCX/' + symbol for symbol in ['USMV', 'XLU']]
     #securities = ['PCX/' + symbol for symbol in ['AGG', 'VNQ']]
@@ -410,29 +468,36 @@ def main(args):
     #securities = ['PCX/' + symbol for symbol in ['AGG','IAU','PFF']]
 
     prices_path = os.sep.join(['..', '..', 'data', 'eod'])
-    prices_by_security = dict()
-    prices = pandas.DataFrame()
-    for security in securities:
-        exchange, security_code = security.split('/')
-        prices_df = load_prices(prices_path, exchange, security_code)
-        prices_by_security[security] = prices_df
-        prices[security] = prices_df['close adj']
+    with open(os.sep.join(['..', '..', 'data', 'portfolios.csv'])) as portfolios_file:
+        portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
+        results = list()
+        for symbols in portfolios:
+            securities = ['PCX/' + symbol for symbol in symbols]
+            prices_by_security = dict()
+            prices = pandas.DataFrame()
+            for security in securities:
+                exchange, security_code = security.split('/')
+                prices_df = load_prices(prices_path, exchange, security_code)
+                prices_by_security[security] = prices_df
+                prices[security] = prices_df['close adj']
 
-    prices.reset_index(inplace=True)
-    signal_data = prices[prices['date'] < date(2017, 1, 1)]
+            prices.reset_index(inplace=True)
+            signal_data = prices[prices['date'] < date(2017, 1, 1)]
 
-    warmup_period = 10
+            warmup_period = 10
 
-    delta = 5E-6
-    #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
-    #regression1 = RegressionModelFLS(securities, 0.5, with_constant_term=False)
-    #regression2 = RegressionModelFLS(securities, 0.9, with_constant_term=False)
-    regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=200)
-    #process_with_regression(securities, in_sample_prices, regression0, warmup_period)
-    #process_with_regression(securities, in_sample_prices, regression1, warmup_period)
-    #process_with_regression(securities, in_sample_prices, regression2, warmup_period)
-    process_with_regression(securities, signal_data, regression10, warmup_period, prices_by_security)
-    pyplot.show()
+            #delta = 5E-6
+            #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
+            #process_backtest(securities, signal_data, regression0, warmup_period, prices_by_security)
+
+            regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=200)
+            result = process_backtest(securities, signal_data, regression10, warmup_period, prices_by_security)
+            result['portfolio'] = ','.join(symbols)
+            results.append(result)
+
+        result_df = pandas.DataFrame(results).set_index('portfolio')
+        result_df.to_csv('backtest-results.csv')
+        print(result_df)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
