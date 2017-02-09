@@ -47,6 +47,9 @@ def load_prices(prices_path, exchange, security_code):
     dividends = prices_df['close'].shift(1) * prices_df['close adj'] / prices_df['close adj'].shift(1) - prices_df['close']
     prices_df['dividend'] = dividends[dividends > 1E-4]
     return prices_df.set_index('date')
+    #prices_df['date'] = prices_df['date'].apply(lambda x: pandas.to_datetime(x))
+    #resampled_prices = prices_df.set_index('date').resample('B').last()
+    #return resampled_prices
 
 
 class PositionAdjuster(object):
@@ -312,6 +315,7 @@ class RegressionModelOLS(object):
 def process_backtest(securities, signal_data, regression, warmup_period, prices_by_security):
     trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
                            max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
+
     for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
         row, row_next = rows
         row_count, price_data = row
@@ -329,6 +333,7 @@ def process_backtest(securities, signal_data, regression, warmup_period, prices_
                 prices = prices_by_security[security][prices_by_security[security].index == next_date]
                 if len(prices) == 0:
                     logging.error('no data as of %s' % (next_date))
+                    raise RuntimeError('no data as of %s' % (next_date))
 
                 traded_prices.append(prices['open'].values[0])
 
@@ -379,6 +384,7 @@ def chart_regression(securities, signal_data, regression, warmup_period, prices_
                 prices = prices_by_security[security][prices_by_security[security].index == next_date]
                 if len(prices) == 0:
                     logging.error('no data as of %s' % (next_date))
+                    raise 'no data as of %s' % (next_date)
 
                 traded_prices.append(prices['open'].values[0])
 
@@ -474,15 +480,25 @@ def main(args):
         for symbols in portfolios:
             securities = ['PCX/' + symbol for symbol in symbols]
             prices_by_security = dict()
-            prices = pandas.DataFrame()
+            close_prices = pandas.DataFrame()
+            max_start_date = None
             for security in securities:
                 exchange, security_code = security.split('/')
                 prices_df = load_prices(prices_path, exchange, security_code)
                 prices_by_security[security] = prices_df
-                prices[security] = prices_df['close adj']
+                if max_start_date is not None:
+                    max_start_date = max(max_start_date, prices_df.index.min())
 
-            prices.reset_index(inplace=True)
-            signal_data = prices[prices['date'] < date(2017, 1, 1)]
+                else:
+                    max_start_date = prices_df.index.min()
+
+                close_prices[security] = prices_df['close adj']
+
+            close_prices.reset_index(inplace=True)
+            signal_data = close_prices[(close_prices['date'] < date(2017, 1, 1)) & (close_prices['date'] >= max_start_date)]
+
+            for security in securities:
+                prices_by_security[security] = prices_by_security[security][prices_by_security[security] >= max_start_date]
 
             warmup_period = 10
 
