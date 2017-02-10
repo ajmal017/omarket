@@ -312,10 +312,16 @@ class RegressionModelOLS(object):
         return self.current_y - self.get_estimate()
 
 
-def process_backtest(securities, signal_data, regression, warmup_period, prices_by_security):
-    trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
-                           max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
+def process_strategy(securities, signal_data, regression, warmup_period, prices_by_security,
+                     step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
+    trader_engine = Trader(securities=securities, step_size=step_size, start_equity=start_equity,
+                           max_net_position=max_net_position,
+                           max_gross_position=max_gross_position,
+                           max_risk_scale=max_risk_scale)
 
+    chart_bollinger = list()
+    chart_beta = list()
+    chart_regression = list()
     for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
         row, row_next = rows
         row_count, price_data = row
@@ -324,7 +330,10 @@ def process_backtest(securities, signal_data, regression, warmup_period, prices_
         dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
         regression.compute_regression(dependent_price, independent_prices.tolist())
         dev_fls = regression.get_residual_error()
+        level_inf = trader_engine.level_inf()
+        level_sup = trader_engine.level_sup()
         next_date = price_data_next['date']
+        signal = 0.
         if count_day > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
             weights = regression.get_weights()
             signal = regression.get_residual()
@@ -339,62 +348,13 @@ def process_backtest(securities, signal_data, regression, warmup_period, prices_
 
             trader_engine.update_state(timestamp, signal, dev_fls, weights, traded_prices)
 
-    closed_trades = trader_engine.get_closed_trades()
-    mean_trade = closed_trades['pnl'].mean()
-    worst_trade = closed_trades['pnl'].min()
-    count_trades = closed_trades['pnl'].count()
-    max_drawdown = trader_engine.get_drawdown().max()['pnl']
-    final_equity = trader_engine.get_equity()['pnl'][-1]
-    result = {
-        'sharpe_ratio': trader_engine.get_sharpe_ratio(),
-        'average_trade': mean_trade,
-        'worst_trade': worst_trade,
-        'count_trades': count_trades,
-        'max_drawdown_pct': max_drawdown,
-        'final_equity': final_equity
-    }
-    logging.info('result: %s' % str(result))
-    return result
-
-
-def chart_regression(securities, signal_data, regression, warmup_period, prices_by_security):
-    chart_bollinger = list()
-    chart_beta = list()
-    chart_regression = list()
-
-    signal = 0.
-    trader_engine = Trader(securities=securities, step_size=2, start_equity=20000.,
-                           max_net_position=0.2, max_gross_position=0.5, max_risk_scale=3)
-    for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
-        row, row_next = rows
-        row_count, price_data = row
-        row_count_next, price_data_next = row_next
-        timestamp = price_data['date']
-        dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
-        regression.compute_regression(dependent_price, independent_prices.tolist())
-        dev_fls = regression.get_residual_error()
-        level_inf = trader_engine.level_inf()
-        level_sup = trader_engine.level_sup()
-        next_date = price_data_next['date']
-        if count_day > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
-            weights = regression.get_weights()
-            signal = regression.get_residual()
-            traded_prices = list()
-            for security in securities:
-                prices = prices_by_security[security][prices_by_security[security].index == next_date]
-                if len(prices) == 0:
-                    logging.error('no data as of %s' % (next_date))
-                    raise 'no data as of %s' % (next_date)
-
-                traded_prices.append(prices['open'].values[0])
-
-            trader_engine.update_state(timestamp, signal, dev_fls, weights, traded_prices)
-
         signal_data = {
             'date': timestamp,
             'level_inf': level_inf,
             'level_sup': level_sup,
-            'signal_fls': signal}
+            'signal_fls': signal
+        }
+
         chart_bollinger.append(signal_data)
 
         beta_data = dict()
@@ -411,109 +371,122 @@ def chart_regression(securities, signal_data, regression, warmup_period, prices_
                            }
         chart_regression.append(regression_data)
 
-    logging.info('closed trades:\n%s' % str(trader_engine.get_closed_trades()))
-    logging.info('sharpe ratio: %s' % str(trader_engine.get_sharpe_ratio()))
+    closed_trades = trader_engine.get_closed_trades()
+    mean_trade = closed_trades['pnl'].mean()
+    worst_trade = closed_trades['pnl'].min()
+    count_trades = closed_trades['pnl'].count()
+    max_drawdown = trader_engine.get_drawdown().max()['pnl']
+    final_equity = trader_engine.get_equity()['pnl'][-1]
+    summary = {
+        'sharpe_ratio': trader_engine.get_sharpe_ratio(),
+        'average_trade': mean_trade,
+        'worst_trade': worst_trade,
+        'count_trades': count_trades,
+        'max_drawdown_pct': max_drawdown,
+        'final_equity': final_equity
+    }
+    logging.info('result: %s' % str(summary))
+    result = {
+        'summary': summary,
+        'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
+        'factors': pandas.DataFrame(chart_beta).set_index('date'),
+        'regression': chart_regression,
+        'equity': trader_engine.get_equity()
+    }
+    return result
 
 
-    trader_engine.get_equity().plot()
+def run_backtest(symbols, prices_path, lookback_period,
+                 step_size, start_equity, max_net_position, max_gross_position,
+                 max_risk_scale):
+    securities = ['PCX/' + symbol for symbol in symbols]
+    prices_by_security = dict()
+    close_prices = pandas.DataFrame()
+    max_start_date = None
+    min_end_date = None
+    for security in securities:
+        exchange, security_code = security.split('/')
+        prices_df = load_prices(prices_path, exchange, security_code)
+        prices_by_security[security] = prices_df
+        if max_start_date is not None:
+            max_start_date = max(max_start_date, prices_df.index.min())
+
+        else:
+            max_start_date = prices_df.index.min()
+
+        if min_end_date is not None:
+            min_end_date = min(min_end_date, prices_df.index.max())
+
+        else:
+            min_end_date = prices_df.index.max()
+
+        close_prices[security] = prices_df['close adj']
+
+    close_prices.reset_index(inplace=True)
+    signal_data = close_prices[(close_prices['date'] <= min_end_date) & (close_prices['date'] >= max_start_date)]
+
+    for security in securities:
+        prices_by_security[security] = prices_by_security[security][prices_by_security[security] >= max_start_date]
+
+    warmup_period = 10
+
+    #delta = 5E-6
+    #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
+    #process_strategy(securities, signal_data, regression0, warmup_period, prices_by_security)
+    regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
+    backtest_data = process_strategy(securities, signal_data, regression10, warmup_period, prices_by_security,
+                                     step_size=step_size, start_equity=start_equity,
+                                     max_net_position=max_net_position,
+                                     max_gross_position=max_gross_position,
+                                     max_risk_scale=max_risk_scale)
+    backtest_summary = backtest_data['summary']
+    backtest_summary['portfolio'] = '/'.join(symbols)
+    return backtest_data
+
+
+def chart_backtest(securities, prices_path, lookback_period,
+                   step_size, start_equity,
+                   max_net_position, max_gross_position, max_risk_scale):
+    pyplot.style.use('ggplot')
+    backtest_result = run_backtest(securities, prices_path, lookback_period=lookback_period,
+                                   step_size=step_size, start_equity=start_equity,
+                                   max_net_position=max_net_position,
+                                   max_gross_position=max_gross_position,
+                                   max_risk_scale=max_risk_scale)
+    backtest_result['equity'].plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
-
-    pandas.DataFrame(chart_beta).set_index('date').plot(subplots=True)
-    pandas.DataFrame(chart_bollinger).set_index('date').plot(subplots=False)
+    backtest_result['factors'].plot(subplots=True)
+    backtest_result['bollinger'].plot(subplots=False)
     pyplot.show()
 
 
 def main(args):
-    pyplot.style.use('ggplot')
-
-    #securities = ['PCX/' + symbol for symbol in ['AMLP','PFF','PGX']]
-    #securities = ['PCX/' + symbol for symbol in ['BKLN', 'HYG', 'JNK']]
-    #securities = ['PCX/' + symbol for symbol in ['IYR', 'PFF']]
-    #securities = ['PCX/' + symbol for symbol in ['VNQ', 'XLU']]
-    #securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU']]
-    #securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU', 'VNQ']]
-    #securities = ['PCX/' + symbol for symbol in ['IYR', 'XLU']]
-    #securities = ['PCX/' + symbol for symbol in ['GDX', 'SLV']]
-    #securities = ['PCX/' + symbol for symbol in ['IYR', 'LQD']]
-    #securities = ['PCX/' + symbol for symbol in ['EWC', 'EWY']]
-    #securities = ['PCX/' + symbol for symbol in ['BND', 'EMB']]
-    #securities = ['PCX/' + symbol for symbol in ['EMB', 'LQD']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG', 'PGX']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG', 'PFF']]
-    #securities = ['PCX/' + symbol for symbol in ['IAU', 'SLV']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG', 'IYR']]
-    #securities = ['PCX/' + symbol for symbol in ['UNG', 'XOP']]
-    #securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
-    #securities = ['PCX/' + symbol for symbol in ['EWZ', 'XME']]
-    #securities = ['PCX/' + symbol for symbol in ['USMV', 'XLU']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG', 'VNQ']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG', 'EMB']]
-    #securities = ['PCX/' + symbol for symbol in ['AMLP', 'EEM']]
-    #securities = ['PCX/' + symbol for symbol in ['LQD', 'VNQ']]
-    #securities = ['PCX/' + symbol for symbol in ['EWC', 'VWO']]
-    #securities = ['PCX/' + symbol for symbol in ['EWH', 'XLB']]
-    #securities = ['PCX/' + symbol for symbol in ['USMV', 'XLP']]
-    #securities = ['PCX/' + symbol for symbol in ['LQD', 'PFF']]
-
-    #
-
-    #securities = ['PCX/' + symbol for symbol in ['PFF','XLV','XRT']]
-    #securities = ['PCX/' + symbol for symbol in ['SPY','VOO']]
-    #securities = ['PCX/' + symbol for symbol in ['IAU','GDX']]
-    #securities = ['PCX/' + symbol for symbol in ['SPY','IWM']]
-    #securities = ['PCX/' + symbol for symbol in ['SPY','UUP','VOO']]
-    #securities = ['PCX/' + symbol for symbol in ['VWO','XLB','XLI']]
-    #securities = ['PCX/' + symbol for symbol in ['EFA','SCHF','VEU']]
-    #securities = ['PCX/' + symbol for symbol in ['EEM','XLB','XLI']]
-    #securities = ['PCX/' + symbol for symbol in ['VEA','VEU','VWO']]
-    #securities = ['PCX/' + symbol for symbol in ['IWD','XLE','XOP']]
-    #securities = ['PCX/' + symbol for symbol in ['USMV','XLU','XLY']]
-    #securities = ['PCX/' + symbol for symbol in ['GDX','SLV','XLU']]
-    #securities = ['PCX/' + symbol for symbol in ['GDX','IAU','KRE']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG','BND','PGX']]
-    #securities = ['PCX/' + symbol for symbol in ['AGG','IAU','PFF']]
-
     prices_path = os.sep.join(['..', '..', 'data', 'eod'])
-    with open(os.sep.join(['..', '..', 'data', 'portfolios.csv'])) as portfolios_file:
-        portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
-        results = list()
-        for symbols in portfolios:
-            securities = ['PCX/' + symbol for symbol in symbols]
-            prices_by_security = dict()
-            close_prices = pandas.DataFrame()
-            max_start_date = None
-            for security in securities:
-                exchange, security_code = security.split('/')
-                prices_df = load_prices(prices_path, exchange, security_code)
-                prices_by_security[security] = prices_df
-                if max_start_date is not None:
-                    max_start_date = max(max_start_date, prices_df.index.min())
+    if args.display is not None:
+        securities = args.display.split(',')
+        chart_backtest(securities, prices_path, lookback_period=args.lookback_period,
+                       step_size=args.step_size, start_equity=args.starting_equity,
+                       max_net_position=args.max_net_position,
+                       max_gross_position=args.max_gross_position,
+                       max_risk_scale=args.max_risk_scale)
 
-                else:
-                    max_start_date = prices_df.index.min()
+    else:
+        portfolios_path = os.sep.join(['..', '..', 'data', 'portfolios.csv'])
+        with open(portfolios_path) as portfolios_file:
+            portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
+            results = list()
+            for symbols in portfolios:
+                result = run_backtest(symbols, prices_path, lookback_period=args.lookback_period,
+                                      step_size=args.step_size, start_equity=args.starting_equity,
+                                      max_net_position=args.max_net_position,
+                                      max_gross_position=args.max_gross_position,
+                                      max_risk_scale=args.max_risk_scale)
 
-                close_prices[security] = prices_df['close adj']
+                results.append(result['summary'])
 
-            close_prices.reset_index(inplace=True)
-            signal_data = close_prices[(close_prices['date'] < date(2017, 1, 1)) & (close_prices['date'] >= max_start_date)]
-
-            for security in securities:
-                prices_by_security[security] = prices_by_security[security][prices_by_security[security] >= max_start_date]
-
-            warmup_period = 10
-
-            #delta = 5E-6
-            #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
-            #process_backtest(securities, signal_data, regression0, warmup_period, prices_by_security)
-
-            regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=200)
-            result = process_backtest(securities, signal_data, regression10, warmup_period, prices_by_security)
-            result['portfolio'] = '/'.join(symbols)
-            results.append(result)
-
-        result_df = pandas.DataFrame(results).set_index('portfolio')
-        result_df.to_csv('backtest-results.csv')
-        print(result_df)
+            result_df = pandas.DataFrame(results).set_index('portfolio')
+            result_df.to_csv('backtest-results.csv')
+            print(result_df)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
@@ -525,6 +498,44 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Backtesting prototype.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
+    parser.add_argument('--display', type=str, help='display portfolio made of comma-separated securities')
+    parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
+    parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
+    parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=20000)
+    parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.2)
+    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position for one step, measured as a fraction of equity', default=0.8)
+    parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)
+
+#securities = ['PCX/' + symbol for symbol in ['AMLP','PFF','PGX']]
+#securities = ['PCX/' + symbol for symbol in ['BKLN', 'HYG', 'JNK']]
+#securities = ['PCX/' + symbol for symbol in ['IYR', 'PFF']]
+#securities = ['PCX/' + symbol for symbol in ['VNQ', 'XLU']]
+#securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU']]
+#securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU', 'VNQ']]
+#securities = ['PCX/' + symbol for symbol in ['IYR', 'XLU']]
+#securities = ['PCX/' + symbol for symbol in ['GDX', 'SLV']]
+#securities = ['PCX/' + symbol for symbol in ['IYR', 'LQD']]
+#securities = ['PCX/' + symbol for symbol in ['EWC', 'EWY']]
+#securities = ['PCX/' + symbol for symbol in ['BND', 'EMB']]
+#securities = ['PCX/' + symbol for symbol in ['EMB', 'LQD']]
+#securities = ['PCX/' + symbol for symbol in ['AGG', 'PGX']]
+#securities = ['PCX/' + symbol for symbol in ['AGG', 'PFF']]
+#securities = ['PCX/' + symbol for symbol in ['IAU', 'SLV']]
+#securities = ['PCX/' + symbol for symbol in ['AGG', 'IYR']]
+#securities = ['PCX/' + symbol for symbol in ['UNG', 'XOP']]
+#securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
+#securities = ['PCX/' + symbol for symbol in ['EWZ', 'XME']]
+#securities = ['PCX/' + symbol for symbol in ['USMV', 'XLU']]
+#securities = ['PCX/' + symbol for symbol in ['AGG', 'VNQ']]
+#securities = ['PCX/' + symbol for symbol in ['AGG', 'EMB']]
+#securities = ['PCX/' + symbol for symbol in ['AMLP', 'EEM']]
+#securities = ['PCX/' + symbol for symbol in ['LQD', 'VNQ']]
+#securities = ['PCX/' + symbol for symbol in ['EWC', 'VWO']]
+#securities = ['PCX/' + symbol for symbol in ['EWH', 'XLB']]
+#securities = ['PCX/' + symbol for symbol in ['USMV', 'XLP']]
+#securities = ['PCX/' + symbol for symbol in ['LQD', 'PFF']]
+#securities = ['PCX/' + symbol for symbol in ['EFA', 'ITB', 'XOP']]
+#
 

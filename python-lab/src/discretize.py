@@ -1,5 +1,6 @@
 import math
 
+
 class HysteresisDiscretize(object):
     """
     remembers self.n
