@@ -97,7 +97,7 @@ class PositionAdjuster(object):
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
-        logging.debug('current positions: %s' % str(numpy.array(self.current_quantities) * prices))
+        logging.debug('current positions: %s' % str(self.get_positions(prices)))
         trades_count = int(abs(risk_scale) - abs(self.current_risk_scale))
         if trades_count > 0:
             logging.debug('opening %d trade(s)' % trades_count)
@@ -131,6 +131,9 @@ class PositionAdjuster(object):
 
         return total_pnl
 
+    def get_positions(self, prices):
+        return numpy.array(self.current_quantities) * prices
+
     def update_equity(self, equity):
         self.equity = equity
 
@@ -151,6 +154,8 @@ class Trader(object):
         self.signal_zone = 0
         self.start_equity = start_equity
         self.equity_history = list()
+        self.net_position_history = list()
+        self.gross_position_history = list()
         self.position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale)
         self.position_adjuster.update_equity(start_equity)
         self.deviation = 0.
@@ -173,6 +178,11 @@ class Trader(object):
         equity = self.position_adjuster.get_nav(traded_prices) + self.start_equity
         self.position_adjuster.update_equity(equity)
         self.equity_history.append({'date': timestamp, 'pnl': equity})
+        positions = self.position_adjuster.get_positions(traded_prices)
+        net_positions = positions.sum()
+        gross_positions = numpy.abs(positions).sum()
+        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
+        self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions})
 
     def level_inf(self):
         return (self.signal_zone - 1) * self.deviation
@@ -182,6 +192,12 @@ class Trader(object):
 
     def get_equity(self):
         return pandas.DataFrame(self.equity_history).set_index('date')
+
+    def get_net_position(self):
+        return pandas.DataFrame(self.net_position_history).set_index('date')
+
+    def get_gross_position(self):
+        return pandas.DataFrame(self.gross_position_history).set_index('date')
 
     def get_closed_trades(self):
         return pandas.DataFrame(self.position_adjuster.closed_trades)
@@ -391,7 +407,9 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
         'factors': pandas.DataFrame(chart_beta).set_index('date'),
         'regression': chart_regression,
-        'equity': trader_engine.get_equity()
+        'equity': trader_engine.get_equity(),
+        'net_position': trader_engine.get_net_position(),
+        'gross_position': trader_engine.get_gross_position(),
     }
     return result
 
@@ -454,6 +472,8 @@ def chart_backtest(securities, prices_path, lookback_period,
                                    max_gross_position=max_gross_position,
                                    max_risk_scale=max_risk_scale)
     backtest_result['equity'].plot()
+    backtest_result['net_position'].plot()
+    backtest_result['gross_position'].plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
     backtest_result['factors'].plot(subplots=True)
     backtest_result['bollinger'].plot(subplots=False)
