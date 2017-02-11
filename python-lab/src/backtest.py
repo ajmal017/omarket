@@ -533,6 +533,13 @@ def main(args):
         by_security_pos = positions.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
         by_security_pos.plot()
 
+        positions_aggregated_net = positions.groupby('date')['position'].sum()
+        positions_aggregated_gross = positions.groupby('date')['position'].agg(lambda x: numpy.abs(x).sum())
+        positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
+                                                data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
+                                                columns=['net', 'gross'])
+        positions_aggregated.plot(subplots=True)
+
         days_interval = (equity.index[-1] - equity.index[0])
         starting_equity = equity.dropna().head(1)['pnl'].values[0]
         ending_equity = equity.dropna().tail(1)['pnl'].values[0]
