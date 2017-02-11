@@ -186,13 +186,12 @@ class Strategy(object):
         gross_positions = numpy.abs(positions).sum()
         self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
         self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions})
-        positions_data = {'date': timestamp, 'strategy': self.get_name()}
         positions = self.position_adjuster.get_position_securities(traded_prices)
         for security in positions:
+            positions_data = {'date': timestamp, 'strategy': self.get_name()}
             positions_data['position'] = positions[security]
             positions_data['security'] = security
-
-        self.positions_history.append(positions_data)
+            self.positions_history.append(positions_data)
 
     def get_name(self):
         return ','.join(self.position_adjuster.securities)
@@ -530,6 +529,10 @@ def main(args):
 
         equity = backtest_results['equity']
         equity.plot()
+
+        by_security_pos = positions.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
+        by_security_pos.plot()
+
         days_interval = (equity.index[-1] - equity.index[0])
         starting_equity = equity.dropna().head(1)['pnl'].values[0]
         ending_equity = equity.dropna().tail(1)['pnl'].values[0]
