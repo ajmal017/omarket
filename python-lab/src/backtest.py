@@ -3,7 +3,6 @@ import csv
 import logging
 import math
 
-import matplotlib
 import numpy
 import os
 from datetime import date
@@ -134,11 +133,14 @@ class PositionAdjuster(object):
     def get_positions(self, prices):
         return numpy.array(self.current_quantities) * prices
 
+    def get_position_securities(self, prices):
+        return dict(zip(self.securities, [position for position in self.get_positions(prices)]))
+
     def update_equity(self, equity):
         self.equity = equity
 
 
-class Trader(object):
+class Strategy(object):
 
     def __init__(self, securities, step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
         """
@@ -156,6 +158,7 @@ class Trader(object):
         self.equity_history = list()
         self.net_position_history = list()
         self.gross_position_history = list()
+        self.positions_history = list()
         self.position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale)
         self.position_adjuster.update_equity(start_equity)
         self.deviation = 0.
@@ -183,6 +186,16 @@ class Trader(object):
         gross_positions = numpy.abs(positions).sum()
         self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
         self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions})
+        positions_data = {'date': timestamp, 'strategy': self.get_name()}
+        positions = self.position_adjuster.get_position_securities(traded_prices)
+        for security in positions:
+            positions_data['position'] = positions[security]
+            positions_data['security'] = security
+
+        self.positions_history.append(positions_data)
+
+    def get_name(self):
+        return ','.join(self.position_adjuster.securities)
 
     def level_inf(self):
         return (self.signal_zone - 1) * self.deviation
@@ -192,6 +205,9 @@ class Trader(object):
 
     def get_equity(self):
         return pandas.DataFrame(self.equity_history).set_index('date')
+
+    def get_positions(self):
+        return pandas.DataFrame(self.positions_history)
 
     def get_net_position(self):
         return pandas.DataFrame(self.net_position_history).set_index('date')
@@ -330,10 +346,10 @@ class RegressionModelOLS(object):
 
 def process_strategy(securities, signal_data, regression, warmup_period, prices_by_security,
                      step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
-    trader_engine = Trader(securities=securities, step_size=step_size, start_equity=start_equity,
-                           max_net_position=max_net_position,
-                           max_gross_position=max_gross_position,
-                           max_risk_scale=max_risk_scale)
+    trader_engine = Strategy(securities=securities, step_size=step_size, start_equity=start_equity,
+                             max_net_position=max_net_position,
+                             max_gross_position=max_gross_position,
+                             max_risk_scale=max_risk_scale)
 
     chart_bollinger = list()
     chart_beta = list()
@@ -410,6 +426,7 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         'equity': trader_engine.get_equity(),
         'net_position': trader_engine.get_net_position(),
         'gross_position': trader_engine.get_gross_position(),
+        'positions': trader_engine.get_positions(),
     }
     return result
 
@@ -420,7 +437,7 @@ def run_backtest(symbols, prices_path, lookback_period,
     securities = ['PCX/' + symbol for symbol in symbols]
     prices_by_security = dict()
     close_prices = pandas.DataFrame()
-    max_start_date = None
+    max_start_date = date(2013, 1, 1)
     min_end_date = None
     for security in securities:
         exchange, security_code = security.split('/')
@@ -483,12 +500,42 @@ def chart_backtest(securities, prices_path, lookback_period,
 def main(args):
     prices_path = os.sep.join(['..', '..', 'data', 'eod'])
     if args.display is not None:
-        securities = args.display.split(',')
+        securities = args.display.split('/')
         chart_backtest(securities, prices_path, lookback_period=args.lookback_period,
                        step_size=args.step_size, start_equity=args.starting_equity,
                        max_net_position=args.max_net_position,
                        max_gross_position=args.max_gross_position,
                        max_risk_scale=args.max_risk_scale)
+
+    elif args.display_portfolio is not None:
+        pyplot.style.use('ggplot')
+        backtest_results = dict()
+        positions = pandas.DataFrame()
+        with open(args.display_portfolio) as portfolio_file:
+            portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
+            logging.info('loaded portfolios: %s' % portfolios)
+            for lookback_period, portfolio in portfolios:
+                securities = portfolio.split('/')
+                backtest_result = run_backtest(securities, prices_path, lookback_period=int(lookback_period),
+                                   step_size=args.step_size, start_equity=args.starting_equity,
+                                   max_net_position=args.max_net_position,
+                                   max_gross_position=args.max_gross_position,
+                                   max_risk_scale=args.max_risk_scale)
+                positions = pandas.concat([positions, backtest_result['positions']])
+                if 'equity' not in backtest_results:
+                    backtest_results['equity'] = backtest_result['equity']
+
+                else:
+                    backtest_results['equity'] += backtest_result['equity']
+
+        equity = backtest_results['equity']
+        equity.plot()
+        days_interval = (equity.index[-1] - equity.index[0])
+        starting_equity = equity.dropna().head(1)['pnl'].values[0]
+        ending_equity = equity.dropna().tail(1)['pnl'].values[0]
+        annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
+        logging.info('annualized return: %.2f percent' % annualized_return)
+        pyplot.show()
 
     else:
         portfolios_path = os.sep.join(['..', '..', 'data', 'portfolios.csv'])
@@ -519,11 +566,12 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
     parser.add_argument('--display', type=str, help='display portfolio made of comma-separated securities')
+    parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
     parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=20000)
-    parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.2)
-    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position for one step, measured as a fraction of equity', default=0.8)
+    parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
+    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position for one step, measured as a fraction of equity', default=1.2)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)
