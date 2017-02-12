@@ -139,6 +139,9 @@ class PositionAdjuster(object):
     def update_equity(self, equity):
         self.equity = equity
 
+    def get_holdings(self):
+        return dict(zip(self.securities, self.current_quantities))
+
 
 class Strategy(object):
 
@@ -159,6 +162,7 @@ class Strategy(object):
         self.net_position_history = list()
         self.gross_position_history = list()
         self.positions_history = list()
+        self.holdings_history = list()
         self.position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale)
         self.position_adjuster.update_equity(start_equity)
         self.deviation = 0.
@@ -186,6 +190,13 @@ class Strategy(object):
         gross_positions = numpy.abs(positions).sum()
         self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
         self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions})
+        holdings = self.position_adjuster.get_holdings()
+        for security in holdings:
+            holdings_data = {'date': timestamp, 'strategy': self.get_name()}
+            holdings_data['quantity'] = holdings[security]
+            holdings_data['security'] = security
+            self.holdings_history.append(holdings_data)
+
         positions = self.position_adjuster.get_position_securities(traded_prices)
         for security in positions:
             positions_data = {'date': timestamp, 'strategy': self.get_name()}
@@ -207,6 +218,9 @@ class Strategy(object):
 
     def get_positions(self):
         return pandas.DataFrame(self.positions_history)
+
+    def get_holdings(self):
+        return pandas.DataFrame(self.holdings_history)
 
     def get_net_position(self):
         return pandas.DataFrame(self.net_position_history).set_index('date')
@@ -426,6 +440,7 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         'net_position': trader_engine.get_net_position(),
         'gross_position': trader_engine.get_gross_position(),
         'positions': trader_engine.get_positions(),
+        'holdings': trader_engine.get_holdings(),
     }
     return result
 
@@ -510,6 +525,7 @@ def main(args):
         pyplot.style.use('ggplot')
         backtest_results = dict()
         positions = pandas.DataFrame()
+        holdings = pandas.DataFrame()
         with open(args.display_portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
             logging.info('loaded portfolios: %s' % portfolios)
@@ -521,11 +537,15 @@ def main(args):
                                    max_gross_position=args.max_gross_position,
                                    max_risk_scale=args.max_risk_scale)
                 positions = pandas.concat([positions, backtest_result['positions']])
+                holdings = pandas.concat([holdings, backtest_result['holdings']])
                 if 'equity' not in backtest_results:
                     backtest_results['equity'] = backtest_result['equity']
 
                 else:
                     backtest_results['equity'] += backtest_result['equity']
+
+        latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
+        logging.info('stocks:\n%s' % latest_holdings)
 
         equity = backtest_results['equity']
         equity.plot()
