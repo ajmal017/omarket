@@ -2,6 +2,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
+import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
 import org.slf4j.Logger;
@@ -20,13 +21,21 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
@@ -34,6 +43,8 @@ public class UpdateEODMain {
 
     public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
         final String resourceName = "update-eod.json";
+        YahooFinance.logger.setLevel(java.util.logging.Level.WARNING);
+        logger.info("starting EOD update");
         URL resource = Thread.currentThread().getContextClassLoader().getResource(resourceName);
         if (resource == null) {
             throw new RuntimeException("unable to load resource file in classpath: " + resourceName);
@@ -63,32 +74,70 @@ public class UpdateEODMain {
         Observable<Security> contracts = ContractDB.loadContracts(Paths.get(dbContractsPath), filter);
         contracts
                 .map(Security::getSymbol)
-                .buffer(20)
+                .buffer(1)
                 .subscribe(symbols -> {
                     try {
                         logger.info("processing: " + symbols);
                         Map<String, Stock> stocks = YahooFinance.get(symbols.toArray(new String[]{}), true);
                         for (String symbol : stocks.keySet()) {
-                            logger.info("processing: " + symbol);
                             Stock stock = stocks.get(symbol);
-                            Calendar fromDate = Calendar.getInstance();
-                            if (!onlyCurrentYear) {
-                                fromDate.add(Calendar.YEAR, -5);
+                            if(isUpdateToDate(eodStorage, stock.getStockExchange(), stock.getSymbol())){
+                                logger.debug("already up-to-date: " + symbol);
+                                continue;
                             }
-                            fromDate.set(Calendar.DAY_OF_MONTH, 1);
-                            fromDate.set(Calendar.MONTH, Calendar.JANUARY);
+                            LocalDate fromDate = LocalDate.now();
+                            if (!onlyCurrentYear) {
+                                fromDate = fromDate.minus(Period.ofYears(5));
+                            }
+                            fromDate = fromDate.withDayOfYear(1);
+                            logger.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
                             downloadEOD(stock, eodStorage, fromDate);
                         }
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
                     }
                 }, onError -> {
-
+                    logger.error("failed to process contracts", onError);
                 });
     }
 
-    private static void downloadEOD(Stock stock, Path eodStorage, Calendar fromDate) throws IOException {
-        List<HistoricalQuote> bars = stock.getHistory(fromDate, Interval.DAILY);
+    private static Path getEODPath(Path eodStorage, String exchange, String symbol){
+        Path exchangeStorage = eodStorage.resolve(exchange);
+        return exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
+    }
+
+    private static boolean isUpdateToDate(Path eodStorage, String exchange, String symbol) {
+        Path eodPath = getEODPath(eodStorage, exchange, symbol);
+        LocalDate today = LocalDate.now();
+        LocalDate lastBusinessDay;
+        if(today.getDayOfWeek() == DayOfWeek.SATURDAY
+                || today.getDayOfWeek() == DayOfWeek.SUNDAY
+                || today.getDayOfWeek() == DayOfWeek.MONDAY){
+           lastBusinessDay = today.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
+        } else {
+            lastBusinessDay = today;
+        }
+        Path currentFile = eodPath.resolve(String.valueOf(lastBusinessDay.getYear()) + ".csv");
+        if (!Files.exists(eodPath)) {
+            return false;
+        }
+        try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
+            String lastLine = reader.readLine();
+            String lastYYYYMMDD = lastLine.split(",")[0];
+            if(lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)){
+                return true;
+            }
+        } catch (IOException e) {
+            logger.error("failed to access EOD database", e);
+        }
+        return false;
+
+    }
+
+    private static void downloadEOD(Stock stock, Path eodStorage, LocalDate fromDate) throws IOException {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(java.sql.Date.valueOf(fromDate));
+        List<HistoricalQuote> bars = stock.getHistory(calendar, Interval.DAILY);
         Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
         for (HistoricalQuote bar : bars) {
             Calendar date = bar.getDate();
@@ -101,9 +150,8 @@ public class UpdateEODMain {
         }
         Set<Integer> years = byYear.keySet();
         String exchange = stock.getStockExchange();
-        Path exchangeStorage = eodStorage.resolve(exchange);
         String symbol = stock.getSymbol();
-        Path stockStorage = exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
+        Path stockStorage = getEODPath(eodStorage, exchange, symbol);
         if (!Files.exists(stockStorage)) {
             Files.createDirectories(stockStorage);
         }
