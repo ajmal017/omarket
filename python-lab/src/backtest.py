@@ -184,7 +184,7 @@ class Strategy(object):
 
         equity = self.position_adjuster.get_nav(traded_prices) + self.start_equity
         self.position_adjuster.update_equity(equity)
-        self.equity_history.append({'date': timestamp, 'pnl': equity})
+        self.equity_history.append({'date': timestamp, 'equity': equity, 'margin_call': equity / 0.25, 'margin_warning': equity / 0.4})
         positions = self.position_adjuster.get_positions(traded_prices)
         net_positions = positions.sum()
         gross_positions = numpy.abs(positions).sum()
@@ -238,7 +238,7 @@ class Strategy(object):
         mean_return = self.get_equity().pct_change().mean()
         std_return = self.get_equity().pct_change().std()
         value = mean_return / std_return * math.sqrt(250)
-        return value['pnl']
+        return value['equity']
 
     def get_drawdown(self):
         cum_returns = (1. + self.get_equity().pct_change()).cumprod()
@@ -420,8 +420,8 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
     mean_trade = closed_trades['pnl'].mean()
     worst_trade = closed_trades['pnl'].min()
     count_trades = closed_trades['pnl'].count()
-    max_drawdown = trader_engine.get_drawdown().max()['pnl']
-    final_equity = trader_engine.get_equity()['pnl'][-1]
+    max_drawdown = trader_engine.get_drawdown().max()['equity']
+    final_equity = trader_engine.get_equity()['equity'][-1]
     summary = {
         'sharpe_ratio': trader_engine.get_sharpe_ratio(),
         'average_trade': mean_trade,
@@ -561,8 +561,8 @@ def main(args):
         positions_aggregated.plot(subplots=True)
 
         days_interval = (equity.index[-1] - equity.index[0])
-        starting_equity = equity.dropna().head(1)['pnl'].values[0]
-        ending_equity = equity.dropna().tail(1)['pnl'].values[0]
+        starting_equity = equity.dropna().head(1)['equity'].values[0]
+        ending_equity = equity.dropna().tail(1)['equity'].values[0]
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
         pyplot.show()
