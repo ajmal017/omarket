@@ -206,17 +206,20 @@ class Strategy(object):
             positions_data['security'] = security
             self.positions_history.append(positions_data)
 
-    def update_positions(self, timestamp, signal, weights, traded_prices, update_prices):
+    def update_target_positions(self, timestamp, signal, weights, signal_prices):
+        movement = 0
         if signal >= self.level_sup():
-            self.signal_zone += 1
-            quantities = self.position_adjuster.update_state(timestamp, weights, update_prices, self.signal_zone)
-            self.position_adjuster.execute_trades(quantities, traded_prices)
+            movement = 1
 
         if signal <= self.level_inf():
-            self.signal_zone -= 1
-            quantities = self.position_adjuster.update_state(timestamp, weights, update_prices, self.signal_zone)
-            self.position_adjuster.execute_trades(quantities, traded_prices)
+            movement = -1
 
+        self.signal_zone += movement
+        target_quantities = None
+        if movement != 0:
+            target_quantities = self.position_adjuster.update_state(timestamp, weights, signal_prices, self.signal_zone)
+
+        return target_quantities
 
     def get_name(self):
         return ','.join(self.position_adjuster.securities)
@@ -393,21 +396,23 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         level_sup = trader_engine.level_sup()
         next_date = price_data_next['date']
         signal = 0.
+        trader_engine.update_state(timestamp, deviation, price_data[securities].values)
         if count_day > warmup_period:
             weights = regression.get_weights()
             signal = regression.get_residual()
-            trader_engine.update_state(timestamp, deviation, price_data[securities].values)
             if not numpy.isnan(price_data_next[securities[0]]):
-                traded_prices = list()
-                for security in securities:
-                    prices = prices_by_security[security][prices_by_security[security].index == next_date]
-                    if len(prices) == 0:
-                        logging.error('no data as of %s' % (next_date))
-                        raise RuntimeError('no data as of %s' % (next_date))
+                target_quantities = trader_engine.update_target_positions(timestamp, signal, weights, price_data[securities].values)
+                if target_quantities is not None:
+                    traded_prices = list()
+                    for security in securities:
+                        prices = prices_by_security[security][prices_by_security[security].index == next_date]
+                        if len(prices) == 0:
+                            logging.error('no data as of %s' % (next_date))
+                            raise RuntimeError('no data as of %s' % (next_date))
 
-                    traded_prices.append(prices['open'].values[0])
+                        traded_prices.append(prices['open'].values[0])
 
-                trader_engine.update_positions(timestamp, signal, weights, traded_prices, price_data[securities].values)
+                    trader_engine.position_adjuster.execute_trades(target_quantities, traded_prices)
 
         signal_data = {
             'date': timestamp,
