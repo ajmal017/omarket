@@ -74,7 +74,7 @@ class PositionAdjuster(object):
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
-    def move_to(self, timestamp, weights, prices, risk_scale):
+    def update_state(self, timestamp, weights, prices, risk_scale):
         if abs(risk_scale) > self.max_risk_scale:
             logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (risk_scale, self.max_risk_scale))
             if risk_scale > 0:
@@ -206,15 +206,15 @@ class Strategy(object):
             positions_data['security'] = security
             self.positions_history.append(positions_data)
 
-    def update_positions(self, timestamp, signal, weights, traded_prices):
+    def update_positions(self, timestamp, signal, weights, traded_prices, update_prices):
         if signal >= self.level_sup():
             self.signal_zone += 1
-            quantities = self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.update_state(timestamp, weights, traded_prices, self.signal_zone)
             self.position_adjuster.execute_trades(quantities, traded_prices)
 
         if signal <= self.level_inf():
             self.signal_zone -= 1
-            quantities = self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.update_state(timestamp, weights, traded_prices, self.signal_zone)
             self.position_adjuster.execute_trades(quantities, traded_prices)
 
 
@@ -407,7 +407,7 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
 
                     traded_prices.append(prices['open'].values[0])
 
-                trader_engine.update_positions(timestamp, signal, weights, traded_prices)
+                trader_engine.update_positions(timestamp, signal, weights, traded_prices, price_data[securities].values)
 
         signal_data = {
             'date': timestamp,
