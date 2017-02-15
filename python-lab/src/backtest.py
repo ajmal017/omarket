@@ -66,6 +66,14 @@ class PositionAdjuster(object):
         self.closed_trades = list()
         self.current_risk_scale = 0.
 
+    def execute_trades(self, quantities, prices):
+        for count, quantity_price in enumerate(zip(quantities, prices)):
+            target_quantity, price = quantity_price
+            fill_qty = target_quantity - self.current_quantities[count]
+            trades_tracker = self.trades_tracker[self.securities[count]]
+            trades_tracker.add_fill(fill_qty, price)
+            self.current_quantities[count] = target_quantity
+
     def move_to(self, timestamp, weights, prices, risk_scale):
         if abs(risk_scale) > self.max_risk_scale:
             logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (risk_scale, self.max_risk_scale))
@@ -168,12 +176,38 @@ class Strategy(object):
         self.deviation = 0.
         self._step_size = step_size
 
-    def update_state(self, timestamp, signal, deviation, weights, traded_prices):
+    def update_state(self, timestamp, deviation, market_prices):
         if deviation == 0.:
             return
 
         self.deviation = deviation * self._step_size
+        equity = self.position_adjuster.get_nav(market_prices) + self.start_equity
+        self.position_adjuster.update_equity(equity)
+        self.equity_history.append({'date': timestamp,
+                                    'equity': equity})
 
+        positions = self.position_adjuster.get_positions(market_prices)
+        net_positions = positions.sum()
+        gross_positions = numpy.abs(positions).sum()
+        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
+        self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions,
+                                            'margin_call': equity / 0.25,
+                                            'margin_warning': equity / 0.4})
+        holdings = self.position_adjuster.get_holdings()
+        for security in holdings:
+            holdings_data = {'date': timestamp, 'strategy': self.get_name()}
+            holdings_data['quantity'] = holdings[security]
+            holdings_data['security'] = security
+            self.holdings_history.append(holdings_data)
+
+        positions = self.position_adjuster.get_position_securities(market_prices)
+        for security in positions:
+            positions_data = {'date': timestamp, 'strategy': self.get_name()}
+            positions_data['position'] = positions[security]
+            positions_data['security'] = security
+            self.positions_history.append(positions_data)
+
+    def update_positions(self, timestamp, signal, weights, traded_prices):
         if signal >= self.level_sup():
             self.signal_zone += 1
             self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
@@ -182,27 +216,6 @@ class Strategy(object):
             self.signal_zone -= 1
             self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
 
-        equity = self.position_adjuster.get_nav(traded_prices) + self.start_equity
-        self.position_adjuster.update_equity(equity)
-        self.equity_history.append({'date': timestamp, 'equity': equity, 'margin_call': equity / 0.25, 'margin_warning': equity / 0.4})
-        positions = self.position_adjuster.get_positions(traded_prices)
-        net_positions = positions.sum()
-        gross_positions = numpy.abs(positions).sum()
-        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
-        self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions})
-        holdings = self.position_adjuster.get_holdings()
-        for security in holdings:
-            holdings_data = {'date': timestamp, 'strategy': self.get_name()}
-            holdings_data['quantity'] = holdings[security]
-            holdings_data['security'] = security
-            self.holdings_history.append(holdings_data)
-
-        positions = self.position_adjuster.get_position_securities(traded_prices)
-        for security in positions:
-            positions_data = {'date': timestamp, 'strategy': self.get_name()}
-            positions_data['position'] = positions[security]
-            positions_data['security'] = security
-            self.positions_history.append(positions_data)
 
     def get_name(self):
         return ','.join(self.position_adjuster.securities)
@@ -374,24 +387,26 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         timestamp = price_data['date']
         dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
         regression.compute_regression(dependent_price, independent_prices.tolist())
-        dev_fls = regression.get_residual_error()
+        deviation = regression.get_residual_error()
         level_inf = trader_engine.level_inf()
         level_sup = trader_engine.level_sup()
         next_date = price_data_next['date']
         signal = 0.
-        if count_day > warmup_period and not numpy.isnan(price_data_next[securities[0]]):
+        if count_day > warmup_period:
             weights = regression.get_weights()
             signal = regression.get_residual()
-            traded_prices = list()
-            for security in securities:
-                prices = prices_by_security[security][prices_by_security[security].index == next_date]
-                if len(prices) == 0:
-                    logging.error('no data as of %s' % (next_date))
-                    raise RuntimeError('no data as of %s' % (next_date))
+            trader_engine.update_state(timestamp, deviation, price_data[securities].values)
+            if not numpy.isnan(price_data_next[securities[0]]):
+                traded_prices = list()
+                for security in securities:
+                    prices = prices_by_security[security][prices_by_security[security].index == next_date]
+                    if len(prices) == 0:
+                        logging.error('no data as of %s' % (next_date))
+                        raise RuntimeError('no data as of %s' % (next_date))
 
-                traded_prices.append(prices['open'].values[0])
+                    traded_prices.append(prices['open'].values[0])
 
-            trader_engine.update_state(timestamp, signal, dev_fls, weights, traded_prices)
+                trader_engine.update_positions(timestamp, signal, weights, traded_prices)
 
         signal_data = {
             'date': timestamp,
@@ -472,6 +487,7 @@ def run_backtest(symbols, prices_path, lookback_period,
         close_prices[security] = prices_df['close adj']
 
     close_prices.reset_index(inplace=True)
+    logging.info('considering date range: %s through %s' % (max_start_date, min_end_date))
     signal_data = close_prices[(close_prices['date'] <= min_end_date) & (close_prices['date'] >= max_start_date)]
 
     for security in securities:

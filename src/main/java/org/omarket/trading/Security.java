@@ -119,4 +119,5 @@ public class Security {
         contractDetails.put("m_priceMagnifier", priceMagnifier);
         return Json.encode(contractDetails);
     }
+
 }

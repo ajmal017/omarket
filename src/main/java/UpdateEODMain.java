@@ -60,7 +60,7 @@ public class UpdateEODMain {
         String dbPath = dbEODPathElements.stream().collect(Collectors.joining(File.separator));
         final ArrayList<String> dbContractsPathElements = (ArrayList<String>) properties.get("db.contracts.path");
         String dbContractsPath = dbContractsPathElements.stream().collect(Collectors.joining(File.separator));
-        final boolean onlyCurrentYear = (Boolean)properties.get("current.year.flag");
+        final boolean onlyCurrentYear = (Boolean) properties.get("current.year.flag");
         final Path eodStorage = Paths.get(dbPath);
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
             @Override
@@ -73,25 +73,21 @@ public class UpdateEODMain {
         };
         Observable<Security> contracts = ContractDB.loadContracts(Paths.get(dbContractsPath), filter);
         contracts
-                .map(Security::getSymbol)
-                .buffer(1)
-                .subscribe(symbols -> {
+                .subscribe(contract -> {
                     try {
-                        logger.info("processing: " + symbols);
-                        Map<String, Stock> stocks = YahooFinance.get(symbols.toArray(new String[]{}), true);
-                        for (String symbol : stocks.keySet()) {
-                            Stock stock = stocks.get(symbol);
-                            if(isUpdateToDate(eodStorage, stock.getStockExchange(), stock.getSymbol())){
-                                logger.debug("already up-to-date: " + symbol);
-                                continue;
-                            }
+                        String symbol = contract.getSymbol();
+                        logger.info("processing: " + symbol);
+                        String yahooExchange = findExchange(symbol);
+                        if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
+                            logger.debug("already up-to-date: " + symbol);
+                        } else {
                             LocalDate fromDate = LocalDate.now();
                             if (!onlyCurrentYear) {
                                 fromDate = fromDate.minus(Period.ofYears(5));
                             }
                             fromDate = fromDate.withDayOfYear(1);
                             logger.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
-                            downloadEOD(stock, eodStorage, fromDate);
+                            downloadEOD(symbol, eodStorage, fromDate);
                         }
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
@@ -101,7 +97,13 @@ public class UpdateEODMain {
                 });
     }
 
-    private static Path getEODPath(Path eodStorage, String exchange, String symbol){
+    private static String findExchange(String symbol) throws IOException {
+        // TODO - cache data in single json file (less than 2000 entries...)
+        Stock stock = YahooFinance.get(symbol, false);
+        return stock.getStockExchange();
+    }
+
+    private static Path getEODPath(Path eodStorage, String exchange, String symbol) {
         Path exchangeStorage = eodStorage.resolve(exchange);
         return exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
     }
@@ -110,10 +112,10 @@ public class UpdateEODMain {
         Path eodPath = getEODPath(eodStorage, exchange, symbol);
         LocalDate today = LocalDate.now();
         LocalDate lastBusinessDay;
-        if(today.getDayOfWeek() == DayOfWeek.SATURDAY
+        if (today.getDayOfWeek() == DayOfWeek.SATURDAY
                 || today.getDayOfWeek() == DayOfWeek.SUNDAY
-                || today.getDayOfWeek() == DayOfWeek.MONDAY){
-           lastBusinessDay = today.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
+                || today.getDayOfWeek() == DayOfWeek.MONDAY) {
+            lastBusinessDay = today.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
         } else {
             lastBusinessDay = today;
         }
@@ -124,7 +126,7 @@ public class UpdateEODMain {
         try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
             String lastLine = reader.readLine();
             String lastYYYYMMDD = lastLine.split(",")[0];
-            if(lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)){
+            if (lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)) {
                 return true;
             }
         } catch (IOException e) {
@@ -134,9 +136,10 @@ public class UpdateEODMain {
 
     }
 
-    private static void downloadEOD(Stock stock, Path eodStorage, LocalDate fromDate) throws IOException {
+    private static void downloadEOD(String symbol, Path eodStorage, LocalDate fromDate) throws IOException {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(java.sql.Date.valueOf(fromDate));
+        Stock stock = YahooFinance.get(symbol, true);
         List<HistoricalQuote> bars = stock.getHistory(calendar, Interval.DAILY);
         Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
         for (HistoricalQuote bar : bars) {
@@ -150,7 +153,6 @@ public class UpdateEODMain {
         }
         Set<Integer> years = byYear.keySet();
         String exchange = stock.getStockExchange();
-        String symbol = stock.getSymbol();
         Path stockStorage = getEODPath(eodStorage, exchange, symbol);
         if (!Files.exists(stockStorage)) {
             Files.createDirectories(stockStorage);
@@ -159,6 +161,7 @@ public class UpdateEODMain {
         try (BufferedWriter writer = Files.newBufferedWriter(description)) {
             writer.write(stock.getName());
         }
+        final String[] lastBarDate = {null};
         for (Integer year : years) {
             Set<HistoricalQuote> quotes = byYear.get(year);
             Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");
@@ -172,6 +175,7 @@ public class UpdateEODMain {
                 BigDecimal close = bar.getClose();
                 Long volume = bar.getVolume();
                 BigDecimal adjustedClose = bar.getAdjClose();
+                String barDate = FORMAT_YYYYMMDD.format(date.getTime());
                 String[] row = new String[]{
                         FORMAT_YYYYMMDD.format(date.getTime()),
                         open.toPlainString(),
@@ -181,9 +185,16 @@ public class UpdateEODMain {
                         adjustedClose.toPlainString(),
                         String.valueOf(volume)
                 };
+                lastBarDate[0] = barDate;
                 writer.writeNext(row, false);
             });
             file.close();
+        }
+        if (lastBarDate[0] != null) {
+            logger.info("saved data for stock " + stock.getSymbol() + " up to: " + lastBarDate[0]);
+
+        } else {
+            logger.info("no data saved for stock " + stock.getSymbol());
         }
     }
 
