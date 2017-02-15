@@ -95,12 +95,17 @@ class PositionAdjuster(object):
             scaling_net = self.equity * self.max_net_position / numpy.abs(numpy.sum(weights))
             scaling = min(scaling_net, scaling_gross)
 
+        quantities = list()
         for count, weight_price in enumerate(zip(weights, prices)):
             weight, price = weight_price
             target_position = scaling * risk_scale * weight
             target_quantity = round(target_position / price)
-            fill_qty = target_quantity - self.current_quantities[count]
+            quantities.append(target_quantity)
+
+        for count, quantity_price in enumerate(zip(quantities, prices)):
+            target_quantity, price = quantity_price
             trades_tracker = self.trades_tracker[self.securities[count]]
+            fill_qty = target_quantity - self.current_quantities[count]
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
