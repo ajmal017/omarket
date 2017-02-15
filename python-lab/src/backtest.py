@@ -209,12 +209,12 @@ class Strategy(object):
     def update_positions(self, timestamp, signal, weights, traded_prices, update_prices):
         if signal >= self.level_sup():
             self.signal_zone += 1
-            quantities = self.position_adjuster.update_state(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.update_state(timestamp, weights, update_prices, self.signal_zone)
             self.position_adjuster.execute_trades(quantities, traded_prices)
 
         if signal <= self.level_inf():
             self.signal_zone -= 1
-            quantities = self.position_adjuster.update_state(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.update_state(timestamp, weights, update_prices, self.signal_zone)
             self.position_adjuster.execute_trades(quantities, traded_prices)
 
 
