@@ -1,6 +1,8 @@
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import com.opencsv.CSVWriter;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.omarket.trading.ContractDB;
@@ -77,7 +79,7 @@ public class UpdateEODMain {
                     try {
                         String symbol = contract.getSymbol();
                         logger.info("processing: " + symbol);
-                        String yahooExchange = findExchange(symbol);
+                        String yahooExchange = findExchange(eodStorage, symbol);
                         if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
                             logger.debug("already up-to-date: " + symbol);
                         } else {
@@ -97,9 +99,31 @@ public class UpdateEODMain {
                 });
     }
 
-    private static String findExchange(String symbol) throws IOException {
-        // TODO - cache data in single json file (less than 2000 entries...)
+    private static String findExchange(Path eodStorage, String symbol) throws IOException {
+        Path cacheStorage = eodStorage.resolve("cache.json");
+        Gson gson = new Gson();
+        Map<String, Map<String, String>> cache;
+        if (Files.exists(cacheStorage)) {
+            Type CACHE_TYPE = new TypeToken<Map<String, Map<String, String>>>() {}.getType();
+            JsonReader reader = new JsonReader(Files.newBufferedReader(cacheStorage));
+            cache = gson.fromJson(reader, CACHE_TYPE);
+            if(cache.containsKey(symbol)){
+                return cache.get(symbol).get("stockExchange");
+            }
+        } else {
+            Files.createFile(cacheStorage);
+            cache = new HashMap<>();
+        }
         Stock stock = YahooFinance.get(symbol, false);
+        Map<String, String> stockData = new HashMap<String, String>();
+        stockData.put("stockExchange", stock.getStockExchange());
+        stockData.put("currency", stock.getCurrency());
+        stockData.put("name", stock.getName());
+        cache.put(symbol, stockData);
+        BufferedWriter writer = Files.newBufferedWriter(cacheStorage, StandardCharsets.UTF_8);
+        String json = gson.toJson(cache);
+        writer.write(json);
+        writer.close();
         return stock.getStockExchange();
     }
 
