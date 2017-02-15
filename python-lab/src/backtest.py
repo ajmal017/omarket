@@ -69,8 +69,8 @@ class PositionAdjuster(object):
     def execute_trades(self, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
             target_quantity, price = quantity_price
-            fill_qty = target_quantity - self.current_quantities[count]
             trades_tracker = self.trades_tracker[self.securities[count]]
+            fill_qty = target_quantity - self.current_quantities[count]
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
@@ -102,13 +102,6 @@ class PositionAdjuster(object):
             target_quantity = round(target_position / price)
             quantities.append(target_quantity)
 
-        for count, quantity_price in enumerate(zip(quantities, prices)):
-            target_quantity, price = quantity_price
-            trades_tracker = self.trades_tracker[self.securities[count]]
-            fill_qty = target_quantity - self.current_quantities[count]
-            trades_tracker.add_fill(fill_qty, price)
-            self.current_quantities[count] = target_quantity
-
         logging.debug('current positions: %s' % str(self.get_positions(prices)))
         trades_count = int(abs(risk_scale) - abs(self.current_risk_scale))
         if trades_count > 0:
@@ -133,6 +126,7 @@ class PositionAdjuster(object):
             self.closed_trades[-1]['pnl'] = self.closed_trades[-1]['equity_end'] - self.closed_trades[-1]['equity_start']
 
         self.current_risk_scale = risk_scale
+        return quantities
 
     def get_nav(self, prices):
         total_pnl = 0.
@@ -215,11 +209,13 @@ class Strategy(object):
     def update_positions(self, timestamp, signal, weights, traded_prices):
         if signal >= self.level_sup():
             self.signal_zone += 1
-            self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            self.position_adjuster.execute_trades(quantities, traded_prices)
 
         if signal <= self.level_inf():
             self.signal_zone -= 1
-            self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            quantities = self.position_adjuster.move_to(timestamp, weights, traded_prices, self.signal_zone)
+            self.position_adjuster.execute_trades(quantities, traded_prices)
 
 
     def get_name(self):
