@@ -384,35 +384,28 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
     chart_bollinger = list()
     chart_beta = list()
     chart_regression = list()
-    for count_day, rows in enumerate(zip(signal_data.iterrows(), signal_data.shift(-1).iterrows())):
-        row, row_next = rows
-        row_count, price_data = row
-        row_count_next, price_data_next = row_next
+    target_quantities = None
+    for count_day, price in enumerate(signal_data.iterrows()):
+        row_count, price_data = price
         timestamp = price_data['date']
         dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
         regression.compute_regression(dependent_price, independent_prices.tolist())
         deviation = regression.get_residual_error()
         level_inf = trader_engine.level_inf()
         level_sup = trader_engine.level_sup()
-        next_date = price_data_next['date']
         signal = 0.
         trader_engine.update_state(timestamp, deviation, price_data[securities].values)
         if count_day > warmup_period:
+            if target_quantities is not None:
+                traded_prices = list()
+                for security in securities:
+                    traded_prices.append(prices_by_security[security][prices_by_security[security].index == timestamp]['open'].values[0])
+
+                trader_engine.position_adjuster.execute_trades(target_quantities, traded_prices)
+
             weights = regression.get_weights()
             signal = regression.get_residual()
-            if not numpy.isnan(price_data_next[securities[0]]):
-                target_quantities = trader_engine.update_target_positions(timestamp, signal, weights, price_data[securities].values)
-                if target_quantities is not None:
-                    traded_prices = list()
-                    for security in securities:
-                        prices = prices_by_security[security][prices_by_security[security].index == next_date]
-                        if len(prices) == 0:
-                            logging.error('no data as of %s' % (next_date))
-                            raise RuntimeError('no data as of %s' % (next_date))
-
-                        traded_prices.append(prices['open'].values[0])
-
-                    trader_engine.position_adjuster.execute_trades(target_quantities, traded_prices)
+            target_quantities = trader_engine.update_target_positions(timestamp, signal, weights, price_data[securities].values)
 
         signal_data = {
             'date': timestamp,
