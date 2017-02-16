@@ -147,7 +147,7 @@ class PositionAdjuster(object):
         return dict(zip(self.securities, self.current_quantities))
 
 
-class Strategy(object):
+class TradingEngine(object):
 
     def __init__(self, securities, step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
         """
@@ -217,6 +217,9 @@ class Strategy(object):
             target_quantities = self.position_adjuster.update_risk_scaling(timestamp, weights, market_prices, self.signal_zone)
 
         return target_quantities
+
+    def execute_market_order(self, target_quantities, prices):
+        self.position_adjuster.execute_trades(target_quantities, prices)
 
     def get_name(self):
         return ','.join(self.position_adjuster.securities)
@@ -391,7 +394,7 @@ class StrategyRunner(object):
         if self.count_day > self.warmup_period:
             # on-open market orders
             if self.target_quantities is not None:
-                self.trader_engine.position_adjuster.execute_trades(self.target_quantities, prices_open)
+                self.trader_engine.execute_market_order(self.target_quantities, prices_open)
 
         self.last_phase = 'Open'
 
@@ -414,10 +417,10 @@ class StrategyRunner(object):
 
 def process_strategy(securities, regression, warmup_period, prices_by_security,
                      step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
-    trader_engine = Strategy(securities=securities, step_size=step_size, start_equity=start_equity,
-                             max_net_position=max_net_position,
-                             max_gross_position=max_gross_position,
-                             max_risk_scale=max_risk_scale)
+    trader_engine = TradingEngine(securities=securities, step_size=step_size, start_equity=start_equity,
+                                  max_net_position=max_net_position,
+                                  max_gross_position=max_gross_position,
+                                  max_risk_scale=max_risk_scale)
     dates = set()
     prices_open = pandas.DataFrame()
     prices_close = pandas.DataFrame()
