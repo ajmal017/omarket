@@ -46,9 +46,6 @@ def load_prices(prices_path, exchange, security_code):
     dividends = prices_df['close'].shift(1) * prices_df['close adj'] / prices_df['close adj'].shift(1) - prices_df['close']
     prices_df['dividend'] = dividends[dividends > 1E-4]
     return prices_df.set_index('date')
-    #prices_df['date'] = prices_df['date'].apply(lambda x: pandas.to_datetime(x))
-    #resampled_prices = prices_df.set_index('date').resample('B').last()
-    #return resampled_prices
 
 
 class PositionAdjuster(object):
@@ -74,7 +71,7 @@ class PositionAdjuster(object):
             trades_tracker.add_fill(fill_qty, price)
             self.current_quantities[count] = target_quantity
 
-    def update_state(self, timestamp, weights, prices, risk_scale):
+    def update_risk_scaling(self, timestamp, weights, prices, risk_scale):
         if abs(risk_scale) > self.max_risk_scale:
             logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (risk_scale, self.max_risk_scale))
             if risk_scale > 0:
@@ -88,25 +85,17 @@ class PositionAdjuster(object):
             return
 
         logging.debug('moving to position: %d at %s' % (risk_scale, timestamp.strftime('%Y-%m-%d')))
-        strategy_equity = self.get_nav(prices)
         scaling = 0
         if risk_scale != 0:
             scaling_gross = self.equity * self.max_gross_position / numpy.max(numpy.abs(weights))
             scaling_net = self.equity * self.max_net_position / numpy.abs(numpy.sum(weights))
             scaling = min(scaling_net, scaling_gross)
 
-        quantities = list()
-        for count, weight_price in enumerate(zip(weights, prices)):
-            weight, price = weight_price
-            target_position = scaling * risk_scale * weight
-            target_quantity = round(target_position / price)
-            quantities.append(target_quantity)
-
-        logging.debug('current positions: %s' % str(self.get_positions(prices)))
-        trades_count = int(abs(risk_scale) - abs(self.current_risk_scale))
-        if trades_count > 0:
-            logging.debug('opening %d trade(s)' % trades_count)
-            for trade_count in range(trades_count):
+        steps_count = int(abs(risk_scale) - abs(self.current_risk_scale))
+        if steps_count > 0:
+            logging.debug('opening %d trade(s)' % steps_count)
+            strategy_equity = self.get_nav(prices)
+            for trade_count in range(steps_count):
                 self.open_trades.append({'open': timestamp,
                                          'risk_level': risk_scale,
                                          'equity_start': strategy_equity,
@@ -115,8 +104,8 @@ class PositionAdjuster(object):
                                          })
 
         else:
-            logging.debug('closing %d trade(s)' % abs(trades_count))
-            for trade_count in range(abs(trades_count)):
+            logging.debug('closing %d trade(s)' % abs(steps_count))
+            for trade_count in range(abs(steps_count)):
                 trade_result = self.open_trades.pop()
                 trade_result['close'] = timestamp
                 self.closed_trades.append(trade_result)
@@ -126,6 +115,14 @@ class PositionAdjuster(object):
             self.closed_trades[-1]['pnl'] = self.closed_trades[-1]['equity_end'] - self.closed_trades[-1]['equity_start']
 
         self.current_risk_scale = risk_scale
+
+        quantities = list()
+        for count, weight_price in enumerate(zip(weights, prices)):
+            weight, price = weight_price
+            target_position = scaling * risk_scale * weight
+            target_quantity = round(target_position / price)
+            quantities.append(target_quantity)
+
         return quantities
 
     def get_nav(self, prices):
@@ -206,7 +203,7 @@ class Strategy(object):
             positions_data['security'] = security
             self.positions_history.append(positions_data)
 
-    def update_target_positions(self, timestamp, signal, weights, signal_prices):
+    def update_target_positions(self, timestamp, signal, weights, market_prices):
         movement = 0
         if signal >= self.level_sup():
             movement = 1
@@ -217,7 +214,7 @@ class Strategy(object):
         self.signal_zone += movement
         target_quantities = None
         if movement != 0:
-            target_quantities = self.position_adjuster.update_state(timestamp, weights, signal_prices, self.signal_zone)
+            target_quantities = self.position_adjuster.update_risk_scaling(timestamp, weights, market_prices, self.signal_zone)
 
         return target_quantities
 
@@ -374,44 +371,85 @@ class RegressionModelOLS(object):
         return self.current_y - self.get_estimate()
 
 
-def process_strategy(securities, signal_data, regression, warmup_period, prices_by_security,
+class StrategyRunner(object):
+
+    def __init__(self, securities, regression, trader_engine, warmup_period):
+        self.securities = securities
+        self.day = None
+        self.last_phase = 'BeforeOpen'
+        self.regression = regression
+        self.trader_engine = trader_engine
+        self.warmup_period = warmup_period
+        self.count_day = 0
+        self.target_quantities = None
+
+    def on_open(self, day, prices_open):
+        assert self.last_phase == 'BeforeOpen'
+        self.day = day
+        self.count_day += 1
+
+        if self.count_day > self.warmup_period:
+            # on-open market orders
+            if self.target_quantities is not None:
+                self.trader_engine.position_adjuster.execute_trades(self.target_quantities, prices_open)
+
+        self.last_phase = 'Open'
+
+    def on_close(self, prices_close):
+        assert self.last_phase == 'Open'
+        self.last_phase = 'Close'
+
+    def on_before_next_open(self, dividends, prices_close_adj_previous, prices_close_previous):
+        assert self.last_phase == 'Close'
+        signal_values = prices_close_adj_previous
+        dependent_price, independent_prices = signal_values[0], signal_values[1:]
+        self.regression.compute_regression(dependent_price, independent_prices.tolist())
+        deviation = self.regression.get_residual_error()
+        self.trader_engine.update_state(self.day, deviation, signal_values)
+        weights = self.regression.get_weights()
+        signal = self.regression.get_residual()
+        self.target_quantities = self.trader_engine.update_target_positions(self.day, signal, weights, prices_close_previous)
+        self.last_phase = 'BeforeOpen'
+
+
+def process_strategy(securities, regression, warmup_period, prices_by_security,
                      step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
     trader_engine = Strategy(securities=securities, step_size=step_size, start_equity=start_equity,
                              max_net_position=max_net_position,
                              max_gross_position=max_gross_position,
                              max_risk_scale=max_risk_scale)
+    dates = set()
+    prices_open = pandas.DataFrame()
+    prices_close = pandas.DataFrame()
+    prices_close_adj = pandas.DataFrame()
+    prices_dividend = pandas.DataFrame()
+    for security in securities:
+        security_prices = prices_by_security[security]
+        prices_open = pandas.concat([prices_open, security_prices['open']])
+        prices_close = pandas.concat([prices_close, security_prices['close']])
+        prices_close_adj = pandas.concat([prices_close_adj, security_prices['close adj']])
+        prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
+        dates = dates.union(set(security_prices.index.values.tolist()))
 
     chart_bollinger = list()
     chart_beta = list()
     chart_regression = list()
-    target_quantities = None
-    for count_day, price in enumerate(signal_data.iterrows()):
-        row_count, price_data = price
-        timestamp = price_data['date']
-        dependent_price, independent_prices = price_data[securities[0]], price_data[securities[1:]]
-        regression.compute_regression(dependent_price, independent_prices.tolist())
-        deviation = regression.get_residual_error()
+    strategy_runner = StrategyRunner(securities, regression, trader_engine, warmup_period)
+    for count_day, day in enumerate(sorted(dates)):
+        strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
+        strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
+        strategy_runner.on_before_next_open(prices_dividend[prices_dividend.index == day].values.transpose()[0],
+                                            prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
+                                            prices_close[prices_close.index == day].values.transpose()[0]
+                                            )
+        # statistics
         level_inf = trader_engine.level_inf()
         level_sup = trader_engine.level_sup()
-        signal = 0.
-        trader_engine.update_state(timestamp, deviation, price_data[securities].values)
-        if count_day > warmup_period:
-            if target_quantities is not None:
-                traded_prices = list()
-                for security in securities:
-                    traded_prices.append(prices_by_security[security][prices_by_security[security].index == timestamp]['open'].values[0])
-
-                trader_engine.position_adjuster.execute_trades(target_quantities, traded_prices)
-
-            weights = regression.get_weights()
-            signal = regression.get_residual()
-            target_quantities = trader_engine.update_target_positions(timestamp, signal, weights, price_data[securities].values)
-
         signal_data = {
-            'date': timestamp,
+            'date': strategy_runner.day,
             'level_inf': level_inf,
             'level_sup': level_sup,
-            'signal_fls': signal
+            'signal_fls': regression.get_residual()
         }
 
         chart_bollinger.append(signal_data)
@@ -420,12 +458,11 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         for count_factor, weight in enumerate(regression.get_factors()):
             beta_data['beta%d' % count_factor] = weight
 
-        beta_data['date'] = timestamp
+        beta_data['date'] = strategy_runner.day
         chart_beta.append(beta_data)
 
-        regression_data = {'date': timestamp,
+        regression_data = {'date': strategy_runner.day,
                            'y*': regression.get_estimate(),
-                           'y': dependent_price,
                            'portfolio': regression.get_estimate() - regression.get_factors()[-1]
                            }
         chart_regression.append(regression_data)
@@ -445,6 +482,7 @@ def process_strategy(securities, signal_data, regression, warmup_period, prices_
         'final_equity': final_equity
     }
     logging.info('result: %s' % str(summary))
+    logging.info('next market open trades: %s', strategy_runner.target_quantities)
     result = {
         'summary': summary,
         'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
@@ -487,18 +525,17 @@ def run_backtest(symbols, prices_path, lookback_period,
 
     close_prices.reset_index(inplace=True)
     logging.info('considering date range: %s through %s' % (max_start_date, min_end_date))
-    signal_data = close_prices[(close_prices['date'] <= min_end_date) & (close_prices['date'] >= max_start_date)]
 
     for security in securities:
-        prices_by_security[security] = prices_by_security[security][prices_by_security[security] >= max_start_date]
+        prices_by_security[security] = prices_by_security[security][
+            (prices_by_security[security].index >= max_start_date) & (prices_by_security[security].index <= min_end_date)]
 
     warmup_period = 10
 
     #delta = 5E-6
     #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
-    #process_strategy(securities, signal_data, regression0, warmup_period, prices_by_security)
     regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
-    backtest_data = process_strategy(securities, signal_data, regression10, warmup_period, prices_by_security,
+    backtest_data = process_strategy(securities, regression10, warmup_period, prices_by_security,
                                      step_size=step_size, start_equity=start_equity,
                                      max_net_position=max_net_position,
                                      max_gross_position=max_gross_position,
@@ -620,35 +657,3 @@ if __name__ == "__main__":
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)
-
-#securities = ['PCX/' + symbol for symbol in ['AMLP','PFF','PGX']]
-#securities = ['PCX/' + symbol for symbol in ['BKLN', 'HYG', 'JNK']]
-#securities = ['PCX/' + symbol for symbol in ['IYR', 'PFF']]
-#securities = ['PCX/' + symbol for symbol in ['VNQ', 'XLU']]
-#securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU']]
-#securities = ['PCX/' + symbol for symbol in ['PFF', 'XLU', 'VNQ']]
-#securities = ['PCX/' + symbol for symbol in ['IYR', 'XLU']]
-#securities = ['PCX/' + symbol for symbol in ['GDX', 'SLV']]
-#securities = ['PCX/' + symbol for symbol in ['IYR', 'LQD']]
-#securities = ['PCX/' + symbol for symbol in ['EWC', 'EWY']]
-#securities = ['PCX/' + symbol for symbol in ['BND', 'EMB']]
-#securities = ['PCX/' + symbol for symbol in ['EMB', 'LQD']]
-#securities = ['PCX/' + symbol for symbol in ['AGG', 'PGX']]
-#securities = ['PCX/' + symbol for symbol in ['AGG', 'PFF']]
-#securities = ['PCX/' + symbol for symbol in ['IAU', 'SLV']]
-#securities = ['PCX/' + symbol for symbol in ['AGG', 'IYR']]
-#securities = ['PCX/' + symbol for symbol in ['UNG', 'XOP']]
-#securities = ['PCX/' + symbol for symbol in ['AMLP', 'VWO']]
-#securities = ['PCX/' + symbol for symbol in ['EWZ', 'XME']]
-#securities = ['PCX/' + symbol for symbol in ['USMV', 'XLU']]
-#securities = ['PCX/' + symbol for symbol in ['AGG', 'VNQ']]
-#securities = ['PCX/' + symbol for symbol in ['AGG', 'EMB']]
-#securities = ['PCX/' + symbol for symbol in ['AMLP', 'EEM']]
-#securities = ['PCX/' + symbol for symbol in ['LQD', 'VNQ']]
-#securities = ['PCX/' + symbol for symbol in ['EWC', 'VWO']]
-#securities = ['PCX/' + symbol for symbol in ['EWH', 'XLB']]
-#securities = ['PCX/' + symbol for symbol in ['USMV', 'XLP']]
-#securities = ['PCX/' + symbol for symbol in ['LQD', 'PFF']]
-#securities = ['PCX/' + symbol for symbol in ['EFA', 'ITB', 'XOP']]
-#
-
