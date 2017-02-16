@@ -504,7 +504,7 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
         'positions': trader_engine.get_positions(),
         'holdings': trader_engine.get_holdings(),
         'fills': trader_engine.get_fills(),
-        'next_trades': strategy_runner.target_quantities
+        'next_target_quantities': strategy_runner.target_quantities
     }
     return result
 
@@ -591,6 +591,7 @@ def main(args):
         positions = pandas.DataFrame()
         holdings = pandas.DataFrame()
         fills = pandas.DataFrame()
+        target_quantities = list()
         with open(args.display_portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
             logging.info('loaded portfolios: %s' % portfolios)
@@ -604,6 +605,9 @@ def main(args):
                 positions = pandas.concat([positions, backtest_result['positions']])
                 holdings = pandas.concat([holdings, backtest_result['holdings']])
                 fills = pandas.concat([fills, backtest_result['fills']])
+                if backtest_result['next_target_quantities'] is not None:
+                    target_quantities += backtest_result['next_target_quantities']
+
                 if 'equity' not in backtest_results:
                     backtest_results['equity'] = backtest_result['equity']
 
@@ -612,6 +616,7 @@ def main(args):
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         logging.info('stocks:\n%s' % latest_holdings)
+        logging.info('target quantities:\n%s' % target_quantities)
 
         equity = backtest_results['equity']
         equity.plot()
