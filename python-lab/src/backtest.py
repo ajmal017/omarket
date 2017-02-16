@@ -64,13 +64,13 @@ class PositionAdjuster(object):
         self.current_risk_scale = 0.
         self._fills = list()
 
-    def execute_trades(self, quantities, prices):
+    def execute_trades(self, timestamp, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
             target_quantity, price = quantity_price
             trades_tracker = self.trades_tracker[self.securities[count]]
             fill_qty = target_quantity - self.current_quantities[count]
             trades_tracker.add_fill(fill_qty, price)
-            self._fills.append({'security': self.securities[count], 'date': None, 'qty': fill_qty, 'price': price})
+            self._fills.append({'security': self.securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
             self.current_quantities[count] = target_quantity
 
     def get_fills(self):
@@ -223,8 +223,8 @@ class TradingEngine(object):
 
         return target_quantities
 
-    def execute_market_order(self, target_quantities, prices):
-        self.position_adjuster.execute_trades(target_quantities, prices)
+    def execute_market_order(self, timestamp, target_quantities, prices):
+        self.position_adjuster.execute_trades(timestamp, target_quantities, prices)
 
     def get_fills(self):
         return self.position_adjuster.get_fills()
@@ -402,7 +402,7 @@ class StrategyRunner(object):
         if self.count_day > self.warmup_period:
             # on-open market orders
             if self.target_quantities is not None:
-                self.trader_engine.execute_market_order(self.target_quantities, prices_open)
+                self.trader_engine.execute_market_order(day, self.target_quantities, prices_open)
 
         self.last_phase = 'Open'
 
@@ -493,8 +493,6 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
         'final_equity': final_equity
     }
     logging.info('result: %s' % str(summary))
-    logging.info('next market open trades: %s', strategy_runner.target_quantities)
-    logging.info('fills: %s', trader_engine.get_fills())
     result = {
         'summary': summary,
         'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
@@ -505,6 +503,8 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
         'gross_position': trader_engine.get_gross_position(),
         'positions': trader_engine.get_positions(),
         'holdings': trader_engine.get_holdings(),
+        'fills': trader_engine.get_fills(),
+        'next_trades': strategy_runner.target_quantities
     }
     return result
 
@@ -590,6 +590,7 @@ def main(args):
         backtest_results = dict()
         positions = pandas.DataFrame()
         holdings = pandas.DataFrame()
+        fills = pandas.DataFrame()
         with open(args.display_portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
             logging.info('loaded portfolios: %s' % portfolios)
@@ -602,6 +603,7 @@ def main(args):
                                    max_risk_scale=args.max_risk_scale)
                 positions = pandas.concat([positions, backtest_result['positions']])
                 holdings = pandas.concat([holdings, backtest_result['holdings']])
+                fills = pandas.concat([fills, backtest_result['fills']])
                 if 'equity' not in backtest_results:
                     backtest_results['equity'] = backtest_result['equity']
 
@@ -629,6 +631,7 @@ def main(args):
         ending_equity = equity.dropna().tail(1)['equity'].values[0]
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
+        logging.info('fills:\n%s', fills.sort_values('date').set_index(['date', 'security']))
         pyplot.show()
 
     else:
