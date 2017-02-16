@@ -62,6 +62,7 @@ class PositionAdjuster(object):
         self.open_trades = list()
         self.closed_trades = list()
         self.current_risk_scale = 0.
+        self._fills = list()
 
     def execute_trades(self, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
@@ -69,7 +70,11 @@ class PositionAdjuster(object):
             trades_tracker = self.trades_tracker[self.securities[count]]
             fill_qty = target_quantity - self.current_quantities[count]
             trades_tracker.add_fill(fill_qty, price)
+            self._fills.append({'security': self.securities[count], 'date': None, 'qty': fill_qty, 'price': price})
             self.current_quantities[count] = target_quantity
+
+    def get_fills(self):
+        return pandas.DataFrame(self._fills)
 
     def update_risk_scaling(self, timestamp, weights, prices, risk_scale):
         if abs(risk_scale) > self.max_risk_scale:
@@ -220,6 +225,9 @@ class TradingEngine(object):
 
     def execute_market_order(self, target_quantities, prices):
         self.position_adjuster.execute_trades(target_quantities, prices)
+
+    def get_fills(self):
+        return self.position_adjuster.get_fills()
 
     def get_name(self):
         return ','.join(self.position_adjuster.securities)
@@ -486,6 +494,7 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     }
     logging.info('result: %s' % str(summary))
     logging.info('next market open trades: %s', strategy_runner.target_quantities)
+    logging.info('fills: %s', trader_engine.get_fills())
     result = {
         'summary': summary,
         'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
