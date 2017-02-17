@@ -510,14 +510,14 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     return result
 
 
-def backtest_portfolio(symbols, prices_path, lookback_period,
+def backtest_portfolio(start_date, end_date, symbols, prices_path, lookback_period,
                        step_size, start_equity, max_net_position, max_gross_position,
                        max_risk_scale):
     securities = ['PCX/' + symbol for symbol in symbols]
     prices_by_security = dict()
     close_prices = pandas.DataFrame()
-    max_start_date = date(2013, 1, 1)
-    min_end_date = None
+    max_start_date = start_date
+    min_end_date = end_date
     for security in securities:
         exchange, security_code = security.split('/')
         prices_df = load_prices(prices_path, exchange, security_code)
@@ -558,11 +558,11 @@ def backtest_portfolio(symbols, prices_path, lookback_period,
     return backtest_data
 
 
-def chart_backtest(securities, prices_path, lookback_period,
+def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
                    step_size, start_equity,
                    max_net_position, max_gross_position, max_risk_scale):
     pyplot.style.use('ggplot')
-    backtest_result = backtest_portfolio(securities, prices_path, lookback_period=lookback_period,
+    backtest_result = backtest_portfolio(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
                                          step_size=step_size, start_equity=start_equity,
                                          max_net_position=max_net_position,
                                          max_gross_position=max_gross_position,
@@ -578,6 +578,8 @@ def chart_backtest(securities, prices_path, lookback_period,
 
 def main(args):
     prices_path = os.sep.join(['..', '..', 'data', 'eod'])
+    start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
+    end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
     if args.display is not None:
         securities = args.display.split('/')
         chart_backtest(securities, prices_path, lookback_period=args.lookback_period,
@@ -598,7 +600,7 @@ def main(args):
             logging.info('loaded portfolios: %s' % portfolios)
             for lookback_period, portfolio in portfolios:
                 securities = portfolio.split('/')
-                backtest_result = backtest_portfolio(securities, prices_path, lookback_period=int(lookback_period),
+                backtest_result = backtest_portfolio(start_date, end_date, securities, prices_path, lookback_period=int(lookback_period),
                                                      step_size=args.step_size, start_equity=args.starting_equity,
                                                      max_net_position=args.max_net_position,
                                                      max_gross_position=args.max_gross_position,
@@ -644,13 +646,13 @@ def main(args):
         pyplot.show()
 
     else:
-        # backtest all portfolios from file
+        # backtest batch
         portfolios_path = os.sep.join(['..', '..', 'data', 'portfolios.csv'])
         with open(portfolios_path) as portfolios_file:
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
             for symbols in portfolios:
-                result = backtest_portfolio(symbols, prices_path, lookback_period=args.lookback_period,
+                result = backtest_portfolio(start_date, end_date, symbols, prices_path, lookback_period=args.lookback_period,
                                             step_size=args.step_size, start_equity=args.starting_equity,
                                             max_net_position=args.max_net_position,
                                             max_gross_position=args.max_gross_position,
@@ -672,6 +674,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Backtesting prototype.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
+    parser.add_argument('--start-yyyymmdd', type=str, help='backtest start date', default='20130101')
+    parser.add_argument('--end-yyyymmdd', type=str, help='backtest end date', default=date.today().strftime('%Y%m%d'))
     parser.add_argument('--display', type=str, help='display portfolio made of comma-separated securities')
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
