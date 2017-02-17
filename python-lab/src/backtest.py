@@ -644,6 +644,7 @@ def main(args):
         pyplot.show()
 
     else:
+        # backtest all portfolios from file
         portfolios_path = os.sep.join(['..', '..', 'data', 'portfolios.csv'])
         with open(portfolios_path) as portfolios_file:
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
