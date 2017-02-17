@@ -609,7 +609,8 @@ def main(args):
                 holdings = pandas.concat([holdings, backtest_result['holdings']])
                 fills = pandas.concat([fills, backtest_result['fills']])
                 if backtest_result['next_target_quantities'] is not None:
-                    target_quantities += backtest_result['next_target_quantities']
+                    yahoo_codes = ['PCX/' + code for code in securities]
+                    target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
 
                 if 'equity' not in backtest_results:
                     backtest_results['equity'] = backtest_result['equity']
@@ -619,7 +620,10 @@ def main(args):
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         logging.info('stocks:\n%s' % latest_holdings)
-        logging.info('target quantities:\n%s' % target_quantities)
+        target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
+        target_df.columns=['target']
+        logging.info('new target quantities:\n%s' % target_df)
+        logging.info('trades:\n%s' % (target_df - latest_holdings).dropna())
 
         equity = backtest_results['equity']
         equity.plot()
