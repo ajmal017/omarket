@@ -619,11 +619,12 @@ def main(args):
                     backtest_results['equity'] += backtest_result['equity']
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
+        latest_holdings.columns = ['quantity']
         logging.info('stocks:\n%s' % latest_holdings)
         target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
         target_df.columns=['target']
         logging.info('new target quantities:\n%s' % target_df)
-        logging.info('trades:\n%s' % (target_df - latest_holdings).dropna())
+        logging.info('trades:\n%s' % (target_df['target'] - latest_holdings['quantity']).dropna())
 
         equity = backtest_results['equity']
         equity.plot()
