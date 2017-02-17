@@ -191,7 +191,8 @@ class TradingEngine(object):
         net_positions = positions.sum()
         gross_positions = numpy.abs(positions).sum()
         self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
-        self.gross_position_history.append({'date': timestamp, 'gross_position': gross_positions,
+        self.gross_position_history.append({'date': timestamp,
+                                            'gross_position': gross_positions,
                                             'margin_call': equity / 0.25,
                                             'margin_warning': equity / 0.4})
         holdings = self.position_adjuster.get_holdings()
@@ -410,16 +411,16 @@ class StrategyRunner(object):
         assert self.last_phase == 'Open'
         self.last_phase = 'Close'
 
-    def on_before_next_open(self, dividends, prices_close_adj_previous, prices_close_previous):
+    def on_after_close(self, dividends, prices_close_adj, prices_close):
         assert self.last_phase == 'Close'
-        signal_values = prices_close_adj_previous
+        signal_values = prices_close_adj
         dependent_price, independent_prices = signal_values[0], signal_values[1:]
         self.regression.compute_regression(dependent_price, independent_prices.tolist())
         deviation = self.regression.get_residual_error()
         self.trader_engine.update_state(self.day, deviation, signal_values)
         weights = self.regression.get_weights()
         signal = self.regression.get_residual()
-        self.target_quantities = self.trader_engine.update_target_positions(self.day, signal, weights, prices_close_previous)
+        self.target_quantities = self.trader_engine.update_target_positions(self.day, signal, weights, prices_close)
         self.last_phase = 'BeforeOpen'
 
 
@@ -449,10 +450,10 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
         strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
-        strategy_runner.on_before_next_open(prices_dividend[prices_dividend.index == day].values.transpose()[0],
-                                            prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
-                                            prices_close[prices_close.index == day].values.transpose()[0]
-                                            )
+        strategy_runner.on_after_close(prices_dividend[prices_dividend.index == day].values.transpose()[0],
+                                       prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
+                                       prices_close[prices_close.index == day].values.transpose()[0]
+                                       )
         # statistics
         level_inf = trader_engine.level_inf()
         level_sup = trader_engine.level_sup()
@@ -509,9 +510,9 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     return result
 
 
-def run_backtest(symbols, prices_path, lookback_period,
-                 step_size, start_equity, max_net_position, max_gross_position,
-                 max_risk_scale):
+def backtest_portfolio(symbols, prices_path, lookback_period,
+                       step_size, start_equity, max_net_position, max_gross_position,
+                       max_risk_scale):
     securities = ['PCX/' + symbol for symbol in symbols]
     prices_by_security = dict()
     close_prices = pandas.DataFrame()
@@ -561,11 +562,11 @@ def chart_backtest(securities, prices_path, lookback_period,
                    step_size, start_equity,
                    max_net_position, max_gross_position, max_risk_scale):
     pyplot.style.use('ggplot')
-    backtest_result = run_backtest(securities, prices_path, lookback_period=lookback_period,
-                                   step_size=step_size, start_equity=start_equity,
-                                   max_net_position=max_net_position,
-                                   max_gross_position=max_gross_position,
-                                   max_risk_scale=max_risk_scale)
+    backtest_result = backtest_portfolio(securities, prices_path, lookback_period=lookback_period,
+                                         step_size=step_size, start_equity=start_equity,
+                                         max_net_position=max_net_position,
+                                         max_gross_position=max_gross_position,
+                                         max_risk_scale=max_risk_scale)
     backtest_result['equity'].plot()
     backtest_result['net_position'].plot()
     backtest_result['gross_position'].plot()
@@ -597,11 +598,11 @@ def main(args):
             logging.info('loaded portfolios: %s' % portfolios)
             for lookback_period, portfolio in portfolios:
                 securities = portfolio.split('/')
-                backtest_result = run_backtest(securities, prices_path, lookback_period=int(lookback_period),
-                                   step_size=args.step_size, start_equity=args.starting_equity,
-                                   max_net_position=args.max_net_position,
-                                   max_gross_position=args.max_gross_position,
-                                   max_risk_scale=args.max_risk_scale)
+                backtest_result = backtest_portfolio(securities, prices_path, lookback_period=int(lookback_period),
+                                                     step_size=args.step_size, start_equity=args.starting_equity,
+                                                     max_net_position=args.max_net_position,
+                                                     max_gross_position=args.max_gross_position,
+                                                     max_risk_scale=args.max_risk_scale)
                 positions = pandas.concat([positions, backtest_result['positions']])
                 holdings = pandas.concat([holdings, backtest_result['holdings']])
                 fills = pandas.concat([fills, backtest_result['fills']])
@@ -645,11 +646,11 @@ def main(args):
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
             for symbols in portfolios:
-                result = run_backtest(symbols, prices_path, lookback_period=args.lookback_period,
-                                      step_size=args.step_size, start_equity=args.starting_equity,
-                                      max_net_position=args.max_net_position,
-                                      max_gross_position=args.max_gross_position,
-                                      max_risk_scale=args.max_risk_scale)
+                result = backtest_portfolio(symbols, prices_path, lookback_period=args.lookback_period,
+                                            step_size=args.step_size, start_equity=args.starting_equity,
+                                            max_net_position=args.max_net_position,
+                                            max_gross_position=args.max_gross_position,
+                                            max_risk_scale=args.max_risk_scale)
 
                 results.append(result['summary'])
 
