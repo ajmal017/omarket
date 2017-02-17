@@ -630,11 +630,14 @@ def main(args):
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
                                                 data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
                                                 columns=['net', 'gross'])
-        positions_aggregated.plot(subplots=True)
+        positions_aggregated['margin_warning'] = equity / 0.4
+        positions_aggregated.plot(subplots=False)
 
         days_interval = (equity.index[-1] - equity.index[0])
         starting_equity = equity.dropna().head(1)['equity'].values[0]
         ending_equity = equity.dropna().tail(1)['equity'].values[0]
+        sharpe_ratio = equity.dropna().pct_change().mean() / equity.dropna().pct_change().std() * math.sqrt(250)
+        logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
         logging.info('fills:\n%s', fills.sort_values('date').set_index(['date', 'security']))
