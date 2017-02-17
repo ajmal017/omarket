@@ -1,5 +1,4 @@
 import argparse
-import csv
 import logging
 import math
 
@@ -8,44 +7,9 @@ import os
 from datetime import date
 from matplotlib import pyplot
 import pandas
-from statsmodels.formula.api import OLS
-from statsmodels.tools import add_constant
-
-from fls import FlexibleLeastSquare
 from pnl import AverageCostProfitAndLoss
-
-
-def load_prices(prices_path, exchange, security_code):
-    letter = security_code[0]
-    dir_path = os.sep.join([prices_path, exchange, letter, security_code])
-    logging.info('accessing prices from: %s' % str(os.path.abspath(dir_path)))
-    prices_df = None
-    for root, dir, files in os.walk(dir_path):
-        csv_files = [csv_file for csv_file in files if csv_file.endswith('.csv')]
-        for csv_file in sorted(csv_files):
-            with open(os.sep.join([root, csv_file]), 'r') as csv_data:
-                fields = ['date', 'open', 'high', 'low', 'close', 'close adj', 'volume']
-                reader = csv.DictReader(csv_data, fieldnames=fields)
-                data = list()
-                type_fields = {
-                    'date': lambda yyyymmdd: date(int(yyyymmdd[:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:])),
-                    'open': float, 'high': float, 'low': float, 'close': float, 'close adj': float,
-                    'volume': int
-                }
-                for row in reader:
-                    converted_row = {key: type_fields[key](row[key]) for key in row}
-                    data.append(converted_row)
-
-                if prices_df is None:
-                    prices_df = pandas.DataFrame(data)
-                    prices_df.set_index('date')
-
-                else:
-                    prices_df = prices_df.append(data, ignore_index=True)
-
-    dividends = prices_df['close'].shift(1) * prices_df['close adj'] / prices_df['close adj'].shift(1) - prices_df['close']
-    prices_df['dividend'] = dividends[dividends > 1E-4]
-    return prices_df.set_index('date')
+from pricetools import load_prices
+from regression import RegressionModelOLS
 
 
 class PositionAdjuster(object):
@@ -271,118 +235,6 @@ class TradingEngine(object):
         return 1. - cum_returns.div(cum_returns.cummax())
 
 
-class RegressionModelFLS(object):
-
-    def __init__(self, securities, delta, with_constant_term=True):
-        self.with_constant_term = with_constant_term
-        size = len(securities) - 1
-        if self.with_constant_term:
-            size += 1
-
-        initial_state_mean = numpy.zeros(size)
-        initial_state_covariance = numpy.ones((size, size))
-        observation_covariance = 5E-5
-        trans_cov = delta / (1. - delta) * numpy.eye(size)
-
-        self.result = None
-        self.fls = FlexibleLeastSquare(initial_state_mean, initial_state_covariance, observation_covariance, trans_cov)
-
-    def compute_regression(self, y_value, x_values):
-        independent_values = x_values
-        if self.with_constant_term:
-            independent_values += [1.]
-
-        self.result = self.fls.estimate(y_value, independent_values)
-
-    def get_residual_error(self):
-        return math.sqrt(self.result.var_output_error)
-
-    def get_factors(self):
-        return self.result.beta
-
-    def get_estimate(self):
-        return self.result.estimated_output
-
-    def get_weights(self):
-        weights = self.get_factors()
-        if self.with_constant_term:
-            weights = weights[:-1]
-
-        return numpy.array([-1.] + weights)
-
-    def get_residual(self):
-        return self.result.error
-
-
-class RegressionModelOLS(object):
-
-    def __init__(self, securities, with_constant_term=True, lookback_period=200):
-        self._lookback = lookback_period
-        self.current_x = None
-        self.current_y = None
-        self._with_constant_term= with_constant_term
-        self._counter = 0
-        self._y_values = list()
-        self._x_values = [list() for item in securities[1:]]
-        self.securities = securities
-        self.result = None
-        self.ols = None
-
-    def compute_regression(self, y_value, x_values):
-        self._counter += 1
-        self._y_values.append(y_value)
-        if self._counter > self._lookback:
-            self._y_values.pop(0)
-            for target_lists in self._x_values:
-                target_lists.pop(0)
-
-        for target_list, new_item in zip(self._x_values, x_values):
-            target_list.append(new_item)
-
-        dependent = pandas.DataFrame({self.securities[0]: self._y_values})
-        independent = pandas.DataFrame({key: self._x_values[count] for count, key in enumerate(self.securities[1:])})
-        if self._with_constant_term:
-            self.ols = OLS(dependent, add_constant(independent))
-
-        else:
-            self.ols = OLS(dependent, independent)
-
-        self.result = self.ols.fit()
-        independent_values = x_values
-        if self._with_constant_term:
-            independent_values += [1.]
-
-        self.current_x = independent_values
-        self.current_y = y_value
-
-    def get_residual_error(self):
-        """
-        Standard error of estimates.
-        :return:
-        """
-        return math.sqrt(self.result.mse_resid)
-
-    def get_factors(self):
-        if self._with_constant_term:
-            return self.result.params[self.securities[1:] + ['const']]
-
-        else:
-            return self.result.params[self.securities[1:]]
-
-    def get_estimate(self):
-        if self._with_constant_term:
-            return self.result.params[self.securities[1:] + ['const']].dot(self.current_x)
-
-        else:
-            return self.result.params[self.securities[1:]].dot(self.current_x)
-
-    def get_weights(self):
-        return numpy.array([-1.] + self.result.params[self.securities[1:]].tolist())
-
-    def get_residual(self):
-        return self.current_y - self.get_estimate()
-
-
 class StrategyRunner(object):
 
     def __init__(self, securities, regression, trader_engine, warmup_period):
@@ -545,8 +397,7 @@ def backtest_portfolio(start_date, end_date, symbols, prices_path, lookback_peri
 
     warmup_period = 10
 
-    #delta = 5E-6
-    #regression0 = RegressionModelFLS(securities, delta, with_constant_term=False)
+    #regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
     regression10 = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
     backtest_data = process_strategy(securities, regression10, warmup_period, prices_by_security,
                                      step_size=step_size, start_equity=start_equity,
@@ -577,7 +428,8 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
 
 
 def main(args):
-    prices_path = os.sep.join(['..', '..', 'data', 'eod'])
+    # TODO arg line
+    prices_path = os.sep.join(['..', 'data', 'eod'])
     start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
     if args.display is not None:
@@ -652,7 +504,8 @@ def main(args):
 
     else:
         # backtest batch
-        portfolios_path = os.sep.join(['..', '..', 'data', 'portfolios.csv'])
+        # TODO arg line
+        portfolios_path = os.sep.join(['..', 'data', 'portfolios.csv'])
         with open(portfolios_path) as portfolios_file:
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
