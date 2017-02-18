@@ -11,16 +11,37 @@ from pnl import AverageCostProfitAndLoss
 from pricetools import load_prices
 from regression import RegressionModelOLS
 
+
 class ExecutionEngine(object):
-    pass
+    def __init__(self, securities):
+        self.securities = securities
+        self.securities_index = {security: count for count, security in enumerate(securities)}
+        self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
+        self._fills = list()
+
+    def execute(self, timestamp, count, fill_qty, price):
+        trades_tracker = self.trades_tracker[self.securities[count]]
+        trades_tracker.add_fill(fill_qty, price)
+        self._fills.append({'security': self.securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
+
+    def get_fills(self):
+        return pandas.DataFrame(self._fills)
+
+    def get_nav(self, prices):
+        total_pnl = 0.
+        for security in self.trades_tracker:
+            pnl_calc = self.trades_tracker[security]
+            price = prices[self.securities_index[security]]
+            total_pnl += pnl_calc.get_total_pnl(price)
+
+        return total_pnl
+
 
 
 class PositionAdjuster(object):
 
     def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
         self.securities = securities
-        self.securities_index = {security: count for count, security in enumerate(securities)}
-        self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
         self.current_quantities = [0.] * len(securities)
         self.max_net_position = max_net_position
         self.max_gross_position = max_gross_position
@@ -34,24 +55,19 @@ class PositionAdjuster(object):
         self.deviation = 0.
         self.open_trades = list()
         self.closed_trades = list()
-        self._fills = list()
         self.equity_history = list()
         self.net_position_history = list()
         self.gross_position_history = list()
         self.positions_history = list()
         self.holdings_history = list()
+        self.execution_engine = ExecutionEngine(securities)
 
     def execute_trades(self, timestamp, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
             target_quantity, price = quantity_price
-            trades_tracker = self.trades_tracker[self.securities[count]]
             fill_qty = target_quantity - self.current_quantities[count]
-            trades_tracker.add_fill(fill_qty, price)
-            self._fills.append({'security': self.securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
+            self.execution_engine.execute(timestamp, count, fill_qty, price)
             self.current_quantities[count] = target_quantity
-
-    def get_fills(self):
-        return pandas.DataFrame(self._fills)
 
     def update_risk_scaling(self, timestamp, weights, prices, risk_scale):
         if abs(risk_scale) > self.max_risk_scale:
@@ -161,13 +177,7 @@ class PositionAdjuster(object):
         return (self.signal_zone + 1) * self.deviation
 
     def get_nav(self, prices):
-        total_pnl = 0.
-        for security in self.trades_tracker:
-            pnl_calc = self.trades_tracker[security]
-            price = prices[self.securities_index[security]]
-            total_pnl += pnl_calc.get_total_pnl(price)
-
-        return total_pnl
+        return self.execution_engine.get_nav(prices)
 
     def get_positions(self, prices):
         return numpy.array(self.current_quantities) * prices
@@ -208,6 +218,9 @@ class PositionAdjuster(object):
     def get_drawdown(self):
         cum_returns = (1. + self.get_equity().pct_change()).cumprod()
         return 1. - cum_returns.div(cum_returns.cummax())
+
+    def get_fills(self):
+        return self.execution_engine.get_fills()
 
 
 class StrategyRunner(object):
