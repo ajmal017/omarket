@@ -11,10 +11,13 @@ from pnl import AverageCostProfitAndLoss
 from pricetools import load_prices
 from regression import RegressionModelOLS
 
+class ExecutionEngine(object):
+    pass
+
 
 class PositionAdjuster(object):
 
-    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity):
+    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
         self.securities = securities
         self.securities_index = {security: count for count, security in enumerate(securities)}
         self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
@@ -22,13 +25,16 @@ class PositionAdjuster(object):
         self.max_net_position = max_net_position
         self.max_gross_position = max_gross_position
         self.max_risk_scale = max_risk_scale
+        self._step_size = step_size
+        self.start_equity = start_equity
         self.equity = 0.
+        self.current_risk_scale = 0.
+        self.current_level = 0.
+        self.signal_zone = 0
+        self.deviation = 0.
         self.open_trades = list()
         self.closed_trades = list()
-        self.current_risk_scale = 0.
         self._fills = list()
-        self.current_level = 0.
-        self.start_equity = start_equity
         self.equity_history = list()
         self.net_position_history = list()
         self.gross_position_history = list()
@@ -102,6 +108,7 @@ class PositionAdjuster(object):
         return quantities
 
     def update_state(self, timestamp, deviation, market_prices):
+        self.deviation = deviation * self._step_size
         if deviation == 0.:
             return
 
@@ -131,6 +138,27 @@ class PositionAdjuster(object):
             positions_data['position'] = positions[security]
             positions_data['security'] = security
             self.positions_history.append(positions_data)
+
+    def update_target_positions(self, timestamp, signal, weights, market_prices):
+        movement = 0
+        if signal >= self.level_sup():
+            movement = 1
+
+        if signal <= self.level_inf():
+            movement = -1
+
+        self.signal_zone += movement
+        target_quantities = None
+        if movement != 0:
+            target_quantities = self.update_risk_scaling(timestamp, weights, market_prices, self.signal_zone)
+
+        return target_quantities
+
+    def level_inf(self):
+        return (self.signal_zone - 1) * self.deviation
+
+    def level_sup(self):
+        return (self.signal_zone + 1) * self.deviation
 
     def get_nav(self, prices):
         total_pnl = 0.
@@ -184,7 +212,7 @@ class PositionAdjuster(object):
 
 class StrategyRunner(object):
 
-    def __init__(self, securities, regression, warmup_period, position_adjuster, step_size):
+    def __init__(self, securities, regression, warmup_period, position_adjuster):
         self.securities = securities
         self.day = None
         self.last_phase = 'BeforeOpen'
@@ -193,10 +221,6 @@ class StrategyRunner(object):
         self.count_day = 0
         self.target_quantities = None
         self.position_adjuster = position_adjuster
-
-        self.signal_zone = 0
-        self.deviation = 0.
-        self._step_size = step_size
 
     def on_open(self, day, prices_open):
         assert self.last_phase == 'BeforeOpen'
@@ -220,33 +244,11 @@ class StrategyRunner(object):
         dependent_price, independent_prices = signal_values[0], signal_values[1:]
         self.regression.compute_regression(dependent_price, independent_prices.tolist())
         deviation = self.regression.get_residual_error()
-        self.deviation = deviation * self._step_size
         self.position_adjuster.update_state(self.day, deviation, signal_values)
         weights = self.regression.get_weights()
         signal = self.regression.get_residual()
-        self.target_quantities = self.update_target_positions(self.day, signal, weights, prices_close)
+        self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, weights, prices_close)
         self.last_phase = 'BeforeOpen'
-
-    def update_target_positions(self, timestamp, signal, weights, market_prices):
-        movement = 0
-        if signal >= self.level_sup():
-            movement = 1
-
-        if signal <= self.level_inf():
-            movement = -1
-
-        self.signal_zone += movement
-        target_quantities = None
-        if movement != 0:
-            target_quantities = self.position_adjuster.update_risk_scaling(timestamp, weights, market_prices, self.signal_zone)
-
-        return target_quantities
-
-    def level_inf(self):
-        return (self.signal_zone - 1) * self.deviation
-
-    def level_sup(self):
-        return (self.signal_zone + 1) * self.deviation
 
     def get_closed_trades(self):
         return pandas.DataFrame(self.position_adjuster.closed_trades)
@@ -271,7 +273,7 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     :return:
     """
 
-    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity)
+    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size)
     position_adjuster.update_equity(start_equity)
     dates = set()
     prices_open = pandas.DataFrame()
@@ -289,7 +291,7 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     chart_bollinger = list()
     chart_beta = list()
     chart_regression = list()
-    strategy_runner = StrategyRunner(securities, regression, warmup_period, position_adjuster, step_size)
+    strategy_runner = StrategyRunner(securities, regression, warmup_period, position_adjuster)
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
         strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
@@ -298,8 +300,8 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
                                        prices_close[prices_close.index == day].values.transpose()[0]
                                        )
         # statistics
-        level_inf = strategy_runner.level_inf()
-        level_sup = strategy_runner.level_sup()
+        level_inf = position_adjuster.level_inf()
+        level_sup = position_adjuster.level_sup()
         signal_data = {
             'date': strategy_runner.day,
             'level_inf': level_inf,
@@ -425,7 +427,7 @@ def main(args):
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
     if args.display is not None:
         securities = args.display.split('/')
-        chart_backtest(securities, prices_path, lookback_period=args.lookback_period,
+        chart_backtest(start_date, end_date, securities, prices_path, lookback_period=args.lookback_period,
                        step_size=args.step_size, start_equity=args.starting_equity,
                        max_net_position=args.max_net_position,
                        max_gross_position=args.max_gross_position,
