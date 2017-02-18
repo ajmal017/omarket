@@ -14,7 +14,7 @@ from regression import RegressionModelOLS
 
 class PositionAdjuster(object):
 
-    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale):
+    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity):
         self.securities = securities
         self.securities_index = {security: count for count, security in enumerate(securities)}
         self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
@@ -27,6 +27,13 @@ class PositionAdjuster(object):
         self.closed_trades = list()
         self.current_risk_scale = 0.
         self._fills = list()
+        self.current_level = 0.
+        self.start_equity = start_equity
+        self.equity_history = list()
+        self.net_position_history = list()
+        self.gross_position_history = list()
+        self.positions_history = list()
+        self.holdings_history = list()
 
     def execute_trades(self, timestamp, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
@@ -94,6 +101,37 @@ class PositionAdjuster(object):
 
         return quantities
 
+    def update_state(self, timestamp, deviation, market_prices):
+        if deviation == 0.:
+            return
+
+        equity = self.get_nav(market_prices) + self.start_equity
+        self.update_equity(equity)
+        self.equity_history.append({'date': timestamp,
+                                    'equity': equity})
+
+        positions = self.get_positions(market_prices)
+        net_positions = positions.sum()
+        gross_positions = numpy.abs(positions).sum()
+        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
+        self.gross_position_history.append({'date': timestamp,
+                                            'gross_position': gross_positions,
+                                            'margin_call': equity / 0.25,
+                                            'margin_warning': equity / 0.4})
+        holdings = self.get_holdings()
+        for security in holdings:
+            holdings_data = {'date': timestamp, 'strategy': self.get_name()}
+            holdings_data['quantity'] = holdings[security]
+            holdings_data['security'] = security
+            self.holdings_history.append(holdings_data)
+
+        positions = self.get_position_securities(market_prices)
+        for security in positions:
+            positions_data = {'date': timestamp, 'strategy': self.get_name()}
+            positions_data['position'] = positions[security]
+            positions_data['security'] = security
+            self.positions_history.append(positions_data)
+
     def get_nav(self, prices):
         total_pnl = 0.
         for security in self.trades_tracker:
@@ -115,63 +153,79 @@ class PositionAdjuster(object):
     def get_holdings(self):
         return dict(zip(self.securities, self.current_quantities))
 
+    def get_name(self):
+        return ','.join(self.securities)
 
-class TradingEngine(object):
+    def get_equity(self):
+        return pandas.DataFrame(self.equity_history).set_index('date')
 
-    def __init__(self, securities, step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
-        """
+    def get_positions_history(self):
+        return pandas.DataFrame(self.positions_history)
 
-        :param securities:
-        :param step_size:
-        :param start_equity:
-        :param max_net_position: measured in fraction of equity
-        :param max_gross_position: measured in fraction of equity
-        :param max_risk_scale: max number of deviations steps allowed
-        """
-        self.current_level = 0.
+    def get_holdings_history(self):
+        return pandas.DataFrame(self.holdings_history)
+
+    def get_net_position(self):
+        return pandas.DataFrame(self.net_position_history).set_index('date')
+
+    def get_gross_position(self):
+        return pandas.DataFrame(self.gross_position_history).set_index('date')
+
+    def get_sharpe_ratio(self):
+        mean_return = self.get_equity().pct_change().mean()
+        std_return = self.get_equity().pct_change().std()
+        value = mean_return / std_return * math.sqrt(250)
+        return value['equity']
+
+    def get_drawdown(self):
+        cum_returns = (1. + self.get_equity().pct_change()).cumprod()
+        return 1. - cum_returns.div(cum_returns.cummax())
+
+
+class StrategyRunner(object):
+
+    def __init__(self, securities, regression, warmup_period, position_adjuster, step_size):
+        self.securities = securities
+        self.day = None
+        self.last_phase = 'BeforeOpen'
+        self.regression = regression
+        self.warmup_period = warmup_period
+        self.count_day = 0
+        self.target_quantities = None
+        self.position_adjuster = position_adjuster
+
         self.signal_zone = 0
-        self.start_equity = start_equity
-        self.equity_history = list()
-        self.net_position_history = list()
-        self.gross_position_history = list()
-        self.positions_history = list()
-        self.holdings_history = list()
-        self.position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale)
-        self.position_adjuster.update_equity(start_equity)
         self.deviation = 0.
         self._step_size = step_size
 
-    def update_state(self, timestamp, deviation, market_prices):
-        if deviation == 0.:
-            return
+    def on_open(self, day, prices_open):
+        assert self.last_phase == 'BeforeOpen'
+        self.day = day
+        self.count_day += 1
 
+        if self.count_day > self.warmup_period:
+            # on-open market orders
+            if self.target_quantities is not None:
+                self.position_adjuster.execute_trades(day, self.target_quantities, prices_open)
+
+        self.last_phase = 'Open'
+
+    def on_close(self, prices_close):
+        assert self.last_phase == 'Open'
+        self.last_phase = 'Close'
+
+    def on_after_close(self, dividends, prices_close_adj, prices_close):
+        assert self.last_phase == 'Close'
+        signal_values = prices_close_adj
+        dependent_price, independent_prices = signal_values[0], signal_values[1:]
+        self.regression.compute_regression(dependent_price, independent_prices.tolist())
+        deviation = self.regression.get_residual_error()
         self.deviation = deviation * self._step_size
-        equity = self.position_adjuster.get_nav(market_prices) + self.start_equity
-        self.position_adjuster.update_equity(equity)
-        self.equity_history.append({'date': timestamp,
-                                    'equity': equity})
-
-        positions = self.position_adjuster.get_positions(market_prices)
-        net_positions = positions.sum()
-        gross_positions = numpy.abs(positions).sum()
-        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
-        self.gross_position_history.append({'date': timestamp,
-                                            'gross_position': gross_positions,
-                                            'margin_call': equity / 0.25,
-                                            'margin_warning': equity / 0.4})
-        holdings = self.position_adjuster.get_holdings()
-        for security in holdings:
-            holdings_data = {'date': timestamp, 'strategy': self.get_name()}
-            holdings_data['quantity'] = holdings[security]
-            holdings_data['security'] = security
-            self.holdings_history.append(holdings_data)
-
-        positions = self.position_adjuster.get_position_securities(market_prices)
-        for security in positions:
-            positions_data = {'date': timestamp, 'strategy': self.get_name()}
-            positions_data['position'] = positions[security]
-            positions_data['security'] = security
-            self.positions_history.append(positions_data)
+        self.position_adjuster.update_state(self.day, deviation, signal_values)
+        weights = self.regression.get_weights()
+        signal = self.regression.get_residual()
+        self.target_quantities = self.update_target_positions(self.day, signal, weights, prices_close)
+        self.last_phase = 'BeforeOpen'
 
     def update_target_positions(self, timestamp, signal, weights, market_prices):
         movement = 0
@@ -188,35 +242,11 @@ class TradingEngine(object):
 
         return target_quantities
 
-    def execute_market_order(self, timestamp, target_quantities, prices):
-        self.position_adjuster.execute_trades(timestamp, target_quantities, prices)
-
-    def get_fills(self):
-        return self.position_adjuster.get_fills()
-
-    def get_name(self):
-        return ','.join(self.position_adjuster.securities)
-
     def level_inf(self):
         return (self.signal_zone - 1) * self.deviation
 
     def level_sup(self):
         return (self.signal_zone + 1) * self.deviation
-
-    def get_equity(self):
-        return pandas.DataFrame(self.equity_history).set_index('date')
-
-    def get_positions(self):
-        return pandas.DataFrame(self.positions_history)
-
-    def get_holdings(self):
-        return pandas.DataFrame(self.holdings_history)
-
-    def get_net_position(self):
-        return pandas.DataFrame(self.net_position_history).set_index('date')
-
-    def get_gross_position(self):
-        return pandas.DataFrame(self.gross_position_history).set_index('date')
 
     def get_closed_trades(self):
         return pandas.DataFrame(self.position_adjuster.closed_trades)
@@ -224,64 +254,25 @@ class TradingEngine(object):
     def get_open_trades(self):
         return pandas.DataFrame(self.position_adjuster.open_trades)
 
-    def get_sharpe_ratio(self):
-        mean_return = self.get_equity().pct_change().mean()
-        std_return = self.get_equity().pct_change().std()
-        value = mean_return / std_return * math.sqrt(250)
-        return value['equity']
-
-    def get_drawdown(self):
-        cum_returns = (1. + self.get_equity().pct_change()).cumprod()
-        return 1. - cum_returns.div(cum_returns.cummax())
-
-
-class StrategyRunner(object):
-
-    def __init__(self, securities, regression, trader_engine, warmup_period):
-        self.securities = securities
-        self.day = None
-        self.last_phase = 'BeforeOpen'
-        self.regression = regression
-        self.trader_engine = trader_engine
-        self.warmup_period = warmup_period
-        self.count_day = 0
-        self.target_quantities = None
-
-    def on_open(self, day, prices_open):
-        assert self.last_phase == 'BeforeOpen'
-        self.day = day
-        self.count_day += 1
-
-        if self.count_day > self.warmup_period:
-            # on-open market orders
-            if self.target_quantities is not None:
-                self.trader_engine.execute_market_order(day, self.target_quantities, prices_open)
-
-        self.last_phase = 'Open'
-
-    def on_close(self, prices_close):
-        assert self.last_phase == 'Open'
-        self.last_phase = 'Close'
-
-    def on_after_close(self, dividends, prices_close_adj, prices_close):
-        assert self.last_phase == 'Close'
-        signal_values = prices_close_adj
-        dependent_price, independent_prices = signal_values[0], signal_values[1:]
-        self.regression.compute_regression(dependent_price, independent_prices.tolist())
-        deviation = self.regression.get_residual_error()
-        self.trader_engine.update_state(self.day, deviation, signal_values)
-        weights = self.regression.get_weights()
-        signal = self.regression.get_residual()
-        self.target_quantities = self.trader_engine.update_target_positions(self.day, signal, weights, prices_close)
-        self.last_phase = 'BeforeOpen'
-
 
 def process_strategy(securities, regression, warmup_period, prices_by_security,
                      step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
-    trader_engine = TradingEngine(securities=securities, step_size=step_size, start_equity=start_equity,
-                                  max_net_position=max_net_position,
-                                  max_gross_position=max_gross_position,
-                                  max_risk_scale=max_risk_scale)
+    """
+
+    :param securities:
+    :param regression:
+    :param warmup_period:
+    :param prices_by_security:
+    :param step_size:
+    :param start_equity:
+    :param max_net_position:
+    :param max_gross_position:
+    :param max_risk_scale:
+    :return:
+    """
+
+    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity)
+    position_adjuster.update_equity(start_equity)
     dates = set()
     prices_open = pandas.DataFrame()
     prices_close = pandas.DataFrame()
@@ -298,7 +289,7 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
     chart_bollinger = list()
     chart_beta = list()
     chart_regression = list()
-    strategy_runner = StrategyRunner(securities, regression, trader_engine, warmup_period)
+    strategy_runner = StrategyRunner(securities, regression, warmup_period, position_adjuster, step_size)
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
         strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
@@ -307,8 +298,8 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
                                        prices_close[prices_close.index == day].values.transpose()[0]
                                        )
         # statistics
-        level_inf = trader_engine.level_inf()
-        level_sup = trader_engine.level_sup()
+        level_inf = strategy_runner.level_inf()
+        level_sup = strategy_runner.level_sup()
         signal_data = {
             'date': strategy_runner.day,
             'level_inf': level_inf,
@@ -331,14 +322,14 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
                            }
         chart_regression.append(regression_data)
 
-    closed_trades = trader_engine.get_closed_trades()
+    closed_trades = strategy_runner.get_closed_trades()
     mean_trade = closed_trades['pnl'].mean()
     worst_trade = closed_trades['pnl'].min()
     count_trades = closed_trades['pnl'].count()
-    max_drawdown = trader_engine.get_drawdown().max()['equity']
-    final_equity = trader_engine.get_equity()['equity'][-1]
+    max_drawdown = position_adjuster.get_drawdown().max()['equity']
+    final_equity = position_adjuster.get_equity()['equity'][-1]
     summary = {
-        'sharpe_ratio': trader_engine.get_sharpe_ratio(),
+        'sharpe_ratio': position_adjuster.get_sharpe_ratio(),
         'average_trade': mean_trade,
         'worst_trade': worst_trade,
         'count_trades': count_trades,
@@ -351,12 +342,12 @@ def process_strategy(securities, regression, warmup_period, prices_by_security,
         'bollinger': pandas.DataFrame(chart_bollinger).set_index('date'),
         'factors': pandas.DataFrame(chart_beta).set_index('date'),
         'regression': chart_regression,
-        'equity': trader_engine.get_equity(),
-        'net_position': trader_engine.get_net_position(),
-        'gross_position': trader_engine.get_gross_position(),
-        'positions': trader_engine.get_positions(),
-        'holdings': trader_engine.get_holdings(),
-        'fills': trader_engine.get_fills(),
+        'equity': position_adjuster.get_equity(),
+        'net_position': position_adjuster.get_net_position(),
+        'gross_position': position_adjuster.get_gross_position(),
+        'positions': position_adjuster.get_positions_history(),
+        'holdings': pandas.DataFrame(position_adjuster.get_holdings_history()),
+        'fills': position_adjuster.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
     }
     return result
