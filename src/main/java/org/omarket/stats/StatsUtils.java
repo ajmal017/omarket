@@ -173,4 +173,25 @@ public class StatsUtils {
         }
         return value;
     }
+
+    public static boolean equalMatrix(RealMatrix first, RealMatrix second){
+        boolean same;
+        same = first.getRowDimension() == second.getRowDimension();
+        same &= first.getColumnDimension() == second.getColumnDimension();
+
+        for(int row=0; row < first.getRowDimension(); row++){
+            String rowString = "";
+            for(int column=0; column < first.getColumnDimension(); column++){
+                Double firstEntry = first.getEntry(row, column);
+                Double secondEntry = second.getEntry(row, column);
+                if(firstEntry.isNaN() && secondEntry.isNaN()){
+                    same &= true;
+                }
+                else if(!firstEntry.equals(secondEntry)){
+                    same &= false;
+                }
+            }
+        }
+        return same;
+    }
 }

@@ -216,15 +216,15 @@ public class LightweightMatrix  extends AbstractRealMatrix implements Serializab
         // Safety check.
         MatrixUtils.checkMultiplicationCompatible(this, m);
 
-        final int outCols = m.getColumnDimension();
+        final int outColumns = this.getColumnDimension();
         ElementProvider multiplier = (row, column) -> {
             double value = 0.;
-            for(int i=0; i<outCols; i++){
+            for(int i=0; i<outColumns; i++){
                 value += getEntry(row, i) + m.getEntry(i, column);
             }
             return value;
         };
-        return new LightweightMatrix(this.getRowDimension(), this.getColumnDimension(), multiplier);
+        return new LightweightMatrix(this.getRowDimension(), m.getColumnDimension(), multiplier);
     }
 
     /** {@inheritDoc} */
@@ -266,6 +266,23 @@ public class LightweightMatrix  extends AbstractRealMatrix implements Serializab
         MatrixUtils.checkRowIndex(this, row);
         MatrixUtils.checkColumnIndex(this, column);
         entries.override(row, column, getEntry(row, column) * factor);
+    }
+
+    @Override
+    public String toString(){
+        if (this.getRowDimension() * this.getColumnDimension() > 1000) {
+            return "Lightweight Matrix [" + this.getRowDimension() + "x" + this.getColumnDimension() + "]";
+        } else {
+            String display = "";
+            for(int row=0; row < this.getRowDimension(); row++){
+                String rowString = "";
+                for(int column=0; column < this.getColumnDimension(); column++){
+                    rowString += String.valueOf(this.getEntry(row, column)) + " ";
+                }
+                display += "[" + rowString + "]";
+            }
+            return "[" + display + "]";
+        }
     }
 
 }

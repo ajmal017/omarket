@@ -23,6 +23,7 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.omarket.stats.CoIntegration.cointegration_johansen;
+import static org.omarket.stats.StatsUtils.equalMatrix;
 
 /**
  * Created by christophe on 30/12/16.
@@ -58,6 +59,34 @@ public class StatsUtilsTest {
     }
 
     @Test
+    public void testLightweightMultply() throws Exception {
+        double[][] data = {
+                {0., 10., 20.},
+                {1., 11., 21.},
+                {2., 12., 22.},
+                {3., 13., 23.},
+                {4., 14., 24.},
+        };
+        ElementProvider provider = new ElementProvider() {
+
+            @Override
+            public double getElement(int row, int column) {
+                return data[row][column];
+            }
+        };
+        LightweightMatrix lwMatrix = new LightweightMatrix(5, 3, provider);
+        double[][] expected = new double[][]{
+                {60.0, 63.0, 66.0, 69.0, 72.0},
+                {63.0, 66.0, 69.0, 72.0, 75.0},
+                {66.0, 69.0, 72.0, 75.0, 78.0},
+                {69.0, 72.0, 75.0, 78.0, 81.0},
+                {72.0, 75.0, 78.0, 81.0, 84.0}
+        };
+        RealMatrix result = lwMatrix.multiply(lwMatrix.transpose());
+        assertTrue(equalMatrix(MatrixUtils.createRealMatrix(expected), result));
+    }
+
+    @Test
     public void testLightweightMatrix() throws Exception {
         long seed = 73339045431L; // Fixed seed means same results every time
         RandomGenerator rg0 = RandomGeneratorFactory.createRandomGenerator(new Random(seed));
@@ -81,17 +110,19 @@ public class StatsUtilsTest {
         };
         RealMatrix matrix = MatrixUtils.createRealMatrix(data);
         double[][] expectedRows = {
-                {0.0, 0.0, 0.0},
+                {0., 0., 0.},
                 {1.0, 2.0, -2.0},
                 {1.0, 3.0, -2.0},
                 {1.0, 4.0, -2.0},
                 {1.0, 5.0, -2.0},
                 {1.0, 6.0, -2.0}};
-        assertEquals(MatrixUtils.createRealMatrix(expectedRows), StatsUtils.diffRows(matrix));
+        RealMatrix diffMatrix = StatsUtils.diffRows(matrix);
+        RealMatrix expected = MatrixUtils.createRealMatrix(expectedRows);
+        assertTrue(equalMatrix(expected, diffMatrix));
     }
 
     @Test
-    public void testShitDown() throws Exception {
+    public void testShiftDown() throws Exception {
         double[][] data = {
                 {0., 10., 20.},
                 {1., 12., 18.},
@@ -129,7 +160,9 @@ public class StatsUtilsTest {
                 {1.0, 4.0, -2.0},
                 {1.0, 5.0, -2.0},
                 {1.0, 6.0, -2.0}};
-        assertEquals(MatrixUtils.createRealMatrix(expectedRows), StatsUtils.truncateTop(StatsUtils.diffRows(matrix)));
+        RealMatrix diffMatrix = StatsUtils.diffRows(matrix);
+        RealMatrix truncatedMatrix = StatsUtils.truncateTop(diffMatrix);
+        assertEquals(MatrixUtils.createRealMatrix(expectedRows), truncatedMatrix);
     }
 
     @Test
@@ -180,7 +213,7 @@ public class StatsUtilsTest {
         }
         RealMatrix matrix = MatrixUtils.createRealMatrix(values);
         CoIntegration.Result result = cointegration_johansen(matrix);
-        logger.info("result" + result);
+        logger.info("result:\n" + result);
         RealMatrix eigenVectors = MatrixUtils.createRealMatrix(new double[][]{
                 {-1.1871251519, -0.760829071, 0.00019992599},
                 {2.3741590407, 1.5214962767, 0.0472191474},
