@@ -4,6 +4,7 @@ import org.apache.commons.math3.linear.*;
 import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.Arrays;
+import java.util.DoubleSummaryStatistics;
 import java.util.List;
 
 import static java.lang.Math.min;
@@ -29,6 +30,12 @@ public class StatsUtils {
     public static RealMatrix ones(int rowDimension, int columnDimension) {
         ElementProvider onesProvider = (row, column) -> 1.;
         LightweightMatrix matrix = new LightweightMatrix(rowDimension, columnDimension, onesProvider);
+        return matrix;
+    }
+
+    public static RealMatrix identity(int dimension) {
+        ElementProvider onesProvider = (row, column) -> (row == column)? 1.: 0.;
+        LightweightMatrix matrix = new LightweightMatrix(dimension, dimension, onesProvider);
         return matrix;
     }
 
@@ -83,13 +90,22 @@ public class StatsUtils {
     }
 
     public static RealMatrix diffRows(RealMatrix matrix){
-        RealMatrix nullifyFirstRow = MatrixUtils.createRealIdentityMatrix(matrix.getRowDimension());
-        nullifyFirstRow.setRowVector(0, nullVector(matrix.getRowDimension()));
-        return nullifyFirstRow.multiply(matrix.subtract(shiftDown(matrix)));
+        ElementProvider provider = new ElementProvider() {
+            @Override
+            public double getElement(int row, int column) {
+                if (row >= 1) {
+                    return matrix.getEntry(row, column) - matrix.getEntry(row - 1, column);
+
+                } else {
+                    return Double.NaN;
+                }
+            }
+        };
+        return new LightweightMatrix(matrix.getRowDimension(), matrix.getColumnDimension(), provider);
     }
 
-    public static RealMatrix truncateTop(RealMatrix matrix, int count){
-        if(count == matrix.getRowDimension() || count < 0){
+    public static RealMatrix truncateTop(final RealMatrix matrix, final int count){
+        if(count >= matrix.getRowDimension() || count < 0){
             throw new IndexOutOfBoundsException("position "+ count +" not allowed for number of rows: " + matrix.getRowDimension());
         }
         double[][] data = matrix.getData();

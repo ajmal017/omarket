@@ -110,7 +110,7 @@ public class StatsUtilsTest {
         };
         RealMatrix matrix = MatrixUtils.createRealMatrix(data);
         double[][] expectedRows = {
-                {0., 0., 0.},
+                {Double.NaN, Double.NaN, Double.NaN},
                 {1.0, 2.0, -2.0},
                 {1.0, 3.0, -2.0},
                 {1.0, 4.0, -2.0},
