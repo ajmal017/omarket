@@ -430,6 +430,7 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
                                          max_net_position=max_net_position,
                                          max_gross_position=max_gross_position,
                                          max_risk_scale=max_risk_scale)
+    logging.info('fit quality: %s', fit_quality(backtest_result['equity'] - start_equity))
     backtest_result['equity'].plot()
     backtest_result['net_position'].plot()
     backtest_result['gross_position'].plot()
@@ -437,6 +438,15 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
     backtest_result['factors'].plot(subplots=True)
     backtest_result['bollinger'].plot(subplots=False)
     pyplot.show()
+
+
+def fit_quality(df):
+    regr_df = df.reset_index()
+    day_nanos = 24*60*60*1E9
+    nanos = regr_df['date'] - regr_df['date'].min()
+    df2 = pandas.DataFrame(data=[nanos.astype(int) / day_nanos, regr_df['equity']]).transpose()
+    result = pandas.ols(y=df2['equity'], x=df2['date'], intercept=False)
+    return {'p-value F-test': result.f_stat['p-value'], 'r-squared': result.r2, 'p-value x': result.p_value['x']}
 
 
 def main(args):
@@ -492,7 +502,7 @@ def main(args):
 
         equity = backtest_results['equity']
         equity.plot()
-
+        logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = positions.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
         by_security_pos.plot()
 
@@ -522,13 +532,15 @@ def main(args):
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
             for symbols in portfolios:
-                result = backtest_portfolio(start_date, end_date, symbols, prices_path, lookback_period=args.lookback_period,
+                backtest_result = backtest_portfolio(start_date, end_date, symbols, prices_path,
+                                                     lookback_period=args.lookback_period,
                                             step_size=args.step_size, start_equity=args.starting_equity,
                                             max_net_position=args.max_net_position,
                                             max_gross_position=args.max_gross_position,
                                             max_risk_scale=args.max_risk_scale)
-
-                results.append(result['summary'])
+                backtest_data = fit_quality(backtest_result['equity'] - args.starting_equity)
+                backtest_data.update(backtest_result['summary'])
+                results.append(backtest_data)
 
             result_df = pandas.DataFrame(results).set_index('portfolio')
             result_df.to_csv('backtest-results.csv')
