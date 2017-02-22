@@ -13,25 +13,26 @@ from regression import RegressionModelOLS
 
 
 class ExecutionEngine(object):
+
     def __init__(self, securities):
-        self.securities = securities
-        self.securities_index = {security: count for count, security in enumerate(securities)}
-        self.trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
+        self._securities = securities
+        self._securities_index = {security: count for count, security in enumerate(securities)}
+        self._trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
         self._fills = list()
 
     def execute(self, timestamp, count, fill_qty, price):
-        trades_tracker = self.trades_tracker[self.securities[count]]
+        trades_tracker = self._trades_tracker[self._securities[count]]
         trades_tracker.add_fill(fill_qty, price)
-        self._fills.append({'security': self.securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
+        self._fills.append({'security': self._securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
 
     def get_fills(self):
         return pandas.DataFrame(self._fills)
 
     def get_nav(self, prices):
         total_pnl = 0.
-        for security in self.trades_tracker:
-            pnl_calc = self.trades_tracker[security]
-            price = prices[self.securities_index[security]]
+        for security in self._trades_tracker:
+            pnl_calc = self._trades_tracker[security]
+            price = prices[self._securities_index[security]]
             total_pnl += pnl_calc.get_total_pnl(price)
 
         return total_pnl
@@ -132,11 +133,17 @@ class PositionAdjuster(object):
             movement = -1
 
         self._signal_zone += movement
-        target_quantities = None
+        quantities = None
         if movement != 0:
-            target_quantities = self._update_risk_scaling(timestamp, weights, market_prices, self._signal_zone)
+            scaling = self._update_risk_scaling(timestamp, weights, market_prices, self._signal_zone)
+            quantities = list()
+            for count, weight_price in enumerate(zip(weights, market_prices)):
+                weight, price = weight_price
+                target_position = scaling * self._current_risk_scale * weight
+                target_quantity = round(target_position / price)
+                quantities.append(target_quantity)
 
-        return target_quantities
+        return quantities
 
     def _update_risk_scaling(self, timestamp, weights, market_prices, risk_scale):
         if abs(risk_scale) > self._max_risk_scale:
@@ -161,17 +168,17 @@ class PositionAdjuster(object):
 
         self._handle_trades(timestamp, risk_scale, market_prices)
         self._current_risk_scale = risk_scale
-
-        quantities = list()
-        for count, weight_price in enumerate(zip(weights, market_prices)):
-            weight, price = weight_price
-            target_position = scaling * risk_scale * weight
-            target_quantity = round(target_position / price)
-            quantities.append(target_quantity)
-
-        return quantities
+        return scaling
 
     def _handle_trades(self, timestamp, risk_scale, prices):
+        """
+        Keeps track of high-level trades.
+
+        :param timestamp:
+        :param risk_scale:
+        :param prices:
+        :return:
+        """
         steps_count = int(abs(risk_scale) - abs(self._current_risk_scale))
         if steps_count > 0:
             logging.debug('opening %d trade(s)' % steps_count)
