@@ -263,15 +263,10 @@ class MeanReversionStrategy(object):
         self.states['deviation'] = self.regression.get_residual_error()
         self.states['weights'] = self.regression.get_weights()
         self.states['signal'] = self.regression.get_residual()
+        self.states['factors'] = self.regression.get_factors()
 
     def get_state(self, name):
         return self.states[name]
-
-    def get_residual(self):
-        return self.regression.get_residual()
-
-    def get_factors(self):
-        return self.regression.get_factors()
 
 
 class MeanReversionStrategyRunner(object):
@@ -319,10 +314,10 @@ class MeanReversionStrategyRunner(object):
             'date': self.day,
             'level_inf': self.position_adjuster.level_inf(),
             'level_sup': self.position_adjuster.level_sup(),
-            'signal_fls': self.strategy.get_residual()
+            'signal': self.strategy.get_state('signal')
         }
         self.data_collector.add_bollinger(signal_data)
-        self.data_collector.add_factors(self.strategy.get_factors(), self.day)
+        self.data_collector.add_factors(self.strategy.get_state('factors'), self.day)
         #self.data_collector.add_records()
 
 
