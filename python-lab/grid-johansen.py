@@ -14,11 +14,12 @@ import numpy
 import cointeg
 
 _ETFS = (
-    'SCHF', 'AMJ', 'FEZ', 'EMB', 'EWC', 'UUP', 'EWY', 'IWF', 'HEDJ', 'VOO', 'BND', 'VEU', 'ITB', 'IWD',
-    'DBC', 'VTI', 'EWG', 'USMV', 'EWH', 'PGX', 'EPI', 'IEFA', 'AGG', 'KBE', 'VGK', 'DIA', 'IVV',
-    'PFF', 'EWW', 'VNQ', 'XME', 'XLB', 'BKLN', 'XLY', 'XRT', 'LQD', 'XBI', 'DXJ', 'IEMG', 'GLD',
-    'KRE', 'SLV', 'IYR', 'XLV', 'AMLP', 'VEA', 'XLK', 'IAU', 'RSX',
-    'XLI', 'JNK', 'HYG', 'XLE', 'XOP', 'VWO', 'XLP', 'XLU', 'FXI', 'EWZ', 'EFA',
+    'SCHF', 'AMJ', 'FEZ', 'EMB', 'EWC', 'UUP', 'EWY', 'IWF', 'HEDJ', 'VOO',
+    'BND', 'VEU', 'ITB', 'IWD', 'DBC', 'VTI', 'EWG', 'USMV', 'EWH', 'PGX',
+    'EPI', 'IEFA', 'AGG', 'KBE', 'VGK', 'DIA', 'IVV', 'PFF', 'EWW', 'VNQ',
+    'XME', 'XLB', 'BKLN', 'XLY', 'XRT', 'LQD', 'XBI', 'DXJ', 'IEMG', 'GLD',
+    'KRE', 'SLV', 'IYR', 'XLV', 'AMLP', 'VEA', 'XLK', 'IAU', 'RSX', 'XLI',
+    'JNK', 'HYG', 'XLE', 'XOP', 'VWO', 'XLP', 'XLU', 'FXI', 'EWZ', 'EFA',
     'UNG', 'GDXJ', 'IWM', 'USO', 'EEM', 'GDX', 'SPY', 'XLF'
 )
 
