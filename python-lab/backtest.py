@@ -78,6 +78,9 @@ class PortfolioDataCollector(object):
     def get_equity(self):
         return pandas.DataFrame(self.equity_history).set_index('date')
 
+    def get_return(self):
+        return self.get_equity().pct_change()
+
     def get_positions_history(self):
         return pandas.DataFrame(self.positions_history)
 
@@ -97,7 +100,7 @@ class PortfolioDataCollector(object):
         return value['equity']
 
     def get_drawdown(self):
-        cum_returns = (1. + self.get_equity().pct_change()).cumprod()
+        cum_returns = (1. + self.get_return()).cumprod()
         return 1. - cum_returns.div(cum_returns.cummax())
 
     def add_bollinger(self, signal_data):
@@ -159,47 +162,47 @@ class PositionAdjuster(object):
         return quantities
 
     def _update_risk_scaling(self, timestamp, weights, market_prices):
-        risk_scale = self._signal_zone
-        if abs(risk_scale) > self._max_risk_scale:
-            logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (risk_scale, self._max_risk_scale))
-            if risk_scale > 0:
-                risk_scale = self._max_risk_scale
+        target_risk_scale = self._signal_zone
+        if abs(target_risk_scale) > self._max_risk_scale:
+            logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (target_risk_scale, self._max_risk_scale))
+            if target_risk_scale > 0:
+                target_risk_scale = self._max_risk_scale
 
-            elif risk_scale < 0:
-                risk_scale = -self._max_risk_scale
+            elif target_risk_scale < 0:
+                target_risk_scale = -self._max_risk_scale
 
-        if self._current_risk_scale == risk_scale:
+        if self._current_risk_scale == target_risk_scale:
             logging.warning('position already at specified risk scale: ignoring')
             return
 
-        logging.debug('moving to position: %d at %s' % (risk_scale, timestamp.strftime('%Y-%m-%d')))
+        logging.debug('moving to position: %d at %s' % (target_risk_scale, timestamp.strftime('%Y-%m-%d')))
         scaling = 0
-        if risk_scale != 0:
+        if target_risk_scale != 0:
             equity = self.get_nav(market_prices)
             scaling_gross = equity * self._max_gross_position / numpy.max(numpy.abs(weights))
             scaling_net = equity * self._max_net_position / numpy.abs(numpy.sum(weights))
             scaling = min(scaling_net, scaling_gross)
 
-        self._handle_trades(timestamp, risk_scale, market_prices)
-        self._current_risk_scale = risk_scale
+        self._handle_trades(timestamp, target_risk_scale, market_prices)
+        self._current_risk_scale = target_risk_scale
         return scaling
 
-    def _handle_trades(self, timestamp, risk_scale, prices):
+    def _handle_trades(self, timestamp, target_risk_scale, prices):
         """
         Keeps track of high-level trades.
 
         :param timestamp:
-        :param risk_scale:
+        :param target_risk_scale:
         :param prices:
         :return:
         """
-        steps_count = int(abs(risk_scale) - abs(self._current_risk_scale))
+        steps_count = int(abs(target_risk_scale) - abs(self._current_risk_scale))
         if steps_count > 0:
             logging.debug('opening %d trade(s)' % steps_count)
             strategy_equity = self.get_cumulated_pnl(prices)
             for trade_count in range(steps_count):
                 self._open_trades.append({'open': timestamp,
-                                         'risk_level': risk_scale,
+                                         'risk_level': target_risk_scale,
                                          'equity_start': strategy_equity,
                                          'equity_end': strategy_equity,
                                          'pnl': 0.
@@ -308,7 +311,7 @@ class MeanReversionStrategyRunner(object):
         self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation, weights, prices_close)
         self.last_phase = 'AfterClose'
 
-    def collect_data(self):
+    def collect_strategy_data(self):
         # statistics
         signal_data = {
             'date': self.day,
@@ -360,7 +363,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
                                        prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
                                        prices_close[prices_close.index == day].values.transpose()[0]
                                        )
-        strategy_runner.collect_data()
+        strategy_runner.collect_strategy_data()
 
     closed_trades = position_adjuster.get_closed_trades()
     mean_trade = closed_trades['pnl'].mean()
@@ -581,7 +584,7 @@ if __name__ == "__main__":
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
     parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=20000)
     parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
-    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position for one step, measured as a fraction of equity', default=1.2)
+    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position by step, measured as a fraction of equity', default=2.5)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)
