@@ -521,7 +521,11 @@ def main(args):
         logging.info('trades:\n%s' % (target_df['target'] - latest_holdings['quantity']).dropna())
 
         equity = backtest_results['equity']
-        equity.plot()
+        benchmark = load_prices(prices_path, 'PCX', 'SPY')
+        equity_df = pandas.concat([equity, benchmark['close adj']], axis=1).dropna()
+        equity_df.columns = ['equity', 'benchmark']
+        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
+        equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = positions.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
         by_security_pos.plot()
@@ -582,9 +586,9 @@ if __name__ == "__main__":
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
-    parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=20000)
+    parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=8000)
     parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
-    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position by step, measured as a fraction of equity', default=2.5)
+    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)

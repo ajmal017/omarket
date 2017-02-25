@@ -15,9 +15,7 @@ import yahoofinance.YahooFinance;
 import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -47,13 +45,8 @@ public class UpdateEODMain {
         final String resourceName = "update-eod.json";
         YahooFinance.logger.setLevel(java.util.logging.Level.WARNING);
         logger.info("starting EOD update");
-        URL resource = Thread.currentThread().getContextClassLoader().getResource(resourceName);
-        if (resource == null) {
-            throw new RuntimeException("unable to load resource file in classpath: " + resourceName);
-        }
-        URI resourceURI = resource.toURI();
-        Path etfsPath = Paths.get(resourceURI);
-        JsonReader reader = new JsonReader(Files.newBufferedReader(etfsPath));
+        InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
+        JsonReader reader = new JsonReader(new InputStreamReader(resourceStream));
         Type jsonPropertyType = new TypeToken<Map>() {
         }.getType();
         Gson gson = new Gson();

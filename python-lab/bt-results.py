@@ -8,11 +8,13 @@ import pandas
 
 
 def main(args):
+    results50 = pandas.read_csv(os.sep.join(['..', 'backtest-results-50.csv']))
     results100 = pandas.read_csv(os.sep.join(['..', 'backtest-results-100.csv']))
     results200 = pandas.read_csv(os.sep.join(['..', 'backtest-results-200.csv']))
+    results50['lookback'] = 50
     results100['lookback'] = 100
     results200['lookback'] = 200
-    results = pandas.concat([results100, results200])
+    results = pandas.concat([results50, results100, results200])
     summary = results.describe()
     logging.info('summary:\n%s', summary)
     stable_returns = (results['r-squared'] > results['r-squared'].quantile(0.95)) & (results['p-value F-test'] <= summary['p-value F-test']['25%'])
@@ -57,4 +59,5 @@ if __name__ == "__main__":
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter
                                      )
     args = parser.parse_args()
+    pandas.set_option('expand_frame_repr', False)
     main(args)
