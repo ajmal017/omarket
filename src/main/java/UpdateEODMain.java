@@ -71,7 +71,7 @@ public class UpdateEODMain {
                 .subscribe(contract -> {
                     try {
                         String symbol = contract.getSymbol();
-                        logger.info("processing: " + symbol);
+                        logger.debug("processing: " + symbol);
                         String yahooExchange = findExchange(eodStorage, symbol);
                         if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
                             logger.debug("already up-to-date: " + symbol);
@@ -127,14 +127,14 @@ public class UpdateEODMain {
 
     private static boolean isUpdateToDate(Path eodStorage, String exchange, String symbol) {
         Path eodPath = getEODPath(eodStorage, exchange, symbol);
-        LocalDate today = LocalDate.now();
+        LocalDate day = LocalDate.now().minusDays(1);
         LocalDate lastBusinessDay;
-        if (today.getDayOfWeek() == DayOfWeek.SATURDAY
-                || today.getDayOfWeek() == DayOfWeek.SUNDAY
-                || today.getDayOfWeek() == DayOfWeek.MONDAY) {
-            lastBusinessDay = today.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
+        if (day.getDayOfWeek() == DayOfWeek.SATURDAY
+                || day.getDayOfWeek() == DayOfWeek.SUNDAY
+                || day.getDayOfWeek() == DayOfWeek.MONDAY) {
+            lastBusinessDay = day.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
         } else {
-            lastBusinessDay = today;
+            lastBusinessDay = day;
         }
         Path currentFile = eodPath.resolve(String.valueOf(lastBusinessDay.getYear()) + ".csv");
         if (!Files.exists(eodPath)) {
