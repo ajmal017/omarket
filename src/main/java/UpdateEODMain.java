@@ -73,7 +73,9 @@ public class UpdateEODMain {
                         String symbol = contract.getSymbol();
                         logger.debug("processing: " + symbol);
                         String yahooExchange = findExchange(eodStorage, symbol);
-                        if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
+                        if (yahooExchange == null || yahooExchange.equals("OLD")){
+                            logger.info("ignoring old security: " + symbol);
+                        } else if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
                             logger.debug("already up-to-date: " + symbol);
                         } else {
                             LocalDate fromDate = LocalDate.now();
