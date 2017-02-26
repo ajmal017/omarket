@@ -1,8 +1,6 @@
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 import com.opencsv.CSVWriter;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.omarket.trading.ContractDB;
@@ -18,9 +16,7 @@ import yahoofinance.histquotes.Interval;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +27,15 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.temporal.TemporalAdjusters;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
@@ -94,32 +98,59 @@ public class UpdateEODMain {
                 });
     }
 
-    private static String findExchange(Path eodStorage, String symbol) throws IOException {
+    private static String findExchange(Path eodStorage, String symbol) {
         Path cacheStorage = eodStorage.resolve("cache.json");
         Gson gson = new Gson();
         Map<String, Map<String, String>> cache;
+        String exchange;
         if (Files.exists(cacheStorage)) {
-            Type CACHE_TYPE = new TypeToken<Map<String, Map<String, String>>>() {}.getType();
-            JsonReader reader = new JsonReader(Files.newBufferedReader(cacheStorage));
-            cache = gson.fromJson(reader, CACHE_TYPE);
-            if(cache.containsKey(symbol)){
-                return cache.get(symbol).get("stockExchange");
+            Type CACHE_TYPE = new TypeToken<Map<String, Map<String, String>>>() {
+            }.getType();
+            BufferedReader bufferedReader;
+            try {
+                bufferedReader = Files.newBufferedReader(cacheStorage);
+                try (JsonReader reader = new JsonReader(bufferedReader)) {
+                    cache = gson.fromJson(reader, CACHE_TYPE);
+                    if (cache.containsKey(symbol)) {
+                        return cache.get(symbol).get("stockExchange");
+                    }
+                } catch (IOException e) {
+                    logger.error("failed to access cache storage", e);
+                    return null;
+                }
+            } catch (IOException e) {
+                logger.error("failed to access cache storage", e);
+                return null;
             }
         } else {
-            Files.createFile(cacheStorage);
+            try {
+                Files.createFile(cacheStorage);
+            } catch (IOException e) {
+                logger.error("failed to access cache storage", e);
+                return null;
+            }
             cache = new HashMap<>();
         }
-        Stock stock = YahooFinance.get(symbol, false);
+        Stock stock;
+        try {
+            stock = YahooFinance.get(symbol, false);
+        } catch (IOException e) {
+            logger.error("failed to access Yahoo Finance", e);
+            return null;
+        }
         Map<String, String> stockData = new HashMap<String, String>();
         stockData.put("stockExchange", stock.getStockExchange());
         stockData.put("currency", stock.getCurrency());
         stockData.put("name", stock.getName());
         cache.put(symbol, stockData);
-        BufferedWriter writer = Files.newBufferedWriter(cacheStorage, StandardCharsets.UTF_8);
-        String json = gson.toJson(cache);
-        writer.write(json);
-        writer.close();
-        return stock.getStockExchange();
+        try (BufferedWriter writer = Files.newBufferedWriter(cacheStorage, StandardCharsets.UTF_8)) {
+            String json = gson.toJson(cache);
+            writer.write(json);
+        } catch (IOException e) {
+            logger.error("failed to access cache storage", e);
+        }
+        exchange = stock.getStockExchange();
+        return exchange;
     }
 
     private static Path getEODPath(Path eodStorage, String exchange, String symbol) {
