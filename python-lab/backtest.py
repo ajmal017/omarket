@@ -514,11 +514,21 @@ def main(args):
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
-        logging.info('stocks:\n%s' % latest_holdings)
+        last_nav = backtest_results['equity'].tail(1)['equity'].values[0]
+        if args.actual_equity:
+            target_nav = args.actual_equity
+
+        else:
+            target_nav = last_nav
+
+        scaling_ratio = target_nav / last_nav
+        scaled_holdings = latest_holdings * scaling_ratio
+        logging.info('stocks for a portfolio worth %s:\n%s' % (target_nav, scaled_holdings.round()))
         target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
         target_df.columns=['target']
-        logging.info('new target quantities:\n%s' % target_df)
-        logging.info('trades:\n%s' % (target_df['target'] - latest_holdings['quantity']).dropna())
+        logging.info('new target quantities:\n%s' % (target_df * scaling_ratio))
+        target_trades = (target_df['target'] * scaling_ratio - scaled_holdings).dropna()
+        logging.info('trades:\n%s' % target_trades.round())
 
         equity = backtest_results['equity']
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
@@ -586,7 +596,8 @@ if __name__ == "__main__":
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
-    parser.add_argument('--starting-equity', type=float, help='deviation unit measured in number of standard deviations', default=8000)
+    parser.add_argument('--starting-equity', type=float, help='virtual amount of equity when starting backtest for each strategy step', default=8000)
+    parser.add_argument('--actual-equity', type=float, help='total equity available for trading')
     parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
     parser.add_argument('--max-gross-position', type=float, help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)

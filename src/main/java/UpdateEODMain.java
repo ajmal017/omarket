@@ -13,7 +13,12 @@ import yahoofinance.YahooFinance;
 import yahoofinance.histquotes.HistoricalQuote;
 import yahoofinance.histquotes.Interval;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.net.URISyntaxException;
@@ -163,8 +168,7 @@ public class UpdateEODMain {
         LocalDate day = LocalDate.now().minusDays(1);
         LocalDate lastBusinessDay;
         if (day.getDayOfWeek() == DayOfWeek.SATURDAY
-                || day.getDayOfWeek() == DayOfWeek.SUNDAY
-                || day.getDayOfWeek() == DayOfWeek.MONDAY) {
+                || day.getDayOfWeek() == DayOfWeek.SUNDAY) {
             lastBusinessDay = day.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
         } else {
             lastBusinessDay = day;
