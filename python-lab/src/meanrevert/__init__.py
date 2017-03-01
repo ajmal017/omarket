@@ -99,6 +99,12 @@ class PortfolioDataCollector(object):
         cum_returns = (1. + self.get_return()).cumprod()
         return 1. - cum_returns.div(cum_returns.cummax())
 
+    def get_closed_trades(self):
+        return self.position_adjuster.get_closed_trades()
+
+    def get_fills(self):
+        return self.position_adjuster.get_fills()
+
     def add_bollinger(self, signal_data):
         self.chart_bollinger.append(signal_data)
 
@@ -251,6 +257,7 @@ class PositionAdjuster(object):
 
 
 class MeanReversionStrategy(object):
+
     def __init__(self, securities, lookback_period):
         #regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
         self.regression = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
@@ -315,7 +322,6 @@ class MeanReversionStrategyRunner(object):
         within_warmup_period = self.count_day < self.warmup_period
         self.strategy.compute_signal(prices_close_adj, within_warmup_period)
         if not within_warmup_period:
-            self.data_collector.historize_state(self.day, prices_close_adj, prices_close)
             signal = self.strategy.get_state('signal')
             deviation = self.strategy.get_state('deviation')
             weights = self.strategy.get_state('weights')
@@ -323,8 +329,9 @@ class MeanReversionStrategyRunner(object):
 
         self.last_phase = 'AfterClose'
 
-    def collect_strategy_data(self):
+    def collect_strategy_data(self, prices_close_adj, prices_close):
         # statistics
+        self.data_collector.historize_state(self.day, prices_close_adj, prices_close)
         if self.count_day > self.warmup_period:
             signal_data = {
                 'date': self.day,
@@ -376,9 +383,11 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
                                        prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
                                        prices_close[prices_close.index == day].values.transpose()[0]
                                        )
-        strategy_runner.collect_strategy_data()
+        strategy_runner.collect_strategy_data(
+            prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
+            prices_close[prices_close.index == day].values.transpose()[0])
 
-    closed_trades = position_adjuster.get_closed_trades()
+    closed_trades = data_collector.get_closed_trades()
     mean_trade = closed_trades['pnl'].mean()
     worst_trade = closed_trades['pnl'].min()
     count_trades = closed_trades['pnl'].count()
@@ -402,7 +411,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'gross_position': data_collector.get_gross_position(),
         'positions': data_collector.get_positions_history(),
         'holdings': pandas.DataFrame(data_collector.get_holdings_history()),
-        'fills': position_adjuster.get_fills(),
+        'fills': data_collector.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
     }
     return result
