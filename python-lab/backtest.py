@@ -6,6 +6,7 @@ from datetime import date
 
 import numpy
 import pandas
+from statsmodels.formula.api import OLS
 from matplotlib import pyplot
 
 from meanrevert import MeanReversionStrategy, process_strategy
@@ -82,8 +83,9 @@ def fit_quality(df):
     day_nanos = 24*60*60*1E9
     nanos = regr_df['date'] - regr_df['date'].min()
     df2 = pandas.DataFrame(data=[nanos.astype(int) / day_nanos, regr_df['equity']]).transpose()
-    result = pandas.ols(y=df2['equity'], x=df2['date'], intercept=False)
-    return {'p-value F-test': result.f_stat['p-value'], 'r-squared': result.r2, 'p-value x': result.p_value['x']}
+    ols2 = OLS(df2['equity'], df2['date'])
+    result = ols2.fit()
+    return {'p-value F-test': result.f_pvalue, 'r-squared': result.rsquared, 'p-value x': result.pvalues[0]}
 
 
 def main(args):

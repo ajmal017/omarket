@@ -254,15 +254,28 @@ class MeanReversionStrategy(object):
     def __init__(self, securities, lookback_period):
         #regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
         self.regression = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
-        self.states = dict()
+        self.states = {
+            'deviation': None,
+            'weights': None,
+            'signal': None,
+            'factors': None,
+        }
 
-    def compute_signal(self, prices_close_adj):
+    def compute_signal(self, prices_close_adj, within_warmup_period):
+        """
+
+        :param prices_close_adj:
+        :param within_warmup_period: flag signaling if still within warmup period
+        :return:
+        """
         dependent_price, independent_prices = prices_close_adj[0], prices_close_adj[1:]
-        self.regression.compute_regression(dependent_price, independent_prices.tolist())
-        self.states['deviation'] = self.regression.get_residual_error()
-        self.states['weights'] = self.regression.get_weights()
-        self.states['signal'] = self.regression.get_residual()
-        self.states['factors'] = self.regression.get_factors()
+        self.regression.add_samples(dependent_price, independent_prices.tolist())
+        if not within_warmup_period:
+            self.regression.compute_regression()
+            self.states['deviation'] = self.regression.get_residual_error()
+            self.states['weights'] = self.regression.get_weights()
+            self.states['signal'] = self.regression.get_residual()
+            self.states['factors'] = self.regression.get_factors()
 
     def get_state(self, name):
         return self.states[name]
@@ -299,25 +312,29 @@ class MeanReversionStrategyRunner(object):
 
     def on_after_close(self, dividends, prices_close_adj, prices_close):
         assert self.last_phase == 'Close'
-        self.strategy.compute_signal(prices_close_adj)
-        self.data_collector.historize_state(self.day, prices_close_adj, prices_close)
-        signal = self.strategy.get_state('signal')
-        deviation = self.strategy.get_state('deviation')
-        weights = self.strategy.get_state('weights')
-        self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation, weights, prices_close)
+        within_warmup_period = self.count_day < self.warmup_period
+        self.strategy.compute_signal(prices_close_adj, within_warmup_period)
+        if not within_warmup_period:
+            self.data_collector.historize_state(self.day, prices_close_adj, prices_close)
+            signal = self.strategy.get_state('signal')
+            deviation = self.strategy.get_state('deviation')
+            weights = self.strategy.get_state('weights')
+            self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation, weights, prices_close)
+
         self.last_phase = 'AfterClose'
 
     def collect_strategy_data(self):
         # statistics
-        signal_data = {
-            'date': self.day,
-            'level_inf': self.position_adjuster.level_inf(),
-            'level_sup': self.position_adjuster.level_sup(),
-            'signal': self.strategy.get_state('signal')
-        }
-        self.data_collector.add_bollinger(signal_data)
-        self.data_collector.add_factors(self.strategy.get_state('factors'), self.day)
-        #self.data_collector.add_records()
+        if self.count_day > self.warmup_period:
+            signal_data = {
+                'date': self.day,
+                'level_inf': self.position_adjuster.level_inf(),
+                'level_sup': self.position_adjuster.level_sup(),
+                'signal': self.strategy.get_state('signal')
+            }
+            self.data_collector.add_bollinger(signal_data)
+            self.data_collector.add_factors(self.strategy.get_state('factors'), self.day)
+            #self.data_collector.add_records()
 
 
 def process_strategy(securities, strategy, warmup_period, prices_by_security,
