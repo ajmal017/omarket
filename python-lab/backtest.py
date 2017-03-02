@@ -146,7 +146,7 @@ def main(args):
         target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
         target_df.columns=['target']
         logging.info('new target quantities:\n%s' % (target_df * scaling_ratio))
-        target_trades = (target_df['target'] * scaling_ratio - scaled_holdings).dropna()
+        target_trades = (target_df['target'] * scaling_ratio - scaled_holdings.transpose()).transpose().dropna()
         logging.info('trades:\n%s' % target_trades.round())
 
         equity = backtest_results['equity']
