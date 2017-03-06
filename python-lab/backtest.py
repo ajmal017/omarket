@@ -43,8 +43,9 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
     logging.info('considering date range: %s through %s' % (max_start_date, min_end_date))
 
     for security in securities:
-        prices_by_security[security] = prices_by_security[security][
-            (prices_by_security[security].index >= max_start_date) & (prices_by_security[security].index <= min_end_date)]
+        truncate_start_date = prices_by_security[security].index >= max_start_date
+        truncate_end_date = prices_by_security[security].index <= min_end_date
+        prices_by_security[security] = prices_by_security[security][truncate_start_date & truncate_end_date]
 
     warmup_period = 10
     strategy = MeanReversionStrategy(securities, lookback_period)
