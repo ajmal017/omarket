@@ -176,9 +176,9 @@ def main(args):
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
                                                 data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
                                                 columns=['net', 'gross'])
-        positions_aggregated = positions_aggregated.join(equity['equity'] * 2.0)
-        positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
         positions_aggregated = positions_aggregated.join(equity['equity'] * 3.0)
+        positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
+        positions_aggregated = positions_aggregated.join(equity['equity'] * 4.0)
         positions_aggregated.rename(columns={'equity': 'margin_violation'}, inplace=True)
         positions_aggregated.plot(subplots=False)
 
