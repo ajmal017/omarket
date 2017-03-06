@@ -38,9 +38,7 @@ class PortfolioDataCollector(object):
 
     def __init__(self, position_adjuster):
         self.equity_history = list()
-        self.net_position_history = list()
-        self.gross_position_history = list()
-        self.holdings_history2 = pandas.DataFrame()
+        self.holdings_history = pandas.DataFrame()
         self.chart_bollinger = list()
         self.chart_beta = list()
         self.chart_regression = list()
@@ -49,17 +47,9 @@ class PortfolioDataCollector(object):
     def historize_state(self, timestamp, signal_prices, market_prices):
         self.equity_history.append({'date': timestamp, 'equity': self.position_adjuster.get_nav(market_prices)})
         holdings = self.position_adjuster.get_holdings(signal_prices)
-        positions = holdings['position']
-        net_positions = positions.sum()
-        gross_positions = numpy.abs(positions).sum()
-        self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
-        self.gross_position_history.append({'date': timestamp,
-                                            'gross_position': gross_positions,
-                                            'margin_call': self.position_adjuster.get_nav(market_prices) / 0.25,
-                                            'margin_warning': self.position_adjuster.get_nav(market_prices) / 0.4})
         holdings['date'] = timestamp
         holdings['strategy'] = self.position_adjuster.get_name()
-        self.holdings_history2 = pandas.concat([self.holdings_history2, holdings])
+        self.holdings_history = pandas.concat([self.holdings_history, holdings])
 
     def get_equity(self):
         return pandas.DataFrame(self.equity_history).set_index('date')
@@ -68,13 +58,21 @@ class PortfolioDataCollector(object):
         return self.get_equity().pct_change()
 
     def get_holdings_history(self):
-        return pandas.DataFrame(self.holdings_history2)
+        return self.holdings_history
 
     def get_net_position(self):
-        return pandas.DataFrame(self.net_position_history).set_index('date')
+        net_positions = pandas.DataFrame(self.holdings_history.groupby(by=['date'])['position'].sum())
+        net_positions.columns = ['net_position']
+        return net_positions
 
     def get_gross_position(self):
-        return pandas.DataFrame(self.gross_position_history).set_index('date')
+
+        def abs_sum(group):
+            return numpy.abs(group).sum()
+
+        gross_positions = pandas.DataFrame(self.holdings_history.groupby(by=['date'])['position'].apply(abs_sum))
+        gross_positions.columns = ['gross_position']
+        return gross_positions
 
     def get_sharpe_ratio(self):
         mean_return = self.get_equity().pct_change().mean()
