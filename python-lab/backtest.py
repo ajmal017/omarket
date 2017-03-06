@@ -58,8 +58,7 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
                        max_gross_position, max_risk_scale):
-    backtest_results = dict()
-    positions = pandas.DataFrame()
+    equity = None
     holdings = pandas.DataFrame()
     fills = pandas.DataFrame()
     target_quantities = list()
@@ -71,22 +70,21 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                                             max_net_position=max_net_position,
                                             max_gross_position=max_gross_position,
                                             max_risk_scale=max_risk_scale)
-        positions = pandas.concat([positions, backtest_result['positions']])
         holdings = pandas.concat([holdings, backtest_result['holdings']])
         fills = pandas.concat([fills, backtest_result['fills']])
         if backtest_result['next_target_quantities'] is not None:
             yahoo_codes = ['PCX/' + code for code in securities]
             target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
 
-        if 'equity' not in backtest_results:
-            backtest_results['equity'] = backtest_result['equity']
+        if equity is None:
+            equity = backtest_result['equity']
 
         else:
-            backtest_results['equity'] += backtest_result['equity']
+            equity += backtest_result['equity']
 
     target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
     target_df.columns=['target']
-    return backtest_results, fills, holdings, positions, target_df
+    return equity, fills, holdings, target_df
 
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
@@ -142,8 +140,7 @@ def main(args):
         max_net_position = args.max_net_position
         max_gross_position = args.max_gross_position
         max_risk_scale = args.max_risk_scale
-
-        backtest_results, fills, holdings, positions, target_df = backtest_portfolio(portfolios, starting_equity,
+        equity, fills, holdings, target_df = backtest_portfolio(portfolios, starting_equity,
                                                                                              start_date, end_date, prices_path,
                                                                                              step_size, max_net_position,
                                                                                              max_gross_position,
@@ -151,7 +148,7 @@ def main(args):
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
-        last_nav = backtest_results['equity'].tail(1)['equity'].values[0]
+        last_nav = equity.tail(1)['equity'].values[0]
         if args.actual_equity:
             target_nav = args.actual_equity
 
@@ -165,18 +162,17 @@ def main(args):
         target_trades = (target_df['target'] * scaling_ratio - scaled_holdings.transpose()).transpose().dropna()
         logging.info('trades:\n%s' % target_trades.round())
 
-        equity = backtest_results['equity']
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = pandas.concat([equity, benchmark['close adj']], axis=1).dropna()
         equity_df.columns = ['equity', 'benchmark']
         equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
-        by_security_pos = positions.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
+        by_security_pos = holdings.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
         by_security_pos.plot()
 
-        positions_aggregated_net = positions.groupby('date')['position'].sum()
-        positions_aggregated_gross = positions.groupby('date')['position'].agg(lambda x: numpy.abs(x).sum())
+        positions_aggregated_net = holdings.groupby('date')['position'].sum()
+        positions_aggregated_gross = holdings.groupby('date')['position'].agg(lambda x: numpy.abs(x).sum())
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
                                                 data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
                                                 columns=['net', 'gross'])

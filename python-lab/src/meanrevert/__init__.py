@@ -40,8 +40,7 @@ class PortfolioDataCollector(object):
         self.equity_history = list()
         self.net_position_history = list()
         self.gross_position_history = list()
-        self.positions_history = list()
-        self.holdings_history = list()
+        self.holdings_history2 = pandas.DataFrame()
         self.chart_bollinger = list()
         self.chart_beta = list()
         self.chart_regression = list()
@@ -49,7 +48,8 @@ class PortfolioDataCollector(object):
 
     def historize_state(self, timestamp, signal_prices, market_prices):
         self.equity_history.append({'date': timestamp, 'equity': self.position_adjuster.get_nav(market_prices)})
-        positions = self.position_adjuster.get_positions(signal_prices)
+        holdings = self.position_adjuster.get_holdings(signal_prices)
+        positions = holdings['position']
         net_positions = positions.sum()
         gross_positions = numpy.abs(positions).sum()
         self.net_position_history.append({'date': timestamp, 'net_position': net_positions})
@@ -57,19 +57,9 @@ class PortfolioDataCollector(object):
                                             'gross_position': gross_positions,
                                             'margin_call': self.position_adjuster.get_nav(market_prices) / 0.25,
                                             'margin_warning': self.position_adjuster.get_nav(market_prices) / 0.4})
-        holdings = self.position_adjuster.get_holdings()
-        for security in holdings:
-            holdings_data = {'date': timestamp, 'strategy': self.position_adjuster.get_name()}
-            holdings_data['quantity'] = holdings[security]
-            holdings_data['security'] = security
-            self.holdings_history.append(holdings_data)
-
-        positions = self.position_adjuster.get_position_securities(signal_prices)
-        for security in positions:
-            positions_data = {'date': timestamp, 'strategy': self.position_adjuster.get_name()}
-            positions_data['position'] = positions[security]
-            positions_data['security'] = security
-            self.positions_history.append(positions_data)
+        holdings['date'] = timestamp
+        holdings['strategy'] = self.position_adjuster.get_name()
+        self.holdings_history2 = pandas.concat([self.holdings_history2, holdings])
 
     def get_equity(self):
         return pandas.DataFrame(self.equity_history).set_index('date')
@@ -77,11 +67,8 @@ class PortfolioDataCollector(object):
     def get_return(self):
         return self.get_equity().pct_change()
 
-    def get_positions_history(self):
-        return pandas.DataFrame(self.positions_history)
-
     def get_holdings_history(self):
-        return pandas.DataFrame(self.holdings_history)
+        return pandas.DataFrame(self.holdings_history2)
 
     def get_net_position(self):
         return pandas.DataFrame(self.net_position_history).set_index('date')
@@ -234,14 +221,9 @@ class PositionAdjuster(object):
     def get_nav(self, prices):
         return self._start_equity + self.get_cumulated_pnl(prices)
 
-    def get_positions(self, prices):
-        return numpy.array(self._current_quantities) * prices
-
-    def get_position_securities(self, prices):
-        return dict(zip(self._securities, [position for position in self.get_positions(prices)]))
-
-    def get_holdings(self):
-        return dict(zip(self._securities, self._current_quantities))
+    def get_holdings(self, prices):
+        positions = numpy.array(self._current_quantities) * prices
+        return pandas.DataFrame({'security': self._securities, 'quantity': self._current_quantities, 'position': positions})
 
     def get_name(self):
         return ','.join(self._securities)
@@ -393,7 +375,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
     max_drawdown = data_collector.get_drawdown().max()['equity']
     final_equity = data_collector.get_equity()['equity'][-1]
     summary = {
-        'portfolio': ','.join(securities),
+        'portfolio': ','.join([security.split('/')[1] for security in securities]),
         'sharpe_ratio': data_collector.get_sharpe_ratio(),
         'average_trade': mean_trade,
         'worst_trade': worst_trade,
@@ -408,7 +390,6 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'equity': data_collector.get_equity(),
         'net_position': data_collector.get_net_position(),
         'gross_position': data_collector.get_gross_position(),
-        'positions': data_collector.get_positions_history(),
         'holdings': data_collector.get_holdings_history(),
         'fills': data_collector.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
