@@ -148,7 +148,7 @@ def main(args):
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
-        last_nav = equity.tail(1)['equity'].values[0]
+        last_nav = equity['equity'].iloc[-1]
         if args.actual_equity:
             target_nav = args.actual_equity
 
@@ -163,7 +163,7 @@ def main(args):
         logging.info('trades:\n%s' % target_trades.round())
 
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
-        equity_df = pandas.concat([equity, benchmark['close adj']], axis=1).dropna()
+        equity_df = equity.join(benchmark['close adj'])
         equity_df.columns = ['equity', 'benchmark']
         equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
         equity_df.plot()
@@ -176,12 +176,15 @@ def main(args):
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
                                                 data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
                                                 columns=['net', 'gross'])
-        positions_aggregated['margin_warning'] = equity / 0.4
+        positions_aggregated = positions_aggregated.join(equity['equity'] * 2.0)
+        positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
+        positions_aggregated = positions_aggregated.join(equity['equity'] * 3.0)
+        positions_aggregated.rename(columns={'equity': 'margin_violation'}, inplace=True)
         positions_aggregated.plot(subplots=False)
 
         days_interval = (equity.index[-1] - equity.index[0])
-        starting_equity = equity.dropna().head(1)['equity'].values[0]
-        ending_equity = equity.dropna().tail(1)['equity'].values[0]
+        starting_equity = equity.dropna()['equity'].iloc[0]
+        ending_equity = equity.dropna()['equity'].iloc[-1]
         sharpe_ratio = equity.dropna().pct_change().mean() / equity.dropna().pct_change().std() * math.sqrt(250)
         logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
