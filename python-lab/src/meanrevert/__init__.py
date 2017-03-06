@@ -409,7 +409,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'net_position': data_collector.get_net_position(),
         'gross_position': data_collector.get_gross_position(),
         'positions': data_collector.get_positions_history(),
-        'holdings': pandas.DataFrame(data_collector.get_holdings_history()),
+        'holdings': data_collector.get_holdings_history(),
         'fills': data_collector.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
     }
