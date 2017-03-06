@@ -56,6 +56,39 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
     return backtest_data
 
 
+def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
+                       max_gross_position, max_risk_scale):
+    backtest_results = dict()
+    positions = pandas.DataFrame()
+    holdings = pandas.DataFrame()
+    fills = pandas.DataFrame()
+    target_quantities = list()
+    for lookback_period, portfolio in portfolios:
+        securities = portfolio.split('/')
+        backtest_result = backtest_strategy(start_date, end_date, securities, prices_path,
+                                            lookback_period=int(lookback_period),
+                                            step_size=step_size, start_equity=starting_equity,
+                                            max_net_position=max_net_position,
+                                            max_gross_position=max_gross_position,
+                                            max_risk_scale=max_risk_scale)
+        positions = pandas.concat([positions, backtest_result['positions']])
+        holdings = pandas.concat([holdings, backtest_result['holdings']])
+        fills = pandas.concat([fills, backtest_result['fills']])
+        if backtest_result['next_target_quantities'] is not None:
+            yahoo_codes = ['PCX/' + code for code in securities]
+            target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
+
+        if 'equity' not in backtest_results:
+            backtest_results['equity'] = backtest_result['equity']
+
+        else:
+            backtest_results['equity'] += backtest_result['equity']
+
+    target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
+    target_df.columns=['target']
+    return backtest_results, fills, holdings, positions, target_df
+
+
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
                    step_size, start_equity,
                    max_net_position, max_gross_position, max_risk_scale):
@@ -100,33 +133,21 @@ def main(args):
 
     elif args.display_portfolio is not None:
         pyplot.style.use('ggplot')
-        backtest_results = dict()
-        positions = pandas.DataFrame()
-        holdings = pandas.DataFrame()
-        fills = pandas.DataFrame()
-        target_quantities = list()
         with open(args.display_portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
-            logging.info('loaded portfolios: %s' % portfolios)
-            for lookback_period, portfolio in portfolios:
-                securities = portfolio.split('/')
-                backtest_result = backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=int(lookback_period),
-                                                    step_size=args.step_size, start_equity=args.starting_equity,
-                                                    max_net_position=args.max_net_position,
-                                                    max_gross_position=args.max_gross_position,
-                                                    max_risk_scale=args.max_risk_scale)
-                positions = pandas.concat([positions, backtest_result['positions']])
-                holdings = pandas.concat([holdings, backtest_result['holdings']])
-                fills = pandas.concat([fills, backtest_result['fills']])
-                if backtest_result['next_target_quantities'] is not None:
-                    yahoo_codes = ['PCX/' + code for code in securities]
-                    target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
 
-                if 'equity' not in backtest_results:
-                    backtest_results['equity'] = backtest_result['equity']
+        logging.info('loaded portfolios: %s' % portfolios)
+        step_size = args.step_size
+        starting_equity = args.starting_equity
+        max_net_position = args.max_net_position
+        max_gross_position = args.max_gross_position
+        max_risk_scale = args.max_risk_scale
 
-                else:
-                    backtest_results['equity'] += backtest_result['equity']
+        backtest_results, fills, holdings, positions, target_df = backtest_portfolio(portfolios, starting_equity,
+                                                                                             start_date, end_date, prices_path,
+                                                                                             step_size, max_net_position,
+                                                                                             max_gross_position,
+                                                                                             max_risk_scale)
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
@@ -140,8 +161,6 @@ def main(args):
         scaling_ratio = target_nav / last_nav
         scaled_holdings = latest_holdings * scaling_ratio
         logging.info('stocks for a portfolio worth %s:\n%s' % (target_nav, scaled_holdings.round()))
-        target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
-        target_df.columns=['target']
         logging.info('new target quantities:\n%s' % (target_df * scaling_ratio))
         target_trades = (target_df['target'] * scaling_ratio - scaled_holdings.transpose()).transpose().dropna()
         logging.info('trades:\n%s' % target_trades.round())

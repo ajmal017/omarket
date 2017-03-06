@@ -413,5 +413,5 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'fills': data_collector.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
     }
-    logging.info('result: %s' % str(result))
+    logging.info('summary: %s' % str(summary))
     return result
