@@ -47,15 +47,12 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
             (prices_by_security[security].index >= max_start_date) & (prices_by_security[security].index <= min_end_date)]
 
     warmup_period = 10
-
     strategy = MeanReversionStrategy(securities, lookback_period)
     backtest_data = process_strategy(securities, strategy, warmup_period, prices_by_security,
                                      step_size=step_size, start_equity=start_equity,
                                      max_net_position=max_net_position,
                                      max_gross_position=max_gross_position,
                                      max_risk_scale=max_risk_scale)
-    backtest_summary = backtest_data['summary']
-    backtest_summary['portfolio'] = '/'.join(symbols)
     return backtest_data
 
 

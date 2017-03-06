@@ -290,7 +290,7 @@ class MeanReversionStrategy(object):
 
 class MeanReversionStrategyRunner(object):
 
-    def __init__(self, securities, strategy, warmup_period, position_adjuster, data_collector):
+    def __init__(self, securities, strategy, warmup_period, position_adjuster):
         self.securities = securities
         self.day = None
         self.last_phase = 'AfterClose'
@@ -299,7 +299,6 @@ class MeanReversionStrategyRunner(object):
         self.count_day = 0
         self.target_quantities = None
         self.position_adjuster = position_adjuster
-        self.data_collector = data_collector
 
     def on_open(self, day, prices_open):
         assert self.last_phase == 'AfterClose'
@@ -329,9 +328,9 @@ class MeanReversionStrategyRunner(object):
 
         self.last_phase = 'AfterClose'
 
-    def collect_strategy_data(self, prices_close_adj, prices_close):
+    def collect_strategy_data(self, data_collector, prices_close_adj, prices_close):
         # statistics
-        self.data_collector.historize_state(self.day, prices_close_adj, prices_close)
+        data_collector.historize_state(self.day, prices_close_adj, prices_close)
         if self.count_day > self.warmup_period:
             signal_data = {
                 'date': self.day,
@@ -339,9 +338,8 @@ class MeanReversionStrategyRunner(object):
                 'level_sup': self.position_adjuster.level_sup(),
                 'signal': self.strategy.get_state('signal')
             }
-            self.data_collector.add_bollinger(signal_data)
-            self.data_collector.add_factors(self.strategy.get_state('factors'), self.day)
-            #self.data_collector.add_records()
+            data_collector.add_bollinger(signal_data)
+            data_collector.add_factors(self.strategy.get_state('factors'), self.day)
 
 
 def process_strategy(securities, strategy, warmup_period, prices_by_security,
@@ -375,7 +373,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         dates = dates.union(set(security_prices.index.values.tolist()))
 
     data_collector = PortfolioDataCollector(position_adjuster)
-    strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster, data_collector)
+    strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
         strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
@@ -384,6 +382,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
                                        prices_close[prices_close.index == day].values.transpose()[0]
                                        )
         strategy_runner.collect_strategy_data(
+            data_collector,
             prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
             prices_close[prices_close.index == day].values.transpose()[0])
 
@@ -394,6 +393,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
     max_drawdown = data_collector.get_drawdown().max()['equity']
     final_equity = data_collector.get_equity()['equity'][-1]
     summary = {
+        'portfolio': ','.join(securities),
         'sharpe_ratio': data_collector.get_sharpe_ratio(),
         'average_trade': mean_trade,
         'worst_trade': worst_trade,
@@ -401,7 +401,6 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'max_drawdown_pct': max_drawdown,
         'final_equity': final_equity
     }
-    logging.info('result: %s' % str(summary))
     result = {
         'summary': summary,
         'bollinger': pandas.DataFrame(data_collector.chart_bollinger).set_index('date'),
@@ -414,4 +413,5 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'fills': data_collector.get_fills(),
         'next_target_quantities': strategy_runner.target_quantities
     }
+    logging.info('result: %s' % str(result))
     return result
