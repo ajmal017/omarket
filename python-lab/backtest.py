@@ -139,18 +139,19 @@ def main(args):
                                                         step_size, max_net_position,
                                                         max_gross_position,
                                                         max_risk_scale)
-        equity = holdings[['date', 'equity']].groupby(by=['date']).sum()
+        equity = holdings[['date', 'equity']].groupby(by=['date']).sum()['equity']
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
-        last_nav = equity.iloc[-1]
+        starting_equity = equity.iloc[0]
+        ending_equity = equity.iloc[-1]
         if args.actual_equity:
             target_nav = args.actual_equity
 
         else:
-            target_nav = last_nav
+            target_nav = ending_equity
 
-        scaling_ratio = target_nav / last_nav
+        scaling_ratio = target_nav / ending_equity
         scaled_holdings = latest_holdings * scaling_ratio
         logging.info('stocks for a portfolio worth %s:\n%s' % (target_nav, scaled_holdings.round()))
         logging.info('new target quantities:\n%s' % (target_df * scaling_ratio))
@@ -160,8 +161,7 @@ def main(args):
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
         equity_df.columns = ['benchmark', 'equity']
-        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)[
-            'equity'].min()
+        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = holdings.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
@@ -180,9 +180,7 @@ def main(args):
         positions_aggregated.plot(subplots=False)
 
         days_interval = equity.index[-1] - equity.index[0]
-        starting_equity = equity.iloc[0]
-        ending_equity = equity.iloc[-1]
-        sharpe_ratio = equity.pct_change().mean() / equity.pct_change().std() * math.sqrt(250)
+        sharpe_ratio = math.sqrt(250) * equity.pct_change().mean() / equity.pct_change().std()
         logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)

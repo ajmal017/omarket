@@ -38,6 +38,7 @@ class PortfolioDataCollector(object):
 
     def __init__(self, position_adjuster):
         self.holdings_history = pandas.DataFrame()
+        self.equity_history = pandas.DataFrame()
         self.chart_bollinger = list()
         self.chart_beta = list()
         self.chart_regression = list()
@@ -47,12 +48,13 @@ class PortfolioDataCollector(object):
         holdings = self.position_adjuster.get_holdings(signal_prices)
         holdings['date'] = timestamp
         holdings['strategy'] = self.position_adjuster.get_name()
-        holdings['equity'] = self.position_adjuster.get_nav(market_prices)
+        equity = self.position_adjuster.get_nav(market_prices)
+        equity_df = pandas.DataFrame({'date': [timestamp], 'equity': [equity]})
+        self.equity_history = pandas.concat([self.equity_history, equity_df])
         self.holdings_history = pandas.concat([self.holdings_history, holdings])
 
     def get_equity(self):
-        equity = self.holdings_history[['date', 'equity']].set_index('date')
-        return equity
+        return self.equity_history.set_index('date')
 
     def get_return(self):
         return self.get_equity().pct_change()
@@ -371,15 +373,13 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
     worst_trade = closed_trades['pnl'].min()
     count_trades = closed_trades['pnl'].count()
     max_drawdown = data_collector.get_drawdown().max()['equity']
-    final_equity = data_collector.get_equity()['equity'].iloc[-1]
     summary = {
         'portfolio': ','.join([security.split('/')[1] for security in securities]),
         'sharpe_ratio': data_collector.get_sharpe_ratio(),
         'average_trade': mean_trade,
         'worst_trade': worst_trade,
         'count_trades': count_trades,
-        'max_drawdown_pct': max_drawdown,
-        'final_equity': final_equity
+        'max_drawdown_pct': max_drawdown
     }
     result = {
         'summary': summary,
