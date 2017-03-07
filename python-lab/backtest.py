@@ -59,7 +59,6 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
                        max_gross_position, max_risk_scale):
-    equity = None
     holdings = pandas.DataFrame()
     fills = pandas.DataFrame()
     target_quantities = list()
@@ -77,15 +76,9 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
             yahoo_codes = ['PCX/' + code for code in securities]
             target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
 
-        if equity is None:
-            equity = backtest_result['equity']
-
-        else:
-            equity += backtest_result['equity']
-
     target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
-    target_df.columns=['target']
-    return equity['equity'], fills, holdings, target_df
+    target_df.columns = ['target']
+    return fills, holdings, target_df
 
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
@@ -109,7 +102,7 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
 
 def fit_quality(df):
     regr_df = df.reset_index()
-    day_nanos = 24*60*60*1E9
+    day_nanos = 24 * 60 * 60 * 1E9
     nanos = regr_df['date'] - regr_df['date'].min()
     df2 = pandas.DataFrame(data=[nanos.astype(int) / day_nanos, regr_df['equity']]).transpose()
     ols2 = OLS(df2['equity'], df2['date'])
@@ -141,13 +134,14 @@ def main(args):
         max_net_position = args.max_net_position
         max_gross_position = args.max_gross_position
         max_risk_scale = args.max_risk_scale
-        equity, fills, holdings, target_df = backtest_portfolio(portfolios, starting_equity,
-                                                                                             start_date, end_date, prices_path,
-                                                                                             step_size, max_net_position,
-                                                                                             max_gross_position,
-                                                                                             max_risk_scale)
-
-        latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity', aggfunc=numpy.sum).tail(1).transpose()
+        fills, holdings, target_df = backtest_portfolio(portfolios, starting_equity,
+                                                        start_date, end_date, prices_path,
+                                                        step_size, max_net_position,
+                                                        max_gross_position,
+                                                        max_risk_scale)
+        equity = holdings[['date', 'equity']].groupby(by=['date']).sum()
+        latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
+                                               aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
         last_nav = equity.iloc[-1]
         if args.actual_equity:
@@ -166,7 +160,8 @@ def main(args):
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
         equity_df.columns = ['benchmark', 'equity']
-        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
+        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)[
+            'equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = holdings.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
@@ -175,7 +170,8 @@ def main(args):
         positions_aggregated_net = holdings.groupby('date')['position'].sum()
         positions_aggregated_gross = holdings.groupby('date')['position'].agg(lambda x: numpy.abs(x).sum())
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
-                                                data=numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose(),
+                                                data=numpy.array(
+                                                    [positions_aggregated_net, positions_aggregated_gross]).transpose(),
                                                 columns=['net', 'gross'])
         positions_aggregated = positions_aggregated.join(equity * 3.0)
         positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
@@ -215,6 +211,7 @@ def main(args):
             result_df.to_csv('backtest-results.csv')
             print(result_df)
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
     file_handler = logging.FileHandler('backtest.log', mode='w')
@@ -230,11 +227,15 @@ if __name__ == "__main__":
     parser.add_argument('--display', type=str, help='display portfolio made of comma-separated securities')
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
-    parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations', default=2)
-    parser.add_argument('--starting-equity', type=float, help='virtual amount of equity when starting backtest for each strategy step', default=8000)
+    parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations',
+                        default=2)
+    parser.add_argument('--starting-equity', type=float,
+                        help='virtual amount of equity when starting backtest for each strategy step', default=8000)
     parser.add_argument('--actual-equity', type=float, help='total equity available for trading')
-    parser.add_argument('--max-net-position', type=float, help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
-    parser.add_argument('--max-gross-position', type=float, help='max allowed gross position by step, measured as a fraction of equity', default=2.)
+    parser.add_argument('--max-net-position', type=float,
+                        help='max allowed net position for one step, measured as a fraction of equity', default=0.4)
+    parser.add_argument('--max-gross-position', type=float,
+                        help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
     main(args)
