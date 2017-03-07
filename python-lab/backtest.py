@@ -72,7 +72,8 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                                             max_gross_position=max_gross_position,
                                             max_risk_scale=max_risk_scale)
         holdings = pandas.concat([holdings, backtest_result['holdings']])
-        fills = pandas.concat([fills, backtest_result['fills']])
+        quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
+        fills = pandas.concat([fills, quantities - quantities.shift()])
         equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
         if backtest_result['next_target_quantities'] is not None:
             yahoo_codes = ['PCX/' + code for code in securities]
@@ -185,7 +186,7 @@ def main(args):
         logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
-        logging.info('fills:\n%s', fills.sort_values('date').set_index(['date', 'security']))
+        logging.info('fills:\n%s', fills.tail(10))
         pyplot.show()
 
     else:
