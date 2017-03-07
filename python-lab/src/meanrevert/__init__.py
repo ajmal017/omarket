@@ -385,11 +385,11 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         'summary': summary,
         'bollinger': pandas.DataFrame(data_collector.chart_bollinger).set_index('date'),
         'factors': pandas.DataFrame(data_collector.chart_beta).set_index('date'),
-        'equity': data_collector.get_equity(),
         'net_position': data_collector.get_net_position(),
         'gross_position': data_collector.get_gross_position(),
         'holdings': data_collector.get_holdings_history(),
         'fills': data_collector.get_fills(),
+        'equity': data_collector.get_equity(),
         'next_target_quantities': strategy_runner.target_quantities
     }
     logging.info('summary: %s' % str(summary))

@@ -61,6 +61,7 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                        max_gross_position, max_risk_scale):
     holdings = pandas.DataFrame()
     fills = pandas.DataFrame()
+    equity = pandas.DataFrame()
     target_quantities = list()
     for lookback_period, portfolio in portfolios:
         securities = portfolio.split('/')
@@ -72,13 +73,14 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                                             max_risk_scale=max_risk_scale)
         holdings = pandas.concat([holdings, backtest_result['holdings']])
         fills = pandas.concat([fills, backtest_result['fills']])
+        equity = pandas.concat([equity, backtest_result['equity']])
         if backtest_result['next_target_quantities'] is not None:
             yahoo_codes = ['PCX/' + code for code in securities]
             target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
 
     target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
     target_df.columns = ['target']
-    return fills, holdings, target_df
+    return fills, holdings, target_df, equity
 
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
@@ -134,12 +136,11 @@ def main(args):
         max_net_position = args.max_net_position
         max_gross_position = args.max_gross_position
         max_risk_scale = args.max_risk_scale
-        fills, holdings, target_df = backtest_portfolio(portfolios, starting_equity,
+        fills, holdings, target_df, equity = backtest_portfolio(portfolios, starting_equity,
                                                         start_date, end_date, prices_path,
                                                         step_size, max_net_position,
                                                         max_gross_position,
                                                         max_risk_scale)
-        equity = holdings[['date', 'equity']].groupby(by=['date']).sum()['equity']
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
