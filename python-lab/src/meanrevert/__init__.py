@@ -34,9 +34,31 @@ class ExecutionEngine(object):
         return total_pnl
 
 
+def aggregate_results(data_collections):
+    target_quantities = list()
+    holdings = pandas.DataFrame()
+    fills = pandas.DataFrame()
+    equity = pandas.DataFrame()
+    for data_collection in data_collections:
+        backtest_result = data_collection.get_result()
+        holdings = pandas.concat([holdings, backtest_result['holdings']])
+        quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
+        fills = pandas.concat([fills, quantities - quantities.shift()])
+        equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
+        if backtest_result['next_target_quantities'] is not None:
+            yahoo_codes = data_collection._securities
+            target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
+
+    target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
+    target_df.columns = ['target']
+    return fills, holdings, target_df, equity.groupby('date').sum()['equity']
+
+
 class PortfolioDataCollector(object):
 
-    def __init__(self, position_adjuster):
+    def __init__(self, securities, position_adjuster):
+        self._target_quantities = None
+        self._securities = securities
         self.holdings_history = pandas.DataFrame()
         self.equity_history = pandas.DataFrame()
         self.chart_bollinger = list()
@@ -102,6 +124,42 @@ class PortfolioDataCollector(object):
 
         beta_data['date'] = day
         self.chart_beta.append(beta_data)
+
+    def set_target_quantities(self, target_quantities):
+        self._target_quantities = target_quantities
+
+    def get_target_quantities(self):
+        return self._target_quantities
+
+    def get_name(self):
+        return ','.join([security.split('/')[1] for security in self._securities])
+
+    def get_result(self):
+        closed_trades = self.get_closed_trades()
+        mean_trade = closed_trades['pnl'].mean()
+        worst_trade = closed_trades['pnl'].min()
+        count_trades = closed_trades['pnl'].count()
+        max_drawdown = self.get_drawdown().max()['equity']
+        summary = {
+            'portfolio': self.get_name(),
+            'sharpe_ratio': self.get_sharpe_ratio(),
+            'average_trade': mean_trade,
+            'worst_trade': worst_trade,
+            'count_trades': count_trades,
+            'max_drawdown_pct': max_drawdown
+        }
+        result = {
+            'summary': summary,
+            'bollinger': pandas.DataFrame(self.chart_bollinger).set_index('date'),
+            'factors': pandas.DataFrame(self.chart_beta).set_index('date'),
+            'net_position': self.get_net_position(),
+            'gross_position': self.get_gross_position(),
+            'holdings': self.get_holdings_history(),
+            'equity': self.get_equity(),
+            'next_target_quantities': self.get_target_quantities()
+        }
+        logging.info('summary: %s' % str(summary))
+        return result
 
 
 class PositionAdjuster(object):
@@ -354,7 +412,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
         dates = dates.union(set(security_prices.index.values.tolist()))
 
-    data_collector = PortfolioDataCollector(position_adjuster)
+    data_collector = PortfolioDataCollector(securities, position_adjuster)
     strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
@@ -368,28 +426,5 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
             prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
             prices_close[prices_close.index == day].values.transpose()[0])
 
-    closed_trades = data_collector.get_closed_trades()
-    mean_trade = closed_trades['pnl'].mean()
-    worst_trade = closed_trades['pnl'].min()
-    count_trades = closed_trades['pnl'].count()
-    max_drawdown = data_collector.get_drawdown().max()['equity']
-    summary = {
-        'portfolio': ','.join([security.split('/')[1] for security in securities]),
-        'sharpe_ratio': data_collector.get_sharpe_ratio(),
-        'average_trade': mean_trade,
-        'worst_trade': worst_trade,
-        'count_trades': count_trades,
-        'max_drawdown_pct': max_drawdown
-    }
-    result = {
-        'summary': summary,
-        'bollinger': pandas.DataFrame(data_collector.chart_bollinger).set_index('date'),
-        'factors': pandas.DataFrame(data_collector.chart_beta).set_index('date'),
-        'net_position': data_collector.get_net_position(),
-        'gross_position': data_collector.get_gross_position(),
-        'holdings': data_collector.get_holdings_history(),
-        'equity': data_collector.get_equity(),
-        'next_target_quantities': strategy_runner.target_quantities
-    }
-    logging.info('summary: %s' % str(summary))
-    return result
+    data_collector.set_target_quantities(strategy_runner.target_quantities)
+    return data_collector

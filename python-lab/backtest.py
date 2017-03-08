@@ -9,7 +9,7 @@ import pandas
 from statsmodels.formula.api import OLS
 from matplotlib import pyplot
 
-from meanrevert import MeanReversionStrategy, process_strategy
+from meanrevert import MeanReversionStrategy, process_strategy, aggregate_results
 from pricetools import load_prices
 
 
@@ -49,50 +49,41 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
 
     warmup_period = 10
     strategy = MeanReversionStrategy(securities, lookback_period)
-    backtest_data = process_strategy(securities, strategy, warmup_period, prices_by_security,
+    data_collection = process_strategy(securities, strategy, warmup_period, prices_by_security,
                                      step_size=step_size, start_equity=start_equity,
                                      max_net_position=max_net_position,
                                      max_gross_position=max_gross_position,
                                      max_risk_scale=max_risk_scale)
-    return backtest_data
+    return data_collection
 
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
                        max_gross_position, max_risk_scale):
-    holdings = pandas.DataFrame()
-    fills = pandas.DataFrame()
-    equity = pandas.DataFrame()
-    target_quantities = list()
+    data_collections = list()
     for lookback_period, portfolio in portfolios:
         securities = portfolio.split('/')
-        backtest_result = backtest_strategy(start_date, end_date, securities, prices_path,
+        data_collection = backtest_strategy(start_date, end_date, securities, prices_path,
                                             lookback_period=int(lookback_period),
                                             step_size=step_size, start_equity=starting_equity,
                                             max_net_position=max_net_position,
                                             max_gross_position=max_gross_position,
                                             max_risk_scale=max_risk_scale)
-        holdings = pandas.concat([holdings, backtest_result['holdings']])
-        quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
-        fills = pandas.concat([fills, quantities - quantities.shift()])
-        equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
-        if backtest_result['next_target_quantities'] is not None:
-            yahoo_codes = ['PCX/' + code for code in securities]
-            target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
+        data_collections.append(data_collection)
 
-    target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
-    target_df.columns = ['target']
-    return fills, holdings, target_df, equity.groupby('date').sum()
+    fills, holdings, target_df, equity = aggregate_results(data_collections)
+    return fills, holdings, target_df, equity
 
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
                    step_size, start_equity,
                    max_net_position, max_gross_position, max_risk_scale):
     pyplot.style.use('ggplot')
-    backtest_result = backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
+    data_collection = backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
                                         step_size=step_size, start_equity=start_equity,
                                         max_net_position=max_net_position,
                                         max_gross_position=max_gross_position,
                                         max_risk_scale=max_risk_scale)
+    backtest_result = data_collection.get_result()
     logging.info('fit quality: %s', fit_quality(backtest_result['equity'] - start_equity))
     backtest_result['equity'].plot()
     backtest_result['net_position'].plot()
@@ -128,6 +119,7 @@ def main(args):
 
     elif args.display_portfolio is not None:
         pyplot.style.use('ggplot')
+        pandas.set_option('expand_frame_repr', False)
         with open(args.display_portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
 
@@ -142,23 +134,22 @@ def main(args):
                                                         step_size, max_net_position,
                                                         max_gross_position,
                                                         max_risk_scale)
+        fills.to_pickle('fills.pkl')
+        holdings.to_pickle('holdings.pkl')
+        target_df.to_pickle('target_df.pkl')
+        equity.to_pickle('equity.pkl')
+
+        #fills = pandas.read_pickle('fills.pkl')
+        #holdings = pandas.read_pickle('holdings.pkl')
+        #target_df = pandas.read_pickle('target_df.pkl')
+        #equity = pandas.read_pickle('equity.pkl')
+
+        positions = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
         starting_equity = equity.iloc[0]
         ending_equity = equity.iloc[-1]
-        if args.actual_equity:
-            target_nav = args.actual_equity
-
-        else:
-            target_nav = ending_equity
-
-        scaling_ratio = target_nav / ending_equity
-        scaled_holdings = latest_holdings * scaling_ratio
-        logging.info('stocks for a portfolio worth %s:\n%s' % (target_nav, scaled_holdings.round()))
-        logging.info('new target quantities:\n%s' % (target_df * scaling_ratio))
-        target_trades = (target_df['target'] * scaling_ratio - scaled_holdings.transpose()).transpose().dropna()
-        logging.info('trades:\n%s' % target_trades.round())
 
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
@@ -186,7 +177,11 @@ def main(args):
         logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
-        logging.info('fills:\n%s', fills.tail(10))
+        logging.info('fills:\n%s', fills.tail(10).transpose())
+        logging.info('positions:\n%s', positions.tail(10).transpose())
+        logging.info('new target quantities:\n%s' % (target_df))
+        target_trades = (target_df['target'] - latest_holdings.transpose()).transpose().dropna()
+        logging.info('trades:\n%s' % target_trades.round())
         pyplot.show()
 
     else:
@@ -197,12 +192,13 @@ def main(args):
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
             for symbols in portfolios:
-                backtest_result = backtest_strategy(start_date, end_date, symbols, prices_path,
+                data_collection = backtest_strategy(start_date, end_date, symbols, prices_path,
                                                     lookback_period=args.lookback_period,
                                                     step_size=args.step_size, start_equity=args.starting_equity,
                                                     max_net_position=args.max_net_position,
                                                     max_gross_position=args.max_gross_position,
                                                     max_risk_scale=args.max_risk_scale)
+                backtest_result = data_collection.get_result()
                 backtest_data = fit_quality(backtest_result['equity'] - args.starting_equity)
                 backtest_data.update(backtest_result['summary'])
                 results.append(backtest_data)
