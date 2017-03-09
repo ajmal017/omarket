@@ -131,7 +131,7 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale)
 
-        fills = data_collector.get_fills()
+        fills = data_collector.get_trades()
         holdings = data_collector.get_holdings()
         target_df = data_collector.get_new_targets()
         equity = data_collector.get_equity()

@@ -42,14 +42,14 @@ class AverageCostProfitAndLoss(object):
     def average_price(self):
         return self._cost / self._quantity
 
-    def get_market_value(self, current_price):
+    def calc_market_value(self, current_price):
         return self.quantity * current_price
 
-    def get_unrealized_pnl(self, current_price):
-        return self.get_market_value(current_price) - self.cost
+    def calc_unrealized_pnl(self, current_price):
+        return self.calc_market_value(current_price) - self.cost
 
-    def get_total_pnl(self, current_price):
-        return self.realized_pnl + self.get_unrealized_pnl(current_price)
+    def calc_total_pnl(self, current_price):
+        return self.realized_pnl + self.calc_unrealized_pnl(current_price)
 
     def add_fill(self, fill_qty, fill_price):
         """

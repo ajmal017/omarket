@@ -29,7 +29,7 @@ class ExecutionEngine(object):
         for security in self._trades_tracker:
             pnl_calc = self._trades_tracker[security]
             price = prices[self._securities_index[security]]
-            total_pnl += pnl_calc.get_total_pnl(price)
+            total_pnl += pnl_calc.calc_total_pnl(price)
 
         return total_pnl
 
@@ -62,7 +62,7 @@ class PortfolioDataCollector(object):
 
         return holdings
 
-    def get_fills(self):
+    def get_trades(self):
         fills = pandas.DataFrame()
         holdings = pandas.DataFrame()
         for data_collection in self._strategy_data_collections:
