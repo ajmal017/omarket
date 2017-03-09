@@ -34,27 +34,55 @@ class ExecutionEngine(object):
         return total_pnl
 
 
-def aggregate_results(data_collections):
-    target_quantities = list()
-    holdings = pandas.DataFrame()
-    fills = pandas.DataFrame()
-    equity = pandas.DataFrame()
-    for data_collection in data_collections:
-        backtest_result = data_collection.get_result()
-        holdings = pandas.concat([holdings, backtest_result['holdings']])
-        quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
-        fills = pandas.concat([fills, quantities - quantities.shift()])
-        equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
-        if backtest_result['next_target_quantities'] is not None:
-            yahoo_codes = data_collection._securities
-            target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
-
-    target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
-    target_df.columns = ['target']
-    return fills, holdings, target_df, equity.groupby('date').sum()['equity']
-
-
 class PortfolioDataCollector(object):
+
+    def __init__(self):
+        self._strategy_data_collections = list()
+
+    def add(self, data_collection):
+        self._strategy_data_collections.append(data_collection)
+
+    def get_new_targets(self):
+        target_quantities = list()
+        for data_collection in self._strategy_data_collections:
+            backtest_result = data_collection.get_result()
+            if backtest_result['next_target_quantities'] is not None:
+                yahoo_codes = data_collection._securities
+                target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
+
+        target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
+        target_df.columns = ['target']
+        return target_df
+
+    def get_holdings(self):
+        holdings = pandas.DataFrame()
+        for data_collection in self._strategy_data_collections:
+            backtest_result = data_collection.get_result()
+            holdings = pandas.concat([holdings, backtest_result['holdings']])
+
+        return holdings
+
+    def get_fills(self):
+        fills = pandas.DataFrame()
+        holdings = pandas.DataFrame()
+        for data_collection in self._strategy_data_collections:
+            backtest_result = data_collection.get_result()
+            holdings = pandas.concat([holdings, backtest_result['holdings']])
+            quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
+            fills = pandas.concat([fills, quantities - quantities.shift()])
+
+        return fills
+
+    def get_equity(self):
+        equity = pandas.DataFrame()
+        for data_collection in self._strategy_data_collections:
+            backtest_result = data_collection.get_result()
+            equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
+
+        return equity.groupby('date').sum()['equity']
+
+
+class StrategyDataCollector(object):
 
     def __init__(self, securities, position_adjuster):
         self._target_quantities = None
@@ -158,7 +186,6 @@ class PortfolioDataCollector(object):
             'equity': self.get_equity(),
             'next_target_quantities': self.get_target_quantities()
         }
-        logging.info('summary: %s' % str(summary))
         return result
 
 
@@ -412,7 +439,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
         dates = dates.union(set(security_prices.index.values.tolist()))
 
-    data_collector = PortfolioDataCollector(securities, position_adjuster)
+    data_collector = StrategyDataCollector(securities, position_adjuster)
     strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
     for count_day, day in enumerate(sorted(dates)):
         strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])

@@ -9,7 +9,7 @@ import pandas
 from statsmodels.formula.api import OLS
 from matplotlib import pyplot
 
-from meanrevert import MeanReversionStrategy, process_strategy, aggregate_results
+from meanrevert import MeanReversionStrategy, process_strategy, PortfolioDataCollector
 from pricetools import load_prices
 
 
@@ -50,28 +50,27 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
     warmup_period = 10
     strategy = MeanReversionStrategy(securities, lookback_period)
     data_collection = process_strategy(securities, strategy, warmup_period, prices_by_security,
-                                     step_size=step_size, start_equity=start_equity,
-                                     max_net_position=max_net_position,
-                                     max_gross_position=max_gross_position,
-                                     max_risk_scale=max_risk_scale)
+                                       step_size=step_size, start_equity=start_equity,
+                                       max_net_position=max_net_position,
+                                       max_gross_position=max_gross_position,
+                                       max_risk_scale=max_risk_scale)
     return data_collection
 
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
                        max_gross_position, max_risk_scale):
-    data_collections = list()
+    data_collector = PortfolioDataCollector()
     for lookback_period, portfolio in portfolios:
         securities = portfolio.split('/')
-        data_collection = backtest_strategy(start_date, end_date, securities, prices_path,
-                                            lookback_period=int(lookback_period),
-                                            step_size=step_size, start_equity=starting_equity,
-                                            max_net_position=max_net_position,
-                                            max_gross_position=max_gross_position,
-                                            max_risk_scale=max_risk_scale)
-        data_collections.append(data_collection)
+        strategy_data_collection = backtest_strategy(start_date, end_date, securities, prices_path,
+                                                     lookback_period=int(lookback_period),
+                                                     step_size=step_size, start_equity=starting_equity,
+                                                     max_net_position=max_net_position,
+                                                     max_gross_position=max_gross_position,
+                                                     max_risk_scale=max_risk_scale)
+        data_collector.add(strategy_data_collection)
 
-    fills, holdings, target_df, equity = aggregate_results(data_collections)
-    return fills, holdings, target_df, equity
+    return data_collector
 
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
@@ -129,20 +128,23 @@ def main(args):
         max_net_position = args.max_net_position
         max_gross_position = args.max_gross_position
         max_risk_scale = args.max_risk_scale
-        fills, holdings, target_df, equity = backtest_portfolio(portfolios, starting_equity,
-                                                        start_date, end_date, prices_path,
-                                                        step_size, max_net_position,
-                                                        max_gross_position,
-                                                        max_risk_scale)
+        data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
+                                            max_net_position, max_gross_position, max_risk_scale)
+
+        fills = data_collector.get_fills()
+        holdings = data_collector.get_holdings()
+        target_df = data_collector.get_new_targets()
+        equity = data_collector.get_equity()
+
         fills.to_pickle('fills.pkl')
         holdings.to_pickle('holdings.pkl')
         target_df.to_pickle('target_df.pkl')
         equity.to_pickle('equity.pkl')
 
-        #fills = pandas.read_pickle('fills.pkl')
-        #holdings = pandas.read_pickle('holdings.pkl')
-        #target_df = pandas.read_pickle('target_df.pkl')
-        #equity = pandas.read_pickle('equity.pkl')
+        # fills = pandas.read_pickle('fills.pkl')
+        # holdings = pandas.read_pickle('holdings.pkl')
+        # target_df = pandas.read_pickle('target_df.pkl')
+        # equity = pandas.read_pickle('equity.pkl')
 
         positions = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
@@ -154,7 +156,8 @@ def main(args):
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
         equity_df.columns = ['benchmark', 'equity']
-        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)['equity'].min()
+        equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)[
+            'equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = holdings.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
