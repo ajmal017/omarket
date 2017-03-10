@@ -108,7 +108,7 @@ def main(args):
     prices_path = os.sep.join(['..', 'data', 'eod'])
     start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
-    if args.display is not None:
+    if args.display_single is not None:
         securities = args.display.split('/')
         chart_backtest(start_date, end_date, securities, prices_path, lookback_period=args.lookback_period,
                        step_size=args.step_size, start_equity=args.starting_equity,
@@ -116,10 +116,8 @@ def main(args):
                        max_gross_position=args.max_gross_position,
                        max_risk_scale=args.max_risk_scale)
 
-    elif args.display_portfolio is not None:
-        pyplot.style.use('ggplot')
-        pandas.set_option('expand_frame_repr', False)
-        with open(args.display_portfolio) as portfolio_file:
+    elif args.portfolio is not None:
+        with open(args.portfolio) as portfolio_file:
             portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
 
         logging.info('loaded portfolios: %s' % portfolios)
@@ -131,20 +129,27 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale)
 
-        fills = data_collector.get_trades()
+        trades_pnl = data_collector.get_trades_pnl()
+        trades = data_collector.get_trades()
         holdings = data_collector.get_holdings()
         target_df = data_collector.get_new_targets()
         equity = data_collector.get_equity()
 
-        fills.to_pickle('fills.pkl')
+        trades.to_pickle('trades.pkl')
         holdings.to_pickle('holdings.pkl')
         target_df.to_pickle('target_df.pkl')
         equity.to_pickle('equity.pkl')
+        trades_pnl.to_pickle('trades_pnl.pkl')
 
-        # fills = pandas.read_pickle('fills.pkl')
-        # holdings = pandas.read_pickle('holdings.pkl')
-        # target_df = pandas.read_pickle('target_df.pkl')
-        # equity = pandas.read_pickle('equity.pkl')
+    elif args.display_portfolio is not None:
+        pyplot.style.use('ggplot')
+        pandas.set_option('expand_frame_repr', False)
+
+        trades_pnl = pandas.read_pickle('trades_pnl.pkl')
+        trades = pandas.read_pickle('trades.pkl')
+        holdings = pandas.read_pickle('holdings.pkl')
+        target_df = pandas.read_pickle('target_df.pkl')
+        equity = pandas.read_pickle('equity.pkl')
 
         positions = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
@@ -180,11 +185,11 @@ def main(args):
         logging.info('sharpe ratio: %.2f', sharpe_ratio)
         annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
         logging.info('annualized return: %.2f percent' % annualized_return)
-        logging.info('fills:\n%s', fills.tail(10).transpose())
+        logging.info('trades:\n%s', trades.tail(10).transpose())
         logging.info('positions:\n%s', positions.tail(10).transpose())
         logging.info('new target quantities:\n%s' % (target_df))
         target_trades = (target_df['target'] - latest_holdings.transpose()).transpose().dropna()
-        logging.info('trades:\n%s' % target_trades.round())
+        logging.info('future trades:\n%s' % target_trades.round())
         pyplot.show()
 
     else:
@@ -223,8 +228,9 @@ if __name__ == "__main__":
                                      )
     parser.add_argument('--start-yyyymmdd', type=str, help='backtest start date', default='20130101')
     parser.add_argument('--end-yyyymmdd', type=str, help='backtest end date', default=date.today().strftime('%Y%m%d'))
-    parser.add_argument('--display', type=str, help='display portfolio made of comma-separated securities')
+    parser.add_argument('--display-single', type=str, help='display strategy composed of comma-separated securities')
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
+    parser.add_argument('--portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations',
                         default=2)

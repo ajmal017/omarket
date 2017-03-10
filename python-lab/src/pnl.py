@@ -31,7 +31,7 @@ class AverageCostProfitAndLoss(object):
         return self._realized_pnl
 
     @property
-    def cost(self):
+    def acquisition_cost(self):
         return self._cost
 
     @property
@@ -40,13 +40,16 @@ class AverageCostProfitAndLoss(object):
 
     @property
     def average_price(self):
+        if self._quantity == 0:
+            return None
+
         return self._cost / self._quantity
 
     def calc_market_value(self, current_price):
         return self.quantity * current_price
 
     def calc_unrealized_pnl(self, current_price):
-        return self.calc_market_value(current_price) - self.cost
+        return self.calc_market_value(current_price) - self.acquisition_cost
 
     def calc_total_pnl(self, current_price):
         return self.realized_pnl + self.calc_unrealized_pnl(current_price)

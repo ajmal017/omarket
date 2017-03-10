@@ -10,16 +10,31 @@ from regression import RegressionModelOLS
 
 class ExecutionEngine(object):
 
-    def __init__(self, securities):
+    def __init__(self, securities, strategy_name):
         self._securities = securities
         self._securities_index = {security: count for count, security in enumerate(securities)}
         self._trades_tracker = {security: AverageCostProfitAndLoss() for security in securities}
         self._fills = list()
+        self._strategy_name = strategy_name
 
     def execute(self, timestamp, count, fill_qty, price):
         trades_tracker = self._trades_tracker[self._securities[count]]
-        trades_tracker.add_fill(fill_qty, price)
-        self._fills.append({'security': self._securities[count], 'date': timestamp, 'qty': fill_qty, 'price': price})
+        if fill_qty != 0:
+            trades_tracker.add_fill(fill_qty, price)
+
+        fill_data = {'security': self._securities[count],
+                     'strategy': self._strategy_name,
+                     'date': timestamp,
+                     'fill_qty': fill_qty,
+                     'price': price,
+                     'total_qty': trades_tracker.quantity,
+                     'acquisition_cost': trades_tracker.acquisition_cost,
+                     'average_price': trades_tracker.average_price,
+                     'realized_pnl': trades_tracker.realized_pnl,
+                     'unrealized_pnl': trades_tracker.calc_unrealized_pnl(price),
+                     'market_value': trades_tracker.calc_market_value(price),
+                     }
+        self._fills.append(fill_data)
 
     def get_fills(self):
         return pandas.DataFrame(self._fills)
@@ -60,26 +75,39 @@ class PortfolioDataCollector(object):
             backtest_result = data_collection.get_result()
             holdings = pandas.concat([holdings, backtest_result['holdings']])
 
-        return holdings
+
+        holdings_groups = self.get_trades_pnl()[['date', 'security', 'total_qty']].groupby(by=['date', 'security'])
+        holdings2 = holdings_groups.sum().unstack().ffill()
+        return holdings.reset_index(drop=True)
 
     def get_trades(self):
-        fills = pandas.DataFrame()
+        trades = pandas.DataFrame()
         holdings = pandas.DataFrame()
         for data_collection in self._strategy_data_collections:
             backtest_result = data_collection.get_result()
             holdings = pandas.concat([holdings, backtest_result['holdings']])
             quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
-            fills = pandas.concat([fills, quantities - quantities.shift()])
+            trades = pandas.concat([trades, quantities - quantities.shift()])
 
-        return fills
+        return trades
 
     def get_equity(self):
         equity = pandas.DataFrame()
         for data_collection in self._strategy_data_collections:
             backtest_result = data_collection.get_result()
-            equity = pandas.concat([equity, backtest_result['equity'].reset_index()])
+            equity = pandas.concat([equity, backtest_result['equity'].reset_index(drop=False)])
 
         return equity.groupby('date').sum()['equity']
+
+    def get_trades_pnl(self):
+        trades_pnl = pandas.DataFrame()
+        for data_collection in self._strategy_data_collections:
+            backtest_result = data_collection.get_result()
+            trades_pnl = pandas.concat([trades_pnl, backtest_result['trades_pnl']])
+
+        columns = ['date', 'strategy', 'security', 'fill_qty', 'price', 'total_qty', 'average_price',
+                   'acquisition_cost', 'market_value', 'realized_pnl', 'unrealized_pnl']
+        return trades_pnl.reset_index(drop=True)[columns]
 
 
 class StrategyDataCollector(object):
@@ -139,7 +167,7 @@ class StrategyDataCollector(object):
     def get_closed_trades(self):
         return self.position_adjuster.get_closed_trades()
 
-    def get_fills(self):
+    def get_portfolio_fills(self):
         return self.position_adjuster.get_fills()
 
     def add_bollinger(self, signal_data):
@@ -161,6 +189,9 @@ class StrategyDataCollector(object):
 
     def get_name(self):
         return ','.join([security.split('/')[1] for security in self._securities])
+
+    def get_trades_pnl(self):
+        return self.position_adjuster.get_fills()
 
     def get_result(self):
         closed_trades = self.get_closed_trades()
@@ -184,6 +215,7 @@ class StrategyDataCollector(object):
             'gross_position': self.get_gross_position(),
             'holdings': self.get_holdings_history(),
             'equity': self.get_equity(),
+            'trades_pnl': self.get_trades_pnl(),
             'next_target_quantities': self.get_target_quantities()
         }
         return result
@@ -204,7 +236,7 @@ class PositionAdjuster(object):
         self._deviation = 0.
         self._open_trades = list()
         self._closed_trades = list()
-        self._execution_engine = ExecutionEngine(securities)
+        self._execution_engine = ExecutionEngine(securities, self.get_name())
 
     def execute_trades(self, timestamp, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
@@ -212,6 +244,10 @@ class PositionAdjuster(object):
             fill_qty = target_quantity - self._current_quantities[count]
             self._execution_engine.execute(timestamp, count, fill_qty, price)
             self._current_quantities[count] = target_quantity
+
+    def evaluate_positions(self, timestamp, prices):
+        for count, price in enumerate(prices):
+            self._execution_engine.execute(timestamp, count, 0, price)
 
     def update_target_positions(self, timestamp, signal, deviation, weights, market_prices):
         self._deviation = deviation * self._step_size
@@ -358,6 +394,7 @@ class MeanReversionStrategy(object):
 class MeanReversionStrategyRunner(object):
 
     def __init__(self, securities, strategy, warmup_period, position_adjuster):
+        self.daily_valuation = True
         self.securities = securities
         self.day = None
         self.last_phase = 'AfterClose'
@@ -376,6 +413,9 @@ class MeanReversionStrategyRunner(object):
             # on-open market orders
             if self.target_quantities is not None:
                 self.position_adjuster.execute_trades(day, self.target_quantities, prices_open)
+
+            elif self.daily_valuation:
+                self.position_adjuster.evaluate_positions(day, prices_open)
 
         self.last_phase = 'Open'
 
