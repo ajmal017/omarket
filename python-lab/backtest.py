@@ -151,8 +151,8 @@ def main(args):
         target_df = pandas.read_pickle('target_df.pkl')
         equity = pandas.read_pickle('equity.pkl')
 
-        positions = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
-        latest_holdings = holdings.pivot_table(index='date', columns='security', values='quantity',
+        positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack()
+        latest_holdings = holdings.pivot_table(index='date', columns='security', values='total_qty',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
         starting_equity = equity.iloc[0]
@@ -165,11 +165,11 @@ def main(args):
             'equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
-        by_security_pos = holdings.pivot_table(index='date', columns='security', values='position', aggfunc=numpy.sum)
+        by_security_pos = holdings.pivot_table(index='date', columns='security', values='market_value', aggfunc=numpy.sum)
         by_security_pos.plot()
 
-        positions_aggregated_net = holdings.groupby('date')['position'].sum()
-        positions_aggregated_gross = holdings.groupby('date')['position'].agg(lambda x: numpy.abs(x).sum())
+        positions_aggregated_net = holdings.groupby('date')['market_value'].sum()
+        positions_aggregated_gross = holdings.groupby('date')['market_value'].agg(lambda x: numpy.abs(x).sum())
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
                                                 data=numpy.array(
                                                     [positions_aggregated_net, positions_aggregated_gross]).transpose(),
