@@ -52,6 +52,7 @@ class ExecutionEngine(object):
 class PortfolioDataCollector(object):
 
     def __init__(self):
+        self._starting_equity = 0.
         self._strategy_data_collections = list()
 
     def add(self, data_collection):
@@ -78,13 +79,10 @@ class PortfolioDataCollector(object):
         return trades_groups.sum().unstack()['fill_qty'].transpose()
 
     def get_equity(self):
-        equity = pandas.DataFrame()
-        for data_collection in self._strategy_data_collections:
-            backtest_result = data_collection.get_result()
-            equity = pandas.concat([equity, backtest_result['equity'].reset_index(drop=False)])
-
-        equity2 = self.get_trades_pnl()
-        return equity.groupby('date').sum()['equity']
+        pnl_details = self.get_trades_pnl()[['date', 'unrealized_pnl', 'realized_pnl']].groupby(by=['date']).sum()
+        pnl_total = pnl_details['unrealized_pnl'] + pnl_details['realized_pnl'] + self._starting_equity
+        pnl_total.name = 'equity'
+        return pnl_total
 
     def get_trades_pnl(self):
         trades_pnl = pandas.DataFrame()
@@ -95,6 +93,9 @@ class PortfolioDataCollector(object):
         columns = ['date', 'strategy', 'security', 'fill_qty', 'price', 'total_qty', 'average_price',
                    'acquisition_cost', 'market_value', 'realized_pnl', 'unrealized_pnl']
         return trades_pnl.reset_index(drop=True)[columns]
+
+    def add_equity(self, equity):
+        self._starting_equity += equity
 
 
 class StrategyDataCollector(object):
@@ -123,9 +124,6 @@ class StrategyDataCollector(object):
 
     def get_return(self):
         return self.get_equity().pct_change()
-
-    def get_holdings_history(self):
-        return self.holdings_history
 
     def get_net_position(self):
         net_positions = pandas.DataFrame(self.holdings_history.groupby(by=['date'])['position'].sum())
@@ -200,8 +198,6 @@ class StrategyDataCollector(object):
             'factors': pandas.DataFrame(self.chart_beta).set_index('date'),
             'net_position': self.get_net_position(),
             'gross_position': self.get_gross_position(),
-            'holdings': self.get_holdings_history(),
-            'equity': self.get_equity(),
             'trades_pnl': self.get_trades_pnl(),
             'next_target_quantities': self.get_target_quantities()
         }
