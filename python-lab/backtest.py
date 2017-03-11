@@ -143,7 +143,6 @@ def main(args):
 
     elif args.display_portfolio is not None:
         pyplot.style.use('ggplot')
-        pandas.set_option('expand_frame_repr', False)
 
         trades_pnl = pandas.read_pickle('trades_pnl.pkl')
         trades = pandas.read_pickle('trades.pkl')
@@ -243,4 +242,5 @@ if __name__ == "__main__":
                         help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     args = parser.parse_args()
+    pandas.set_option('expand_frame_repr', False)
     main(args)

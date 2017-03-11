@@ -74,15 +74,8 @@ class PortfolioDataCollector(object):
         return holdings.reset_index(drop=True)
 
     def get_trades(self):
-        trades = pandas.DataFrame()
-        holdings = pandas.DataFrame()
-        for data_collection in self._strategy_data_collections:
-            backtest_result = data_collection.get_result()
-            holdings = pandas.concat([holdings, backtest_result['holdings']])
-            quantities = holdings[['date', 'security', 'quantity']].groupby(['date', 'security']).sum().unstack()
-            trades = pandas.concat([trades, quantities - quantities.shift()])
-        trades2 = self.get_trades_pnl()
-        return trades
+        trades_groups = self.get_trades_pnl()[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
+        return trades_groups.sum().unstack()['fill_qty'].transpose()
 
     def get_equity(self):
         equity = pandas.DataFrame()
@@ -90,6 +83,7 @@ class PortfolioDataCollector(object):
             backtest_result = data_collection.get_result()
             equity = pandas.concat([equity, backtest_result['equity'].reset_index(drop=False)])
 
+        equity2 = self.get_trades_pnl()
         return equity.groupby('date').sum()['equity']
 
     def get_trades_pnl(self):
