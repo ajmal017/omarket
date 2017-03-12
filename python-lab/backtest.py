@@ -69,7 +69,6 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                           max_gross_position=max_gross_position,
                           max_risk_scale=max_risk_scale)
         data_collector.add_equity(starting_equity)
-        data_collector.add_equity(starting_equity)
         data_collector.add_strategy_data(data_collection)
 
     return data_collector
