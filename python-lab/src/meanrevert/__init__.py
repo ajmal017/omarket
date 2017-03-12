@@ -61,10 +61,9 @@ class PortfolioDataCollector(object):
     def get_new_targets(self):
         target_quantities = list()
         for data_collection in self._strategy_data_collections:
-            backtest_result = data_collection.get_result()
-            if backtest_result['next_target_quantities'] is not None:
+            if data_collection.get_target_quantities() is not None:
                 yahoo_codes = data_collection._securities
-                target_quantities += zip(yahoo_codes, backtest_result['next_target_quantities'])
+                target_quantities += zip(yahoo_codes, data_collection.get_target_quantities())
 
         target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
         target_df.columns = ['target']
@@ -87,8 +86,7 @@ class PortfolioDataCollector(object):
     def get_trades_pnl(self):
         trades_pnl = pandas.DataFrame()
         for data_collection in self._strategy_data_collections:
-            backtest_result = data_collection.get_result()
-            trades_pnl = pandas.concat([trades_pnl, backtest_result['trades_pnl']])
+            trades_pnl = pandas.concat([trades_pnl, data_collection.get_trades_pnl()])
 
         columns = ['date', 'strategy', 'security', 'fill_qty', 'price', 'total_qty', 'average_price',
                    'acquisition_cost', 'market_value', 'realized_pnl', 'unrealized_pnl']
@@ -178,30 +176,23 @@ class StrategyDataCollector(object):
     def get_trades_pnl(self):
         return self.position_adjuster.get_fills()
 
-    def get_result(self):
+    def get_summary(self):
         closed_trades = self.get_closed_trades()
         mean_trade = closed_trades['pnl'].mean()
         worst_trade = closed_trades['pnl'].min()
         count_trades = closed_trades['pnl'].count()
         max_drawdown = self.get_drawdown().max()['equity']
+        final_equity = self.get_equity()['equity'][-1]
         summary = {
-            'portfolio': self.get_name(),
+            'strategy': self.get_name(),
             'sharpe_ratio': self.get_sharpe_ratio(),
             'average_trade': mean_trade,
             'worst_trade': worst_trade,
             'count_trades': count_trades,
-            'max_drawdown_pct': max_drawdown
+            'max_drawdown_pct': max_drawdown,
+            'final_equity': final_equity
         }
-        result = {
-            'summary': summary,
-            'bollinger': pandas.DataFrame(self.chart_bollinger).set_index('date'),
-            'factors': pandas.DataFrame(self.chart_beta).set_index('date'),
-            'net_position': self.get_net_position(),
-            'gross_position': self.get_gross_position(),
-            'trades_pnl': self.get_trades_pnl(),
-            'next_target_quantities': self.get_target_quantities()
-        }
-        return result
+        return summary
 
 
 class PositionAdjuster(object):

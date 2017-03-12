@@ -56,6 +56,7 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
                                        max_risk_scale=max_risk_scale)
 
     data_collector.add(data_collection)
+    return data_collection
 
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
@@ -80,20 +81,19 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
                    max_net_position, max_gross_position, max_risk_scale):
     pyplot.style.use('ggplot')
     data_collector = PortfolioDataCollector()
-    backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
+    data_collection = backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
                                         step_size=step_size, start_equity=start_equity,
                                         max_net_position=max_net_position,
                                         max_gross_position=max_gross_position,
                                         max_risk_scale=max_risk_scale,
                       data_collector=data_collector)
-    backtest_result = data_collector.get_result()
-    logging.info('fit quality: %s', fit_quality(backtest_result['equity'] - start_equity))
-    backtest_result['equity'].plot()
-    backtest_result['net_position'].plot()
-    backtest_result['gross_position'].plot()
+    logging.info('fit quality: %s', fit_quality(data_collector.get_equity() - start_equity))
+    data_collection.get_equity().plot()
+    data_collection.get_net_position().plot()
+    data_collection.get_gross_position().plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
-    backtest_result['factors'].plot(subplots=True)
-    backtest_result['bollinger'].plot(subplots=False)
+    data_collection.get_factors().plot(subplots=True)
+    data_collection.get_bollinger().plot(subplots=False)
     pyplot.show()
 
 
@@ -195,28 +195,27 @@ def main(args):
         logging.info('future trades:\n%s' % target_trades.round())
         pyplot.show()
 
-    else:
+    elif args.batch is not None:
         # backtest batch
-        # TODO arg line
-        portfolios_path = os.sep.join(['..', 'data', 'portfolios.csv'])
+        portfolios_path = args.batch
+        logging.info('processing batch: %s', os.path.abspath(portfolios_path))
         with open(portfolios_path) as portfolios_file:
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
             data_collector = PortfolioDataCollector()
             for symbols in portfolios:
-                backtest_strategy(start_date, end_date, symbols, prices_path,
+                data_collection = backtest_strategy(start_date, end_date, symbols, prices_path,
                                                     lookback_period=args.lookback_period,
                                                     step_size=args.step_size, start_equity=args.starting_equity,
                                                     max_net_position=args.max_net_position,
                                                     max_gross_position=args.max_gross_position,
                                                     max_risk_scale=args.max_risk_scale,
                                                     data_collector=data_collector)
-                backtest_result = data_collector.get_result()
-                backtest_data = fit_quality(backtest_result['equity'] - args.starting_equity)
-                backtest_data.update(backtest_result['summary'])
+                backtest_data = fit_quality(data_collection.get_equity() - args.starting_equity)
+                backtest_data.update(data_collection.get_summary())
                 results.append(backtest_data)
 
-            result_df = pandas.DataFrame(results).set_index('portfolio')
+            result_df = pandas.DataFrame(results).set_index('strategy')
             result_df.to_csv('backtest-results.csv')
             print(result_df)
 
@@ -236,6 +235,7 @@ if __name__ == "__main__":
     parser.add_argument('--display-single', type=str, help='display strategy composed of comma-separated securities')
     parser.add_argument('--display-portfolio', type=str, help='display aggregated portfolio from specified file')
     parser.add_argument('--portfolio', type=str, help='display aggregated portfolio from specified file')
+    parser.add_argument('--batch', type=str, help='processes strategies in batch mode')
     parser.add_argument('--lookback-period', type=int, help='lookback period', default=200)
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations',
                         default=2)
