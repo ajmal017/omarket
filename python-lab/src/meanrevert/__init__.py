@@ -49,49 +49,43 @@ class ExecutionEngine(object):
 
 
 class PortfolioDataCollector(object):
+
     def __init__(self):
         self._starting_equity = 0.
-        self._strategy_data_collections = list()
+        self.trades_pnl = pandas.DataFrame()
+        self.target_df = pandas.DataFrame()
 
     def add_strategy_data(self, data_collection):
-        self._strategy_data_collections.append(data_collection)
+        self.trades_pnl = pandas.concat([self.trades_pnl, data_collection.get_trades_pnl()])
+        if data_collection.get_target_quantities() is not None:
+            yahoo_codes = data_collection._securities
+            strategy_new_target = {'securities': yahoo_codes, 'target': data_collection.get_target_quantities()}
+            self.target_df = pandas.concat([self.target_df, pandas.DataFrame(strategy_new_target)])
+
+    def add_equity(self, equity):
+        self._starting_equity += equity
 
     def get_new_targets(self):
-        target_quantities = list()
-        for data_collection in self._strategy_data_collections:
-            if data_collection.get_target_quantities() is not None:
-                yahoo_codes = data_collection._securities
-                target_quantities += zip(yahoo_codes, data_collection.get_target_quantities())
-
-        target_df = pandas.DataFrame(dict(target_quantities), index=[0]).transpose()
-        target_df.columns = ['target']
-        return target_df
+        return self.target_df.set_index('securities')['target']
 
     def get_holdings(self):
-        holdings = self.get_trades_pnl()[['date', 'strategy', 'security', 'total_qty', 'market_value']]
+        holdings = self._get_trades_pnl()[['date', 'strategy', 'security', 'total_qty', 'market_value']]
         return holdings.reset_index(drop=True)
 
     def get_trades(self):
-        trades_groups = self.get_trades_pnl()[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
+        trades_groups = self._get_trades_pnl()[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
         return trades_groups.sum().unstack()['fill_qty'].transpose()
 
     def get_equity(self):
-        pnl_details = self.get_trades_pnl()[['date', 'unrealized_pnl', 'realized_pnl']].groupby(by=['date']).sum()
+        pnl_details = self._get_trades_pnl()[['date', 'unrealized_pnl', 'realized_pnl']].groupby(by=['date']).sum()
         pnl_total = pnl_details['unrealized_pnl'] + pnl_details['realized_pnl'] + self._starting_equity
         pnl_total.name = 'equity'
         return pnl_total
 
-    def get_trades_pnl(self):
-        trades_pnl = pandas.DataFrame()
-        for data_collection in self._strategy_data_collections:
-            trades_pnl = pandas.concat([trades_pnl, data_collection.get_trades_pnl()])
-
+    def _get_trades_pnl(self):
         columns = ['date', 'strategy', 'security', 'fill_qty', 'price', 'total_qty', 'average_price',
                    'acquisition_cost', 'market_value', 'realized_pnl', 'unrealized_pnl']
-        return trades_pnl.reset_index(drop=True)[columns]
-
-    def add_equity(self, equity):
-        self._starting_equity += equity
+        return self.trades_pnl.reset_index(drop=True)[columns]
 
 
 class StrategyDataCollector(object):

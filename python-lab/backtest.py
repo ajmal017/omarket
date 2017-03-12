@@ -129,7 +129,6 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale)
 
-        trades_pnl = data_collector.get_trades_pnl()
         trades = data_collector.get_trades()
         holdings = data_collector.get_holdings()
         target_df = data_collector.get_new_targets()
@@ -139,12 +138,9 @@ def main(args):
         holdings.to_pickle('holdings.pkl')
         target_df.to_pickle('target_df.pkl')
         equity.to_pickle('equity.pkl')
-        trades_pnl.to_pickle('trades_pnl.pkl')
 
     elif args.display_portfolio is not None:
         pyplot.style.use('ggplot')
-
-        trades_pnl = pandas.read_pickle('trades_pnl.pkl')
         trades = pandas.read_pickle('trades.pkl')
         holdings = pandas.read_pickle('holdings.pkl')
         target_df = pandas.read_pickle('target_df.pkl')
@@ -188,7 +184,7 @@ def main(args):
         logging.info('trades:\n%s', trades.tail(10).transpose())
         logging.info('positions:\n%s', positions.tail(10).transpose())
         logging.info('new target quantities:\n%s' % (target_df))
-        target_trades = (target_df['target'] - latest_holdings.transpose()).transpose().dropna()
+        target_trades = (target_df - latest_holdings.transpose()).transpose().dropna()
         logging.info('future trades:\n%s' % target_trades.round())
         pyplot.show()
 
