@@ -66,12 +66,12 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
         securities = portfolio.split('/')
         data_collector.add_equity(starting_equity)
         backtest_strategy(start_date, end_date, securities, prices_path,
-                                                     lookback_period=int(lookback_period),
-                                                     step_size=step_size, start_equity=starting_equity,
-                                                     max_net_position=max_net_position,
-                                                     max_gross_position=max_gross_position,
-                                                     max_risk_scale=max_risk_scale,
-                                                     data_collector=data_collector)
+                          lookback_period=int(lookback_period),
+                          step_size=step_size, start_equity=starting_equity,
+                          max_net_position=max_net_position,
+                          max_gross_position=max_gross_position,
+                          max_risk_scale=max_risk_scale,
+                          data_collector=data_collector)
 
     return data_collector
 
@@ -86,7 +86,7 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
                                         max_net_position=max_net_position,
                                         max_gross_position=max_gross_position,
                                         max_risk_scale=max_risk_scale,
-                      data_collector=data_collector)
+                                        data_collector=data_collector)
     logging.info('fit quality: %s', fit_quality(data_collector.get_equity() - start_equity))
     data_collection.get_equity().plot()
     data_collection.get_net_position().plot()
@@ -113,7 +113,7 @@ def main(args):
     start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
     if args.display_single is not None:
-        securities = args.display.split('/')
+        securities = args.display_single.split('/')
         chart_backtest(start_date, end_date, securities, prices_path, lookback_period=args.lookback_period,
                        step_size=args.step_size, start_equity=args.starting_equity,
                        max_net_position=args.max_net_position,
@@ -168,7 +168,8 @@ def main(args):
             'equity'].min()
         equity_df.plot()
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
-        by_security_pos = holdings.pivot_table(index='date', columns='security', values='market_value', aggfunc=numpy.sum)
+        by_security_pos = holdings.pivot_table(index='date', columns='security', values='market_value',
+                                               aggfunc=numpy.sum)
         by_security_pos.plot()
 
         positions_aggregated_net = holdings.groupby('date')['market_value'].sum()

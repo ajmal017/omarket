@@ -9,7 +9,6 @@ from regression import RegressionModelOLS
 
 
 class ExecutionEngine(object):
-
     def __init__(self, securities, strategy_name):
         self._securities = securities
         self._securities_index = {security: count for count, security in enumerate(securities)}
@@ -50,7 +49,6 @@ class ExecutionEngine(object):
 
 
 class PortfolioDataCollector(object):
-
     def __init__(self):
         self._starting_equity = 0.
         self._strategy_data_collections = list()
@@ -153,17 +151,6 @@ class StrategyDataCollector(object):
     def get_portfolio_fills(self):
         return self.position_adjuster.get_fills()
 
-    def add_bollinger(self, signal_data):
-        self.chart_bollinger.append(signal_data)
-
-    def add_factors(self, factors_data, day):
-        beta_data = dict()
-        for count_factor, weight in enumerate(factors_data):
-            beta_data['beta%d' % count_factor] = weight
-
-        beta_data['date'] = day
-        self.chart_beta.append(beta_data)
-
     def set_target_quantities(self, target_quantities):
         self._target_quantities = target_quantities
 
@@ -194,9 +181,37 @@ class StrategyDataCollector(object):
         }
         return summary
 
+    def collect_after_close(self, strategy_runner, prices_close_adj, prices_close):
+        self.historize_state(strategy_runner.day, prices_close_adj, prices_close)
+        if strategy_runner.count_day > strategy_runner.warmup_period:
+            signal_data = {
+                'date': strategy_runner.day,
+                'level_inf': strategy_runner.position_adjuster.level_inf(),
+                'level_sup': strategy_runner.position_adjuster.level_sup(),
+                'signal': strategy_runner.strategy.get_state('signal')
+            }
+            self._add_bollinger(signal_data)
+            self._add_factors(strategy_runner.strategy.get_state('factors'), strategy_runner.day)
+
+    def _add_bollinger(self, signal_data):
+        self.chart_bollinger.append(signal_data)
+
+    def _add_factors(self, factors_data, day):
+        beta_data = dict()
+        for count_factor, weight in enumerate(factors_data):
+            beta_data['beta%d' % count_factor] = weight
+
+        beta_data['date'] = day
+        self.chart_beta.append(beta_data)
+
+    def get_factors(self):
+        return pandas.DataFrame(self.chart_beta).set_index('date', drop=True)
+
+    def get_bollinger(self):
+        return pandas.DataFrame(self.chart_bollinger).set_index('date', drop=True)
+
 
 class PositionAdjuster(object):
-
     def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
         self._securities = securities
         self._current_quantities = [0.] * len(securities)
@@ -248,7 +263,8 @@ class PositionAdjuster(object):
     def _update_risk_scaling(self, timestamp, weights, market_prices):
         target_risk_scale = self._signal_zone
         if abs(target_risk_scale) > self._max_risk_scale:
-            logging.warning('risk scale %d exceeding max risk scale: capping to %d' % (target_risk_scale, self._max_risk_scale))
+            logging.warning(
+                'risk scale %d exceeding max risk scale: capping to %d' % (target_risk_scale, self._max_risk_scale))
             if target_risk_scale > 0:
                 target_risk_scale = self._max_risk_scale
 
@@ -286,10 +302,10 @@ class PositionAdjuster(object):
             strategy_equity = self.get_cumulated_pnl(prices)
             for trade_count in range(steps_count):
                 self._open_trades.append({'open': timestamp,
-                                         'risk_level': target_risk_scale,
-                                         'equity_start': strategy_equity,
-                                         'equity_end': strategy_equity,
-                                         'pnl': 0.
+                                          'risk_level': target_risk_scale,
+                                          'equity_start': strategy_equity,
+                                          'equity_end': strategy_equity,
+                                          'pnl': 0.
                                           })
 
         else:
@@ -318,7 +334,8 @@ class PositionAdjuster(object):
 
     def get_holdings(self, prices):
         positions = numpy.array(self._current_quantities) * prices
-        return pandas.DataFrame({'security': self._securities, 'quantity': self._current_quantities, 'position': positions})
+        return pandas.DataFrame(
+            {'security': self._securities, 'quantity': self._current_quantities, 'position': positions})
 
     def get_name(self):
         return ','.join(self._securities)
@@ -334,9 +351,8 @@ class PositionAdjuster(object):
 
 
 class MeanReversionStrategy(object):
-
     def __init__(self, securities, lookback_period):
-        #regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
+        # regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
         self.regression = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
         self.states = {
             'deviation': None,
@@ -366,7 +382,6 @@ class MeanReversionStrategy(object):
 
 
 class MeanReversionStrategyRunner(object):
-
     def __init__(self, securities, strategy, warmup_period, position_adjuster):
         self.daily_valuation = True
         self.securities = securities
@@ -405,22 +420,10 @@ class MeanReversionStrategyRunner(object):
             signal = self.strategy.get_state('signal')
             deviation = self.strategy.get_state('deviation')
             weights = self.strategy.get_state('weights')
-            self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation, weights, prices_close)
+            self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation,
+                                                                                    weights, prices_close)
 
         self.last_phase = 'AfterClose'
-
-    def collect_strategy_data(self, data_collector, prices_close_adj, prices_close):
-        # statistics
-        data_collector.historize_state(self.day, prices_close_adj, prices_close)
-        if self.count_day > self.warmup_period:
-            signal_data = {
-                'date': self.day,
-                'level_inf': self.position_adjuster.level_inf(),
-                'level_sup': self.position_adjuster.level_sup(),
-                'signal': self.strategy.get_state('signal')
-            }
-            data_collector.add_bollinger(signal_data)
-            data_collector.add_factors(self.strategy.get_state('factors'), self.day)
 
 
 def process_strategy(securities, strategy, warmup_period, prices_by_security,
@@ -439,7 +442,8 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
     :return:
     """
 
-    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size)
+    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity,
+                                         step_size)
     dates = set()
     prices_open = pandas.DataFrame()
     prices_close = pandas.DataFrame()
@@ -456,16 +460,14 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
     data_collector = StrategyDataCollector(securities, position_adjuster)
     strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
     for count_day, day in enumerate(sorted(dates)):
-        strategy_runner.on_open(day, prices_open[prices_open.index == day].values.transpose()[0])
-        strategy_runner.on_close(prices_close[prices_close.index == day].values.transpose()[0])
-        strategy_runner.on_after_close(prices_dividend[prices_dividend.index == day].values.transpose()[0],
-                                       prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
-                                       prices_close[prices_close.index == day].values.transpose()[0]
-                                       )
-        strategy_runner.collect_strategy_data(
-            data_collector,
-            prices_close_adj[prices_close_adj.index == day].values.transpose()[0],
-            prices_close[prices_close.index == day].values.transpose()[0])
+        px_open = prices_open[prices_open.index == day].values.transpose()[0]
+        px_close = prices_close[prices_close.index == day].values.transpose()[0]
+        px_close_adj = prices_close_adj[prices_close_adj.index == day].values.transpose()[0]
+        dividends = prices_dividend[prices_dividend.index == day].values.transpose()[0]
+        strategy_runner.on_open(day, px_open)
+        strategy_runner.on_close(px_close)
+        strategy_runner.on_after_close(dividends, px_close_adj, px_close)
+        data_collector.collect_after_close(strategy_runner, px_close_adj, px_close)
 
     data_collector.set_target_quantities(strategy_runner.target_quantities)
     return data_collector
