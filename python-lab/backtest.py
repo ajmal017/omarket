@@ -15,7 +15,7 @@ from pricetools import load_prices
 
 def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_period,
                       step_size, start_equity, max_net_position, max_gross_position,
-                      max_risk_scale, data_collector):
+                      max_risk_scale):
     securities = ['PCX/' + symbol for symbol in symbols]
     prices_by_security = dict()
     close_prices = pandas.DataFrame()
@@ -54,8 +54,6 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
                                        max_net_position=max_net_position,
                                        max_gross_position=max_gross_position,
                                        max_risk_scale=max_risk_scale)
-
-    data_collector.add(data_collection)
     return data_collection
 
 
@@ -64,14 +62,15 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
     data_collector = PortfolioDataCollector()
     for lookback_period, portfolio in portfolios:
         securities = portfolio.split('/')
-        data_collector.add_equity(starting_equity)
-        backtest_strategy(start_date, end_date, securities, prices_path,
+        data_collection = backtest_strategy(start_date, end_date, securities, prices_path,
                           lookback_period=int(lookback_period),
                           step_size=step_size, start_equity=starting_equity,
                           max_net_position=max_net_position,
                           max_gross_position=max_gross_position,
-                          max_risk_scale=max_risk_scale,
-                          data_collector=data_collector)
+                          max_risk_scale=max_risk_scale)
+        data_collector.add_equity(starting_equity)
+        data_collector.add_equity(starting_equity)
+        data_collector.add_strategy_data(data_collection)
 
     return data_collector
 
@@ -80,14 +79,12 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
                    step_size, start_equity,
                    max_net_position, max_gross_position, max_risk_scale):
     pyplot.style.use('ggplot')
-    data_collector = PortfolioDataCollector()
     data_collection = backtest_strategy(start_date, end_date, securities, prices_path, lookback_period=lookback_period,
                                         step_size=step_size, start_equity=start_equity,
                                         max_net_position=max_net_position,
                                         max_gross_position=max_gross_position,
-                                        max_risk_scale=max_risk_scale,
-                                        data_collector=data_collector)
-    logging.info('fit quality: %s', fit_quality(data_collector.get_equity() - start_equity))
+                                        max_risk_scale=max_risk_scale)
+    logging.info('fit quality: %s', fit_quality(data_collection.get_equity() - start_equity))
     data_collection.get_equity().plot()
     data_collection.get_net_position().plot()
     data_collection.get_gross_position().plot()
@@ -203,15 +200,13 @@ def main(args):
         with open(portfolios_path) as portfolios_file:
             portfolios = [line.strip().split(',') for line in portfolios_file.readlines()]
             results = list()
-            data_collector = PortfolioDataCollector()
             for symbols in portfolios:
                 data_collection = backtest_strategy(start_date, end_date, symbols, prices_path,
                                                     lookback_period=args.lookback_period,
                                                     step_size=args.step_size, start_equity=args.starting_equity,
                                                     max_net_position=args.max_net_position,
                                                     max_gross_position=args.max_gross_position,
-                                                    max_risk_scale=args.max_risk_scale,
-                                                    data_collector=data_collector)
+                                                    max_risk_scale=args.max_risk_scale)
                 backtest_data = fit_quality(data_collection.get_equity() - args.starting_equity)
                 backtest_data.update(data_collection.get_summary())
                 results.append(backtest_data)

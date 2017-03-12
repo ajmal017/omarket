@@ -53,7 +53,7 @@ class PortfolioDataCollector(object):
         self._starting_equity = 0.
         self._strategy_data_collections = list()
 
-    def add(self, data_collection):
+    def add_strategy_data(self, data_collection):
         self._strategy_data_collections.append(data_collection)
 
     def get_new_targets(self):
