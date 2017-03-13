@@ -66,6 +66,9 @@ class PortfolioDataCollector(object):
         self._starting_equity += equity
 
     def get_new_targets(self):
+        if self.target_df.size == 0:
+            return self.target_df
+
         return self.target_df.set_index('securities')['target']
 
     def get_holdings(self):
