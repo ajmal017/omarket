@@ -103,7 +103,7 @@ class StrategyDataCollector(object):
 
     def get_equity(self):
         total_pnl = self.get_trades_pnl()[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
-        start_equity = self.position_adjuster._start_equity
+        start_equity = self.position_adjuster.start_equity
         total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + start_equity
         return total_pnl['equity']
 
@@ -211,6 +211,10 @@ class PositionAdjuster(object):
         self._open_trades = list()
         self._closed_trades = list()
         self._execution_engine = ExecutionEngine(securities, self.get_name())
+
+    @property
+    def start_equity(self):
+        return self._start_equity
 
     def execute_trades(self, timestamp, quantities, prices):
         for count, quantity_price in enumerate(zip(quantities, prices)):
