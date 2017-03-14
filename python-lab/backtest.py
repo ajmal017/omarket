@@ -173,12 +173,11 @@ def main(args):
         by_security_pos = holdings.pivot_table(index='date', columns='security', values='market_value',
                                                aggfunc=numpy.sum)
         by_security_pos.plot()
-
         positions_aggregated_net = holdings.groupby('date')['market_value'].sum()
         positions_aggregated_gross = holdings.groupby('date')['market_value'].agg(lambda x: numpy.abs(x).sum())
+        positions_net_gross = numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose()
         positions_aggregated = pandas.DataFrame(index=positions_aggregated_net.index,
-                                                data=numpy.array(
-                                                    [positions_aggregated_net, positions_aggregated_gross]).transpose(),
+                                                data=positions_net_gross,
                                                 columns=['net', 'gross'])
         positions_aggregated = positions_aggregated.join(equity * 3.0)
         positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
