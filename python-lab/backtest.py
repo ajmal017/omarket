@@ -139,19 +139,29 @@ def main(args):
         target_df.to_pickle('target_df.pkl')
         equity.to_pickle('equity.pkl')
 
-    elif args.display_portfolio is not None:
-        pyplot.style.use('ggplot')
-        trades = pandas.read_pickle('trades.pkl')
-        holdings = pandas.read_pickle('holdings.pkl')
-        target_df = pandas.read_pickle('target_df.pkl')
-        equity = pandas.read_pickle('equity.pkl')
-
         positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack()
+
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='total_qty',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
+
         starting_equity = equity.iloc[0]
         ending_equity = equity.iloc[-1]
+        days_interval = equity.index[-1] - equity.index[0]
+        sharpe_ratio = math.sqrt(250) * equity.pct_change().mean() / equity.pct_change().std()
+        logging.info('sharpe ratio: %.2f', sharpe_ratio)
+        annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
+        logging.info('annualized return: %.2f percent' % annualized_return)
+        logging.info('trades:\n%s', trades.tail(10).transpose())
+        logging.info('positions:\n%s', positions.tail(10).transpose())
+        logging.info('new target quantities:\n%s' % (target_df))
+        target_trades = (target_df - latest_holdings.transpose()).transpose().dropna()
+        logging.info('future trades:\n%s' % target_trades.round())
+
+    elif args.display_portfolio is not None:
+        pyplot.style.use('ggplot')
+        holdings = pandas.read_pickle('holdings.pkl')
+        equity = pandas.read_pickle('equity.pkl')
 
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
@@ -175,17 +185,6 @@ def main(args):
         positions_aggregated = positions_aggregated.join(equity * 4.0)
         positions_aggregated.rename(columns={'equity': 'margin_violation'}, inplace=True)
         positions_aggregated.plot(subplots=False)
-
-        days_interval = equity.index[-1] - equity.index[0]
-        sharpe_ratio = math.sqrt(250) * equity.pct_change().mean() / equity.pct_change().std()
-        logging.info('sharpe ratio: %.2f', sharpe_ratio)
-        annualized_return = 100 * (numpy.power(ending_equity / starting_equity, 365 / days_interval.days) - 1)
-        logging.info('annualized return: %.2f percent' % annualized_return)
-        logging.info('trades:\n%s', trades.tail(10).transpose())
-        logging.info('positions:\n%s', positions.tail(10).transpose())
-        logging.info('new target quantities:\n%s' % (target_df))
-        target_trades = (target_df - latest_holdings.transpose()).transpose().dropna()
-        logging.info('future trades:\n%s' % target_trades.round())
         pyplot.show()
 
     elif args.batch is not None:
