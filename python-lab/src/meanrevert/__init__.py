@@ -96,39 +96,31 @@ class StrategyDataCollector(object):
     def __init__(self, securities, position_adjuster):
         self._target_quantities = None
         self._securities = securities
-        self.holdings_history = pandas.DataFrame()
-        self.equity_history = pandas.DataFrame()
         self.chart_bollinger = list()
         self.chart_beta = list()
         self.chart_regression = list()
         self.position_adjuster = position_adjuster
 
-    def historize_state(self, timestamp, signal_prices, market_prices):
-        holdings = self.position_adjuster.get_holdings(signal_prices)
-        holdings['date'] = timestamp
-        holdings['strategy'] = self.position_adjuster.get_name()
-        equity = self.position_adjuster.get_nav(market_prices)
-        equity_df = pandas.DataFrame({'date': [timestamp], 'equity': [equity]})
-        self.equity_history = pandas.concat([self.equity_history, equity_df])
-        self.holdings_history = pandas.concat([self.holdings_history, holdings])
-
     def get_equity(self):
-        return self.equity_history.set_index('date')
+        total_pnl = self.get_trades_pnl()[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
+        start_equity = self.position_adjuster._start_equity
+        total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + start_equity
+        return total_pnl['equity']
 
     def get_return(self):
         return self.get_equity().pct_change()
 
     def get_net_position(self):
-        net_positions = pandas.DataFrame(self.holdings_history.groupby(by=['date'])['position'].sum())
+        net_positions = self.get_trades_pnl()[['date', 'market_value']].groupby(by=['date']).sum()
         net_positions.columns = ['net_position']
         return net_positions
 
     def get_gross_position(self):
 
         def abs_sum(group):
-            return numpy.abs(group).sum()
+            return numpy.abs(group['market_value']).sum()
 
-        gross_positions = pandas.DataFrame(self.holdings_history.groupby(by=['date'])['position'].apply(abs_sum))
+        gross_positions = self.get_trades_pnl()[['date', 'market_value']].groupby(by=['date']).apply(abs_sum)
         gross_positions.columns = ['gross_position']
         return gross_positions
 
@@ -144,9 +136,6 @@ class StrategyDataCollector(object):
 
     def get_closed_trades(self):
         return self.position_adjuster.get_closed_trades()
-
-    def get_portfolio_fills(self):
-        return self.position_adjuster.get_fills()
 
     def set_target_quantities(self, target_quantities):
         self._target_quantities = target_quantities
@@ -179,7 +168,6 @@ class StrategyDataCollector(object):
         return summary
 
     def collect_after_close(self, strategy_runner, prices_close_adj, prices_close):
-        self.historize_state(strategy_runner.day, prices_close_adj, prices_close)
         if strategy_runner.count_day > strategy_runner.warmup_period:
             signal_data = {
                 'date': strategy_runner.day,
@@ -328,11 +316,6 @@ class PositionAdjuster(object):
 
     def get_nav(self, prices):
         return self._start_equity + self.get_cumulated_pnl(prices)
-
-    def get_holdings(self, prices):
-        positions = numpy.array(self._current_quantities) * prices
-        return pandas.DataFrame(
-            {'security': self._securities, 'quantity': self._current_quantities, 'position': positions})
 
     def get_name(self):
         return ','.join(self._securities)
