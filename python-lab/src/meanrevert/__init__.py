@@ -167,7 +167,7 @@ class StrategyDataCollector(object):
         }
         return summary
 
-    def collect_after_close(self, strategy_runner, prices_close_adj, prices_close):
+    def collect_after_close(self, strategy_runner):
         if strategy_runner.count_day > strategy_runner.warmup_period:
             signal_data = {
                 'date': strategy_runner.day,
@@ -447,7 +447,7 @@ def process_strategy(securities, strategy, warmup_period, prices_by_security,
         strategy_runner.on_open(day, px_open)
         strategy_runner.on_close(px_close)
         strategy_runner.on_after_close(dividends, px_close_adj, px_close)
-        data_collector.collect_after_close(strategy_runner, px_close_adj, px_close)
+        data_collector.collect_after_close(strategy_runner)
 
     data_collector.set_target_quantities(strategy_runner.target_quantities)
     return data_collector
