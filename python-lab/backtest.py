@@ -9,7 +9,9 @@ import pandas
 from statsmodels.formula.api import OLS
 from matplotlib import pyplot
 
-from meanrevert import MeanReversionStrategy, process_strategy, PortfolioDataCollector
+from btplatform import PositionAdjuster, process_strategy
+from meanrevert import MeanReversionStrategy, PortfolioDataCollector, StrategyDataCollector, \
+    MeanReversionStrategyRunner
 from pricetools import load_prices
 
 
@@ -49,11 +51,12 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
 
     warmup_period = 10
     strategy = MeanReversionStrategy(securities, lookback_period)
-    data_collection = process_strategy(securities, strategy, warmup_period, prices_by_security,
-                                       step_size=step_size, start_equity=start_equity,
-                                       max_net_position=max_net_position,
-                                       max_gross_position=max_gross_position,
-                                       max_risk_scale=max_risk_scale)
+
+    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity,
+                                         step_size)
+    data_collector = StrategyDataCollector(securities, position_adjuster)
+    strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
+    data_collection = process_strategy(securities, strategy_runner, data_collector, prices_by_security)
     return data_collection
 
 

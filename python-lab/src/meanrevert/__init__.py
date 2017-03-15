@@ -3,7 +3,6 @@ import math
 import numpy
 import pandas
 
-from btplatform import PositionAdjuster
 from regression import RegressionModelOLS
 
 
@@ -229,50 +228,3 @@ class MeanReversionStrategyRunner(object):
                                                                                     weights, prices_close)
 
         self.last_phase = 'AfterClose'
-
-
-def process_strategy(securities, strategy, warmup_period, prices_by_security,
-                     step_size, start_equity, max_net_position, max_gross_position, max_risk_scale):
-    """
-
-    :param securities:
-    :param strategy:
-    :param warmup_period:
-    :param prices_by_security:
-    :param step_size:
-    :param start_equity:
-    :param max_net_position:
-    :param max_gross_position:
-    :param max_risk_scale:
-    :return:
-    """
-
-    position_adjuster = PositionAdjuster(securities, max_net_position, max_gross_position, max_risk_scale, start_equity,
-                                         step_size)
-    dates = set()
-    prices_open = pandas.DataFrame()
-    prices_close = pandas.DataFrame()
-    prices_close_adj = pandas.DataFrame()
-    prices_dividend = pandas.DataFrame()
-    for security in securities:
-        security_prices = prices_by_security[security]
-        prices_open = pandas.concat([prices_open, security_prices['open']])
-        prices_close = pandas.concat([prices_close, security_prices['close']])
-        prices_close_adj = pandas.concat([prices_close_adj, security_prices['close adj']])
-        prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
-        dates = dates.union(set(security_prices.index.values.tolist()))
-
-    data_collector = StrategyDataCollector(securities, position_adjuster)
-    strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
-    for count_day, day in enumerate(sorted(dates)):
-        px_open = prices_open[prices_open.index == day].values.transpose()[0]
-        px_close = prices_close[prices_close.index == day].values.transpose()[0]
-        px_close_adj = prices_close_adj[prices_close_adj.index == day].values.transpose()[0]
-        dividends = prices_dividend[prices_dividend.index == day].values.transpose()[0]
-        strategy_runner.on_open(day, px_open)
-        strategy_runner.on_close(px_close)
-        strategy_runner.on_after_close(dividends, px_close_adj, px_close)
-        data_collector.collect_after_close(strategy_runner)
-
-    data_collector.set_target_quantities(strategy_runner.target_quantities)
-    return data_collector

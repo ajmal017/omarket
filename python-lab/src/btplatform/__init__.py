@@ -1,6 +1,7 @@
 import logging
 import pandas
 import numpy
+
 from pnl import AverageCostProfitAndLoss
 
 
@@ -45,6 +46,7 @@ class ExecutionEngine(object):
 
 
 class PositionAdjuster(object):
+
     def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
         self._securities = securities
         self._current_quantities = [0.] * len(securities)
@@ -181,3 +183,39 @@ class PositionAdjuster(object):
     def get_open_trades(self):
         return pandas.DataFrame(self._open_trades)
 
+
+def process_strategy(securities, strategy_runner, data_collector, prices_by_security):
+    """
+
+    :param securities:
+    :param strategy_runner:
+    :param data_collector:
+    :param prices_by_security:
+    :return:
+    """
+
+    dates = set()
+    prices_open = pandas.DataFrame()
+    prices_close = pandas.DataFrame()
+    prices_close_adj = pandas.DataFrame()
+    prices_dividend = pandas.DataFrame()
+    for security in securities:
+        security_prices = prices_by_security[security]
+        prices_open = pandas.concat([prices_open, security_prices['open']])
+        prices_close = pandas.concat([prices_close, security_prices['close']])
+        prices_close_adj = pandas.concat([prices_close_adj, security_prices['close adj']])
+        prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
+        dates = dates.union(set(security_prices.index.values.tolist()))
+
+    for count_day, day in enumerate(sorted(dates)):
+        px_open = prices_open[prices_open.index == day].values.transpose()[0]
+        px_close = prices_close[prices_close.index == day].values.transpose()[0]
+        px_close_adj = prices_close_adj[prices_close_adj.index == day].values.transpose()[0]
+        dividends = prices_dividend[prices_dividend.index == day].values.transpose()[0]
+        strategy_runner.on_open(day, px_open)
+        strategy_runner.on_close(px_close)
+        strategy_runner.on_after_close(dividends, px_close_adj, px_close)
+        data_collector.collect_after_close(strategy_runner)
+
+    data_collector.set_target_quantities(strategy_runner.target_quantities)
+    return data_collector
