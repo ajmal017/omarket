@@ -33,6 +33,10 @@ class ExecutionEngine(object):
         self._fills.append(fill_data)
 
     def get_fills(self):
+        """
+
+        :return: historical trades data
+        """
         return pandas.DataFrame(self._fills)
 
     def get_nav(self, prices):

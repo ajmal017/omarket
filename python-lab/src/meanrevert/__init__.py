@@ -105,6 +105,7 @@ class StrategyDataCollector(object):
         return ','.join([security.split('/')[1] for security in self._securities])
 
     def get_trades_pnl(self):
+        # TODO wrap object into something such that relevant data can be accessed directly
         return self.position_adjuster.get_fills()
 
     def get_summary(self):
