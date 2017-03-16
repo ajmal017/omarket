@@ -72,7 +72,7 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                           max_gross_position=max_gross_position,
                           max_risk_scale=max_risk_scale)
         data_collector.add_equity(starting_equity)
-        target_quantities = data_collection.get_target_quantities()
+        target_quantities = data_collection.get_target_quantities(data_collection.position_adjuster.get_name())
         fills = data_collection.position_adjuster.get_fills()
         data_collector.add_strategy_data(securities, target_quantities, fills)
 

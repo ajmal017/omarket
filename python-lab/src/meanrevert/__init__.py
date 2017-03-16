@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pandas
 
 from btplatform import BacktestHistory
@@ -13,7 +15,7 @@ class PortfolioDataCollector(object):
 
     def add_strategy_data(self, securities, target_quantities, fills):
         self.fills_df = pandas.concat([self.fills_df, fills])
-        if target_quantities is not None:
+        if target_quantities:
             strategy_new_target = {'securities': securities, 'target': target_quantities}
             self.target_df = pandas.concat([self.target_df, pandas.DataFrame(strategy_new_target)])
 
@@ -33,7 +35,7 @@ class PortfolioDataCollector(object):
 class StrategyDataCollector(object):
 
     def __init__(self, securities, position_adjuster):
-        self._target_quantities = None
+        self._target_quantities = dict()
         self._securities = securities
         self.chart_bollinger = list()
         self.chart_beta = list()
@@ -46,11 +48,11 @@ class StrategyDataCollector(object):
     def get_open_trades(self):
         return self.position_adjuster.get_open_trades()
 
-    def set_target_quantities(self, target_quantities):
-        self._target_quantities = target_quantities
+    def add_target_quantities(self, strategy, target_quantities):
+        self._target_quantities[strategy] = target_quantities
 
-    def get_target_quantities(self):
-        return self._target_quantities
+    def get_target_quantities(self, strategy):
+        return self._target_quantities[strategy]
 
     def get_name(self):
         return ','.join([security.split('/')[1] for security in self._securities])

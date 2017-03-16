@@ -222,7 +222,7 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
         strategy_runner.on_after_close(dividends, px_close_adj, px_close)
         data_collector.collect_after_close(strategy_runner)
 
-    data_collector.set_target_quantities(strategy_runner.target_quantities)
+    data_collector.add_target_quantities(data_collector.position_adjuster.get_name(), strategy_runner.target_quantities)
 
 
 class BacktestHistory(object):
