@@ -79,30 +79,28 @@ class StrategyDataCollector(object):
     def collect_after_close(self, strategy_runner):
         if strategy_runner.count_day > strategy_runner.warmup_period:
             signal_data = {
+                'strategy': self.position_adjuster.get_name(),
                 'date': strategy_runner.day,
                 'level_inf': strategy_runner.position_adjuster.level_inf(),
                 'level_sup': strategy_runner.position_adjuster.level_sup(),
                 'signal': strategy_runner.strategy.get_state('signal')
             }
-            self._add_bollinger(signal_data)
-            self._add_factors(strategy_runner.strategy.get_state('factors'), strategy_runner.day)
+            self.chart_bollinger.append(signal_data)
+            factors_data = strategy_runner.strategy.get_state('factors')
+            beta_data = {'strategy': self.position_adjuster.get_name()}
+            for count_factor, weight in enumerate(factors_data):
+                beta_data['beta%d' % count_factor] = weight
 
-    def _add_bollinger(self, signal_data):
-        self.chart_bollinger.append(signal_data)
+            beta_data['date'] = strategy_runner.day
+            self.chart_beta.append(beta_data)
 
-    def _add_factors(self, factors_data, day):
-        beta_data = dict()
-        for count_factor, weight in enumerate(factors_data):
-            beta_data['beta%d' % count_factor] = weight
+    def get_factors(self, strategy):
+        beta_df = pandas.DataFrame(self.chart_beta)
+        return beta_df[beta_df['strategy'] == strategy].set_index('date', drop=True)
 
-        beta_data['date'] = day
-        self.chart_beta.append(beta_data)
-
-    def get_factors(self):
-        return pandas.DataFrame(self.chart_beta).set_index('date', drop=True)
-
-    def get_bollinger(self):
-        return pandas.DataFrame(self.chart_bollinger).set_index('date', drop=True)
+    def get_bollinger(self, strategy):
+        bollinger_df = pandas.DataFrame(self.chart_bollinger)
+        return bollinger_df[bollinger_df['strategy'] == strategy].set_index('date', drop=True)
 
 
 class MeanReversionStrategy(object):

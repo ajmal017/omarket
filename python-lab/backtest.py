@@ -92,8 +92,8 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
     data_collection.get_backtest_history().get_equity().plot()
     data_collection.get_backtest_history().get_gross_net_position().plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
-    data_collection.get_factors().plot(subplots=True)
-    data_collection.get_bollinger().plot(subplots=False)
+    data_collection.get_factors(','.join(securities)).plot(subplots=True)
+    data_collection.get_bollinger(','.join(securities)).plot(subplots=False)
     pyplot.show()
 
 
