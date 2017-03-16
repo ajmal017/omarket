@@ -177,10 +177,12 @@ class PositionAdjuster(object):
         return self._start_equity + self.get_cumulated_pnl(prices)
 
     def get_name(self):
-        return ','.join(self._securities)
+        return ','.join([code.split('/')[1] for code in self._securities])
 
     def get_fills(self):
-        return self._execution_engine.get_fills()
+        fills = self._execution_engine.get_fills()
+        fills['strategy'] = self.get_name()
+        return fills
 
     def get_closed_trades(self):
         return pandas.DataFrame(self._closed_trades)
