@@ -180,8 +180,7 @@ class PositionAdjuster(object):
         return ','.join([code.split('/')[1] for code in self._securities])
 
     def get_fills(self):
-        fills = self._execution_engine.get_fills()
-        return fills
+        return self._execution_engine.get_fills()
 
     def get_closed_trades(self):
         return pandas.DataFrame(self._closed_trades)
