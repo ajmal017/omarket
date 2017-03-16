@@ -223,7 +223,6 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
         data_collector.collect_after_close(strategy_runner)
 
     data_collector.set_target_quantities(strategy_runner.target_quantities)
-    return data_collector
 
 
 class BacktestHistory(object):
@@ -236,6 +235,14 @@ class BacktestHistory(object):
         total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
         total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + self._start_equity
         return total_pnl['equity']
+
+    def get_holdings(self):
+        holdings = self.backtest_history[['date', 'strategy', 'security', 'total_qty', 'market_value']]
+        return holdings.reset_index(drop=True)
+
+    def get_trades(self):
+        trades_groups = self.backtest_history[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
+        return trades_groups.sum().unstack()['fill_qty'].transpose()
 
     def get_return(self):
         return self.get_equity().pct_change()

@@ -56,8 +56,8 @@ def backtest_strategy(start_date, end_date, symbols, prices_path, lookback_perio
                                          step_size)
     data_collector = StrategyDataCollector(securities, position_adjuster)
     strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
-    data_collection = process_strategy(securities, strategy_runner, data_collector, prices_by_security)
-    return data_collection
+    process_strategy(securities, strategy_runner, data_collector, prices_by_security)
+    return data_collector
 
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
@@ -72,7 +72,9 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                           max_gross_position=max_gross_position,
                           max_risk_scale=max_risk_scale)
         data_collector.add_equity(starting_equity)
-        data_collector.add_strategy_data(data_collection)
+        target_quantities = data_collection.get_target_quantities()
+        fills = data_collection.position_adjuster.get_fills()
+        data_collector.add_strategy_data(securities, target_quantities, fills)
 
     return data_collector
 
@@ -131,10 +133,10 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale)
 
-        trades = data_collector.get_trades()
-        holdings = data_collector.get_holdings()
+        trades = data_collector.get_backtest_history().get_trades()
+        holdings = data_collector.get_backtest_history().get_holdings()
         target_df = data_collector.get_new_targets()
-        equity = data_collector.get_equity()
+        equity = data_collector.get_backtest_history().get_equity()
 
         trades.to_pickle('trades.pkl')
         holdings.to_pickle('holdings.pkl')
