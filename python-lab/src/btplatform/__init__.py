@@ -181,7 +181,6 @@ class PositionAdjuster(object):
 
     def get_fills(self):
         fills = self._execution_engine.get_fills()
-        fills['strategy'] = self.get_name()
         return fills
 
     def get_closed_trades(self):
