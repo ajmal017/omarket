@@ -86,10 +86,9 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
                                         max_net_position=max_net_position,
                                         max_gross_position=max_gross_position,
                                         max_risk_scale=max_risk_scale)
-    logging.info('fit quality: %s', fit_quality(data_collection.get_equity() - start_equity))
-    data_collection.get_equity().plot()
-    data_collection.get_net_position().plot()
-    data_collection.get_gross_position().plot()
+    logging.info('fit quality: %s', fit_quality(data_collection.get_backtest_history().get_equity() - start_equity))
+    data_collection.get_backtest_history().get_equity().plot()
+    data_collection.get_backtest_history().get_gross_net_position().plot()
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
     data_collection.get_factors().plot(subplots=True)
     data_collection.get_bollinger().plot(subplots=False)

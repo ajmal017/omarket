@@ -1,8 +1,6 @@
-import math
-
-import numpy
 import pandas
 
+from btplatform import BacktestHistory
 from regression import RegressionModelOLS
 
 
@@ -14,7 +12,7 @@ class PortfolioDataCollector(object):
         self.target_df = pandas.DataFrame()
 
     def add_strategy_data(self, data_collection):
-        self.trades_pnl = pandas.concat([self.trades_pnl, data_collection.get_trades_pnl()])
+        self.trades_pnl = pandas.concat([self.trades_pnl, data_collection.position_adjuster.get_fills()])
         if data_collection.get_target_quantities() is not None:
             yahoo_codes = data_collection._securities
             strategy_new_target = {'securities': yahoo_codes, 'target': data_collection.get_target_quantities()}
@@ -59,41 +57,11 @@ class StrategyDataCollector(object):
         self.chart_regression = list()
         self.position_adjuster = position_adjuster
 
-    def get_equity(self):
-        total_pnl = self.get_trades_pnl()[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
-        start_equity = self.position_adjuster.start_equity
-        total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + start_equity
-        return total_pnl['equity']
-
-    def get_return(self):
-        return self.get_equity().pct_change()
-
-    def get_net_position(self):
-        net_positions = self.get_trades_pnl()[['date', 'market_value']].groupby(by=['date']).sum()
-        net_positions.columns = ['net_position']
-        return net_positions
-
-    def get_gross_position(self):
-
-        def abs_sum(group):
-            return numpy.abs(group['market_value']).sum()
-
-        gross_positions = self.get_trades_pnl()[['date', 'market_value']].groupby(by=['date']).apply(abs_sum)
-        gross_positions.columns = ['gross_position']
-        return gross_positions
-
-    def get_sharpe_ratio(self):
-        mean_return = self.get_equity().pct_change().mean()
-        std_return = self.get_equity().pct_change().std()
-        value = mean_return / std_return * math.sqrt(250)
-        return value['equity']
-
-    def get_drawdown(self):
-        cum_returns = (1. + self.get_return()).cumprod()
-        return 1. - cum_returns.div(cum_returns.cummax())
-
     def get_closed_trades(self):
         return self.position_adjuster.get_closed_trades()
+
+    def get_open_trades(self):
+        return self.position_adjuster.get_open_trades()
 
     def set_target_quantities(self, target_quantities):
         self._target_quantities = target_quantities
@@ -104,20 +72,19 @@ class StrategyDataCollector(object):
     def get_name(self):
         return ','.join([security.split('/')[1] for security in self._securities])
 
-    def get_trades_pnl(self):
-        # TODO wrap object into something such that relevant data can be accessed directly
-        return self.position_adjuster.get_fills()
+    def get_backtest_history(self):
+        return BacktestHistory(self.position_adjuster.get_fills(), self.position_adjuster.start_equity)
 
     def get_summary(self):
         closed_trades = self.get_closed_trades()
         mean_trade = closed_trades['pnl'].mean()
         worst_trade = closed_trades['pnl'].min()
         count_trades = closed_trades['pnl'].count()
-        max_drawdown = self.get_drawdown().max()['equity']
-        final_equity = self.get_equity()['equity'][-1]
+        max_drawdown = self.get_backtest_history().get_drawdown().max()['equity']
+        final_equity = self.get_backtest_history().get_equity()['equity'][-1]
         summary = {
             'strategy': self.get_name(),
-            'sharpe_ratio': self.get_sharpe_ratio(),
+            'sharpe_ratio': self.get_backtest_history().get_sharpe_ratio(),
             'average_trade': mean_trade,
             'worst_trade': worst_trade,
             'count_trades': count_trades,

@@ -1,4 +1,5 @@
 import logging
+import math
 import pandas
 import numpy
 
@@ -223,3 +224,44 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
 
     data_collector.set_target_quantities(strategy_runner.target_quantities)
     return data_collector
+
+
+class BacktestHistory(object):
+
+    def __init__(self, backtest_history, start_equity):
+        self._backtest_history = backtest_history
+        self._start_equity = start_equity
+
+    def get_equity(self):
+        total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
+        total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + self._start_equity
+        return total_pnl['equity']
+
+    def get_return(self):
+        return self.get_equity().pct_change()
+
+    def get_gross_net_position(self):
+        gross_net_positions = self.backtest_history[['date', 'market_value']].groupby(by=['date']).sum()
+        gross_net_positions.columns = ['net_position']
+
+        def abs_sum(group):
+            return numpy.abs(group['market_value']).sum()
+
+        gross_positions = self.backtest_history[['date', 'market_value']].groupby(by=['date']).apply(abs_sum)
+        gross_net_positions['gross_position'] = gross_positions
+        return gross_net_positions
+
+    def get_sharpe_ratio(self):
+        mean_return = self.get_equity().pct_change().mean()
+        std_return = self.get_equity().pct_change().std()
+        value = mean_return / std_return * math.sqrt(250)
+        return value['equity']
+
+    def get_drawdown(self):
+        cum_returns = (1. + self.get_return()).cumprod()
+        return 1. - cum_returns.div(cum_returns.cummax())
+
+    @property
+    def backtest_history(self):
+        return self._backtest_history
+
