@@ -231,6 +231,10 @@ class BacktestHistory(object):
         self._backtest_history = backtest_history
         self._start_equity = start_equity
 
+    #def set_start_equity(self, amount):
+    #    total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
+    #    self.backtest_history['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + amount
+
     def get_equity(self):
         total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
         total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + self._start_equity
@@ -242,7 +246,7 @@ class BacktestHistory(object):
 
     def get_trades(self):
         trades_groups = self.backtest_history[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
-        return trades_groups.sum().unstack()['fill_qty'].transpose()
+        return trades_groups.sum().unstack()['fill_qty'].fillna(0.).transpose()
 
     def get_return(self):
         return self.get_equity().pct_change()

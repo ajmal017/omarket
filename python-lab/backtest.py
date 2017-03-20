@@ -138,12 +138,10 @@ def main(args):
         target_df = data_collector.get_new_targets()
         equity = data_collector.get_backtest_history().get_equity()
 
-        trades.to_pickle('trades.pkl')
         holdings.to_pickle('holdings.pkl')
-        target_df.to_pickle('target_df.pkl')
         equity.to_pickle('equity.pkl')
 
-        positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack()
+        positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack().ffill()
 
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='total_qty',
                                                aggfunc=numpy.sum).tail(1).transpose()
@@ -242,3 +240,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     pandas.set_option('expand_frame_repr', False)
     main(args)
+    # dev: --start-yyyymmdd 20170101 --end-yyyymmdd 20170313

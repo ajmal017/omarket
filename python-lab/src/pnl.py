@@ -1,6 +1,8 @@
 import logging
 import math
 
+import numpy
+
 
 class ZeroFeeModel(object):
 
@@ -41,7 +43,7 @@ class AverageCostProfitAndLoss(object):
     @property
     def average_price(self):
         if self._quantity == 0:
-            return None
+            return numpy.NaN
 
         return self._cost / self._quantity
 

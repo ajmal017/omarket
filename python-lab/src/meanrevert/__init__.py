@@ -29,7 +29,8 @@ class PortfolioDataCollector(object):
         return self.target_df.set_index('securities')['target']
 
     def get_backtest_history(self):
-        return BacktestHistory(self.fills_df, self._starting_equity)
+        backtest_history = BacktestHistory(self.fills_df, self._starting_equity)
+        return backtest_history
 
 
 class StrategyDataCollector(object):
