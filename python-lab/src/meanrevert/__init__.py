@@ -80,22 +80,20 @@ class StrategyDataCollector(object):
         }
         return summary
 
-    def collect_after_close(self, strategy_runner):
-        if strategy_runner.count_day > strategy_runner.warmup_period:
+    def collect_after_close(self, strategy_name, day, level_inf, level_sup, signal, factors_data):
             signal_data = {
-                'strategy': self.position_adjuster.get_name(),
-                'date': strategy_runner.day,
-                'level_inf': strategy_runner.position_adjuster.level_inf(),
-                'level_sup': strategy_runner.position_adjuster.level_sup(),
-                'signal': strategy_runner.strategy.get_state('signal')
+                'strategy': strategy_name,
+                'date': day,
+                'level_inf': level_inf,
+                'level_sup': level_sup,
+                'signal': signal
             }
             self.chart_bollinger.append(signal_data)
-            factors_data = strategy_runner.strategy.get_state('factors')
-            beta_data = {'strategy': self.position_adjuster.get_name()}
+            beta_data = {'strategy': strategy_name}
             for count_factor, weight in enumerate(factors_data):
                 beta_data['beta%d' % count_factor] = weight
 
-            beta_data['date'] = strategy_runner.day
+            beta_data['date'] = day
             self.chart_beta.append(beta_data)
 
     def get_factors(self, strategy):

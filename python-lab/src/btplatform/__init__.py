@@ -220,7 +220,14 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
         strategy_runner.on_open(day, px_open)
         strategy_runner.on_close(px_close)
         strategy_runner.on_after_close(dividends, px_close_adj, px_close)
-        data_collector.collect_after_close(strategy_runner)
+        if strategy_runner.count_day > strategy_runner.warmup_period:
+            position_adjuster = strategy_runner.position_adjuster
+            strategy_name = position_adjuster.get_name()
+            level_inf = strategy_runner.position_adjuster.level_inf()
+            level_sup = strategy_runner.position_adjuster.level_sup()
+            signal = strategy_runner.strategy.get_state('signal')
+            factors_data = strategy_runner.strategy.get_state('factors')
+            data_collector.collect_after_close(strategy_name, strategy_runner.day, level_inf, level_sup, signal, factors_data)
 
     data_collector.add_target_quantities(data_collector.position_adjuster.get_name(), strategy_runner.target_quantities)
 
@@ -232,8 +239,7 @@ class BacktestHistory(object):
         self._start_equity = 0.
 
     def set_start_equity(self, amount):
-        #self._start_equity = amount
-        pass
+        self._start_equity = amount
 
     def get_equity(self):
         total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
