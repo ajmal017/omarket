@@ -52,7 +52,7 @@ class ExecutionEngine(object):
 
 class PositionAdjuster(object):
 
-    def __init__(self, securities, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
+    def __init__(self, securities, strategy_name, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
         self._securities = securities
         self._current_quantities = [0.] * len(securities)
         self._max_net_position = max_net_position
@@ -65,7 +65,7 @@ class PositionAdjuster(object):
         self._deviation = 0.
         self._open_trades = list()
         self._closed_trades = list()
-        self._execution_engine = ExecutionEngine(securities, self.get_name())
+        self._execution_engine = ExecutionEngine(securities, strategy_name)
 
     @property
     def start_equity(self):
@@ -176,9 +176,6 @@ class PositionAdjuster(object):
     def get_nav(self, prices):
         return self._start_equity + self.get_cumulated_pnl(prices)
 
-    def get_name(self):
-        return ','.join([code.split('/')[1] for code in self._securities])
-
     def get_fills(self):
         return self._execution_engine.get_fills()
 
@@ -212,6 +209,7 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
         prices_dividend = pandas.concat([prices_dividend, security_prices['dividend']])
         dates = dates.union(set(security_prices.index.values.tolist()))
 
+    strategy_name = strategy_runner.get_strategy_name()
     for count_day, day in enumerate(sorted(dates)):
         px_open = prices_open[prices_open.index == day].values.transpose()[0]
         px_close = prices_close[prices_close.index == day].values.transpose()[0]
@@ -221,15 +219,13 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
         strategy_runner.on_close(px_close)
         strategy_runner.on_after_close(dividends, px_close_adj, px_close)
         if strategy_runner.count_day > strategy_runner.warmup_period:
-            position_adjuster = strategy_runner.position_adjuster
-            strategy_name = position_adjuster.get_name()
             level_inf = strategy_runner.position_adjuster.level_inf()
             level_sup = strategy_runner.position_adjuster.level_sup()
             signal = strategy_runner.strategy.get_state('signal')
             factors_data = strategy_runner.strategy.get_state('factors')
             data_collector.collect_after_close(strategy_name, strategy_runner.day, level_inf, level_sup, signal, factors_data)
 
-    data_collector.add_target_quantities(data_collector.position_adjuster.get_name(), strategy_runner.target_quantities)
+    data_collector.add_target_quantities(strategy_name, strategy_runner.target_quantities)
 
 
 class BacktestHistory(object):

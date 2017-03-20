@@ -34,19 +34,20 @@ class PortfolioDataCollector(object):
 
 class StrategyDataCollector(object):
 
-    def __init__(self, securities, position_adjuster):
+    def __init__(self, strategy_name):
         self._target_quantities = dict()
-        self._securities = securities
+        self._strategy_name = strategy_name
         self.chart_bollinger = list()
         self.chart_beta = list()
         self.chart_regression = list()
-        self.position_adjuster = position_adjuster
 
-    def get_closed_trades(self):
-        return self.position_adjuster.get_closed_trades()
+    def get_trades(self, closed_only=False):
+        closed_trades = self.position_adjuster.get_closed_trades()
+        if closed_only:
+            return closed_trades
 
-    def get_open_trades(self):
-        return self.position_adjuster.get_open_trades()
+        open_trades = self.position_adjuster.get_open_trades()
+        return pandas.concat([closed_trades, open_trades]).reset_index(drop=True)
 
     def add_target_quantities(self, strategy, target_quantities):
         self._target_quantities[strategy] = target_quantities
@@ -54,24 +55,21 @@ class StrategyDataCollector(object):
     def get_target_quantities(self, strategy):
         return self._target_quantities[strategy]
 
-    def get_name(self):
-        return ','.join([security.split('/')[1] for security in self._securities])
-
-    def get_backtest_history(self):
-        backtest_history = BacktestHistory(self.position_adjuster.get_fills())
-        backtest_history.set_start_equity(self.position_adjuster.start_equity)
+    def create_backtest_history(self, fills, start_equity):
+        backtest_history = BacktestHistory(fills)
+        backtest_history.set_start_equity(start_equity)
         return backtest_history
 
-    def get_summary(self):
-        closed_trades = self.get_closed_trades()
+    def get_summary(self, backtest_history):
+        closed_trades = self.get_trades(closed_only=True)
         mean_trade = closed_trades['pnl'].mean()
         worst_trade = closed_trades['pnl'].min()
         count_trades = closed_trades['pnl'].count()
-        max_drawdown = self.get_backtest_history().get_drawdown().max()['equity']
-        final_equity = self.get_backtest_history().get_equity()['equity'][-1]
+        max_drawdown = backtest_history.get_drawdown().max()['equity']
+        final_equity = backtest_history.get_equity()['equity'][-1]
         summary = {
-            'strategy': self.get_name(),
-            'sharpe_ratio': self.get_backtest_history().get_sharpe_ratio(),
+            'strategy': self._strategy_name,
+            'sharpe_ratio': backtest_history.get_sharpe_ratio(),
             'average_trade': mean_trade,
             'worst_trade': worst_trade,
             'count_trades': count_trades,
@@ -106,8 +104,10 @@ class StrategyDataCollector(object):
 
 
 class MeanReversionStrategy(object):
+
     def __init__(self, securities, lookback_period):
         # regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
+        self._securities = securities
         self.regression = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
         self.states = {
             'deviation': None,
@@ -135,8 +135,12 @@ class MeanReversionStrategy(object):
     def get_state(self, name):
         return self.states[name]
 
+    def get_strategy_name(self):
+        return ','.join(self._securities)
+
 
 class MeanReversionStrategyRunner(object):
+
     def __init__(self, securities, strategy, warmup_period, position_adjuster):
         self.daily_valuation = True
         self.securities = securities
@@ -179,3 +183,6 @@ class MeanReversionStrategyRunner(object):
                                                                                     weights, prices_close)
 
         self.last_phase = 'AfterClose'
+
+    def get_strategy_name(self):
+        return self.strategy.get_strategy_name()
