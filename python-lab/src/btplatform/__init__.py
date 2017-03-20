@@ -179,11 +179,13 @@ class PositionAdjuster(object):
     def get_fills(self):
         return self._execution_engine.get_fills()
 
-    def get_closed_trades(self):
-        return pandas.DataFrame(self._closed_trades)
+    def get_strategy_trades(self, closed_only=False):
+        closed_trades = pandas.DataFrame(self._closed_trades)
+        if closed_only:
+            return closed_trades
 
-    def get_open_trades(self):
-        return pandas.DataFrame(self._open_trades)
+        open_trades = pandas.DataFrame(self._open_trades)
+        return pandas.concat([closed_trades, open_trades]).reset_index(drop=True)
 
 
 def process_strategy(securities, strategy_runner, data_collector, prices_by_security):
@@ -230,12 +232,9 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
 
 class BacktestHistory(object):
 
-    def __init__(self, backtest_history):
+    def __init__(self, backtest_history, start_equity):
         self._backtest_history = backtest_history
-        self._start_equity = 0.
-
-    def set_start_equity(self, amount):
-        self._start_equity = amount
+        self._start_equity = start_equity
 
     def get_equity(self):
         total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()

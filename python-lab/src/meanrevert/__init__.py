@@ -8,28 +8,32 @@ class PortfolioDataCollector(object):
 
     def __init__(self):
         self._starting_equity = 0.
-        self.fills_df = pandas.DataFrame()
-        self.target_df = pandas.DataFrame()
+        self._fills_df = pandas.DataFrame()
+        self._target_df = pandas.DataFrame()
 
     def add_strategy_data(self, securities, target_quantities, fills):
-        self.fills_df = pandas.concat([self.fills_df, fills])
+        self._fills_df = pandas.concat([self._fills_df, fills])
         if target_quantities:
             strategy_new_target = {'securities': securities, 'target': target_quantities}
-            self.target_df = pandas.concat([self.target_df, pandas.DataFrame(strategy_new_target)])
+            self._target_df = pandas.concat([self._target_df, pandas.DataFrame(strategy_new_target)])
 
     def add_equity(self, equity):
         self._starting_equity += equity
 
-    def get_new_targets(self):
-        if self.target_df.size == 0:
-            return self.target_df
+    @property
+    def new_targets(self):
+        if self._target_df.size == 0:
+            return self._target_df
 
-        return self.target_df.set_index('securities')['target']
+        return self._target_df.set_index('securities')['target']
 
-    def get_backtest_history(self):
-        backtest_history = BacktestHistory(self.fills_df)
-        backtest_history.set_start_equity(self._starting_equity)
-        return backtest_history
+    @property
+    def starting_equity(self):
+        return self._starting_equity
+
+    @property
+    def fills_df(self):
+        return self._fills_df
 
 
 class StrategyDataCollector(object):
@@ -41,42 +45,11 @@ class StrategyDataCollector(object):
         self.chart_beta = list()
         self.chart_regression = list()
 
-    def get_trades(self, closed_only=False):
-        closed_trades = self.position_adjuster.get_closed_trades()
-        if closed_only:
-            return closed_trades
-
-        open_trades = self.position_adjuster.get_open_trades()
-        return pandas.concat([closed_trades, open_trades]).reset_index(drop=True)
-
     def add_target_quantities(self, strategy, target_quantities):
         self._target_quantities[strategy] = target_quantities
 
     def get_target_quantities(self, strategy):
         return self._target_quantities[strategy]
-
-    def create_backtest_history(self, fills, start_equity):
-        backtest_history = BacktestHistory(fills)
-        backtest_history.set_start_equity(start_equity)
-        return backtest_history
-
-    def get_summary(self, backtest_history):
-        closed_trades = self.get_trades(closed_only=True)
-        mean_trade = closed_trades['pnl'].mean()
-        worst_trade = closed_trades['pnl'].min()
-        count_trades = closed_trades['pnl'].count()
-        max_drawdown = backtest_history.get_drawdown().max()['equity']
-        final_equity = backtest_history.get_equity()['equity'][-1]
-        summary = {
-            'strategy': self._strategy_name,
-            'sharpe_ratio': backtest_history.get_sharpe_ratio(),
-            'average_trade': mean_trade,
-            'worst_trade': worst_trade,
-            'count_trades': count_trades,
-            'max_drawdown_pct': max_drawdown,
-            'final_equity': final_equity
-        }
-        return summary
 
     def collect_after_close(self, strategy_name, day, level_inf, level_sup, signal, factors_data):
             signal_data = {

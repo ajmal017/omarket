@@ -9,7 +9,7 @@ import pandas
 from statsmodels.formula.api import OLS
 from matplotlib import pyplot
 
-from btplatform import PositionAdjuster, process_strategy
+from btplatform import PositionAdjuster, process_strategy, BacktestHistory
 from meanrevert import MeanReversionStrategy, PortfolioDataCollector, StrategyDataCollector, \
     MeanReversionStrategyRunner
 from pricetools import load_prices
@@ -53,7 +53,7 @@ def backtest_strategy(start_date, end_date, strategy_runner, symbols, prices_pat
 
 
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
-                       max_gross_position, max_risk_scale):
+                       max_gross_position, max_risk_scale, warmup_period):
     data_collector = PortfolioDataCollector()
     for lookback_period, portfolio in portfolios:
         securities = portfolio.split('/')
@@ -62,7 +62,6 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
                                              max_gross_position, max_risk_scale,
                                              starting_equity,
                                              step_size)
-        warmup_period = 10
         strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
         data_collection = backtest_strategy(start_date, end_date, strategy_runner, securities, prices_path)
         data_collector.add_equity(starting_equity)
@@ -75,17 +74,16 @@ def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices
 
 def chart_backtest(start_date, end_date, securities, prices_path, lookback_period,
                    step_size, start_equity,
-                   max_net_position, max_gross_position, max_risk_scale):
+                   max_net_position, max_gross_position, max_risk_scale, warmup_period):
     pyplot.style.use('ggplot')
     strategy = MeanReversionStrategy(securities, int(lookback_period))
     position_adjuster = PositionAdjuster(securities, strategy.get_strategy_name(), max_net_position, max_gross_position,
                                          max_risk_scale,
                                          start_equity,
                                          step_size)
-    warmup_period = 10
     strategy_runner = MeanReversionStrategyRunner(securities, strategy, warmup_period, position_adjuster)
     data_collection = backtest_strategy(start_date, end_date, strategy_runner, securities, prices_path)
-    backtest_history = data_collection.create_backtest_history(position_adjuster.get_fills(), start_equity)
+    backtest_history = BacktestHistory(position_adjuster.get_fills(), start_equity)
     logging.info('fit quality: %s', fit_quality(backtest_history.get_equity() - start_equity))
     backtest_history.get_equity().plot()
     backtest_history.get_gross_net_position().plot()
@@ -105,8 +103,27 @@ def fit_quality(df):
     return {'p-value F-test': result.f_pvalue, 'r-squared': result.rsquared, 'p-value x': result.pvalues[0]}
 
 
+def create_summary(strategy_name, backtest_history, closed_trades):
+        mean_trade = closed_trades['pnl'].mean()
+        worst_trade = closed_trades['pnl'].min()
+        count_trades = closed_trades['pnl'].count()
+        max_drawdown = backtest_history.get_drawdown().max()['equity']
+        final_equity = backtest_history.get_equity()['equity'][-1]
+        summary = {
+            'strategy': strategy_name,
+            'sharpe_ratio': backtest_history.get_sharpe_ratio(),
+            'average_trade': mean_trade,
+            'worst_trade': worst_trade,
+            'count_trades': count_trades,
+            'max_drawdown_pct': max_drawdown,
+            'final_equity': final_equity
+        }
+        return summary
+
+
 def main(args):
     # TODO arg line
+    warmup_period = 10
     prices_path = os.sep.join(['..', 'data', 'eod'])
     start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
@@ -116,7 +133,7 @@ def main(args):
                        step_size=args.step_size, start_equity=args.starting_equity,
                        max_net_position=args.max_net_position,
                        max_gross_position=args.max_gross_position,
-                       max_risk_scale=args.max_risk_scale)
+                       max_risk_scale=args.max_risk_scale, warmup_period=warmup_period)
 
     elif args.portfolio is not None:
         with open(args.portfolio) as portfolio_file:
@@ -129,18 +146,17 @@ def main(args):
         max_gross_position = args.max_gross_position
         max_risk_scale = args.max_risk_scale
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
-                                            max_net_position, max_gross_position, max_risk_scale)
-
-        trades = data_collector.get_backtest_history().get_trades()
-        holdings = data_collector.get_backtest_history().get_holdings()
-        target_df = data_collector.get_new_targets()
-        equity = data_collector.get_backtest_history().get_equity()
+                                            max_net_position, max_gross_position, max_risk_scale, warmup_period)
+        backtest_history = BacktestHistory(data_collector.fills_df, data_collector.starting_equity)
+        trades = backtest_history.get_trades()
+        holdings = backtest_history.get_holdings()
+        equity = backtest_history.get_equity()
+        target_df = data_collector.new_targets
 
         holdings.to_pickle('holdings.pkl')
         equity.to_pickle('equity.pkl')
 
         positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack().ffill()
-
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='total_qty',
                                                aggfunc=numpy.sum).tail(1).transpose()
         latest_holdings.columns = ['quantity']
@@ -195,17 +211,17 @@ def main(args):
             results = list()
             for symbols in portfolios:
                 strategy = MeanReversionStrategy(symbols, int(args.lookback_period))
-                position_adjuster = PositionAdjuster(symbols, strategy.get_name(), args.max_net_position,
+                position_adjuster = PositionAdjuster(symbols, strategy.get_strategy_name(), args.max_net_position,
                                                      args.max_gross_position,
                                                      args.max_risk_scale,
                                                      args.starting_equity,
                                                      args.step_size)
-                warmup_period = 10
                 strategy_runner = MeanReversionStrategyRunner(symbols, strategy, warmup_period, position_adjuster)
-                data_collection = backtest_strategy(start_date, end_date, strategy_runner, symbols, prices_path)
-                backtest_history = data_collection.create_backtest_history(position_adjuster.get_fills(), args.starting_equity)
+                backtest_strategy(start_date, end_date, strategy_runner, symbols, prices_path)
+                backtest_history = BacktestHistory(position_adjuster.get_fills(), args.starting_equity)
                 backtest_data = fit_quality(backtest_history.get_equity() - args.starting_equity)
-                backtest_data.update(data_collection.get_summary(backtest_history))
+                closed_trades = position_adjuster.get_strategy_trades(closed_only=True)
+                backtest_data.update(create_summary(strategy.get_strategy_name(), backtest_history, closed_trades))
                 results.append(backtest_data)
 
             result_df = pandas.DataFrame(results).set_index('strategy')
