@@ -227,13 +227,13 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
 
 class BacktestHistory(object):
 
-    def __init__(self, backtest_history, start_equity):
+    def __init__(self, backtest_history):
         self._backtest_history = backtest_history
-        self._start_equity = start_equity
+        self._start_equity = 0.
 
-    #def set_start_equity(self, amount):
-    #    total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
-    #    self.backtest_history['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + amount
+    def set_start_equity(self, amount):
+        #self._start_equity = amount
+        pass
 
     def get_equity(self):
         total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()

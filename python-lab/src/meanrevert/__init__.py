@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import pandas
 
 from btplatform import BacktestHistory
@@ -29,7 +27,8 @@ class PortfolioDataCollector(object):
         return self.target_df.set_index('securities')['target']
 
     def get_backtest_history(self):
-        backtest_history = BacktestHistory(self.fills_df, self._starting_equity)
+        backtest_history = BacktestHistory(self.fills_df)
+        backtest_history.set_start_equity(self._starting_equity)
         return backtest_history
 
 
@@ -59,7 +58,9 @@ class StrategyDataCollector(object):
         return ','.join([security.split('/')[1] for security in self._securities])
 
     def get_backtest_history(self):
-        return BacktestHistory(self.position_adjuster.get_fills(), self.position_adjuster.start_equity)
+        backtest_history = BacktestHistory(self.position_adjuster.get_fills())
+        backtest_history.set_start_equity(self.position_adjuster.start_equity)
+        return backtest_history
 
     def get_summary(self):
         closed_trades = self.get_closed_trades()
