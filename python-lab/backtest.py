@@ -184,6 +184,13 @@ def main(args):
         backtest_history = BacktestHistory(trades_pnl_df)
         backtest_history.set_start_equity(len(portfolios) * args.starting_equity)
 
+        pnl_data = backtest_history.trades_pnl[['strategy', 'date', 'realized_pnl', 'unrealized_pnl']]
+        by_strategy_date = pnl_data.groupby(by=['strategy', 'date'])
+        layout_columns = 3
+        layout_rows = len(portfolios) // layout_columns + 1
+        layout_grid = (layout_rows, layout_columns)
+        by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(subplots=True, layout=layout_grid)
+
         holdings = backtest_history.get_holdings()
         equity = backtest_history.get_equity()
 
