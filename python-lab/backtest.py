@@ -174,10 +174,15 @@ def main(args):
         logging.info('future trades:\n%s' % target_trades.round())
 
     elif args.display_portfolio is not None:
+        with open(args.display_portfolio) as portfolio_file:
+            portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
+
+        logging.info('loaded portfolios: %s' % portfolios)
+
         pyplot.style.use('ggplot')
         trades_pnl_df = pandas.read_pickle('trades_pnl.pkl')
         backtest_history = BacktestHistory(trades_pnl_df)
-        backtest_history.set_start_equity(80000)
+        backtest_history.set_start_equity(len(portfolios) * args.starting_equity)
 
         holdings = backtest_history.get_holdings()
         equity = backtest_history.get_equity()
