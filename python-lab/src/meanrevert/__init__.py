@@ -77,7 +77,7 @@ class StrategyDataCollector(object):
 
 class MeanReversionStrategy(object):
 
-    def __init__(self, securities, lookback_period):
+    def __init__(self, securities, lookback_period, name=None):
         # regression0 = RegressionModelFLS(securities, delta=5E-6, with_constant_term=False)
         self._securities = securities
         self.regression = RegressionModelOLS(securities, with_constant_term=False, lookback_period=lookback_period)
@@ -87,6 +87,7 @@ class MeanReversionStrategy(object):
             'signal': None,
             'factors': None,
         }
+        self._name = name
 
     def compute_signal(self, prices_close_adj, within_warmup_period):
         """
@@ -108,6 +109,9 @@ class MeanReversionStrategy(object):
         return self.states[name]
 
     def get_strategy_name(self):
+        if self._name:
+            return self._name
+
         return ','.join(self._securities)
 
 

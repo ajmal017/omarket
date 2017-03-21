@@ -1,4 +1,5 @@
 import argparse
+import csv
 import logging
 import math
 import os
@@ -55,9 +56,9 @@ def backtest_strategy(start_date, end_date, strategy_runner, symbols, prices_pat
 def backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size, max_net_position,
                        max_gross_position, max_risk_scale, warmup_period):
     data_collector = PortfolioDataCollector()
-    for lookback_period, portfolio in portfolios:
+    for lookback_period, portfolio, strategy_name in portfolios:
         securities = portfolio.split('/')
-        strategy = MeanReversionStrategy(securities, int(lookback_period))
+        strategy = MeanReversionStrategy(securities, int(lookback_period), name=strategy_name)
         position_adjuster = PositionAdjuster(securities, strategy.get_strategy_name(), max_net_position,
                                              max_gross_position, max_risk_scale,
                                              starting_equity,
@@ -122,11 +123,19 @@ def create_summary(strategy_name, backtest_history, closed_trades):
 
 
 def load_portfolios(portfolios_filename):
-    with open(portfolios_filename) as portfolio_file:
-        portfolios = [line.strip().split(',') for line in portfolio_file.readlines()
-                      if len(line.strip()) > 0 and line[0] != '#']
+    portfolios = list()
+    with open(portfolios_filename) as csv_file:
+        reader = csv.reader(csv_file)
+        for row in reader:
+            if len(row) == 0:
+                continue
 
-    logging.info('loaded portfolios: %s' % portfolios)
+            if row[0].startswith('#'):
+                continue
+
+            portfolios.append(row)
+
+    logging.info('loaded portfolios: %s' % str(portfolios))
     return portfolios
 
 
