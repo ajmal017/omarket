@@ -1,6 +1,5 @@
 import pandas
 
-from btplatform import BacktestHistory
 from regression import RegressionModelOLS
 
 

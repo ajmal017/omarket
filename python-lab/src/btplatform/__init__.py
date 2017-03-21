@@ -232,34 +232,34 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
 
 class BacktestHistory(object):
 
-    def __init__(self, backtest_history, start_equity):
-        self._backtest_history = backtest_history
+    def __init__(self, trades_pnl, start_equity):
+        self._trades_pnl = trades_pnl
         self._start_equity = start_equity
 
     def get_equity(self):
-        total_pnl = self.backtest_history[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
+        total_pnl = self._trades_pnl[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
         total_pnl['equity'] = total_pnl['realized_pnl'] + total_pnl['unrealized_pnl'] + self._start_equity
         return total_pnl['equity']
 
     def get_holdings(self):
-        holdings = self.backtest_history[['date', 'strategy', 'security', 'total_qty', 'market_value']]
+        holdings = self._trades_pnl[['date', 'strategy', 'security', 'total_qty', 'market_value']]
         return holdings.reset_index(drop=True)
 
     def get_trades(self):
-        trades_groups = self.backtest_history[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
+        trades_groups = self._trades_pnl[['date', 'security', 'fill_qty']].groupby(['security', 'date'])
         return trades_groups.sum().unstack()['fill_qty'].fillna(0.).transpose()
 
     def get_return(self):
         return self.get_equity().pct_change()
 
     def get_gross_net_position(self):
-        gross_net_positions = self.backtest_history[['date', 'market_value']].groupby(by=['date']).sum()
+        gross_net_positions = self._trades_pnl[['date', 'market_value']].groupby(by=['date']).sum()
         gross_net_positions.columns = ['net_position']
 
         def abs_sum(group):
             return numpy.abs(group['market_value']).sum()
 
-        gross_positions = self.backtest_history[['date', 'market_value']].groupby(by=['date']).apply(abs_sum)
+        gross_positions = self._trades_pnl[['date', 'market_value']].groupby(by=['date']).apply(abs_sum)
         gross_net_positions['gross_position'] = gross_positions
         return gross_net_positions
 
@@ -273,7 +273,4 @@ class BacktestHistory(object):
         cum_returns = (1. + self.get_return()).cumprod()
         return 1. - cum_returns.div(cum_returns.cummax())
 
-    @property
-    def backtest_history(self):
-        return self._backtest_history
 
