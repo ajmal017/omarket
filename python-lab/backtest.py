@@ -189,7 +189,7 @@ def main(args):
 
         pnl_data = backtest_history.trades_pnl[['strategy', 'date', 'realized_pnl', 'unrealized_pnl']]
         by_strategy_date = pnl_data.groupby(by=['strategy', 'date'])
-        by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(subplots=True, layout= (-1, 3))
+        by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(subplots=True, layout=(-1, 3))
 
         holdings = backtest_history.get_holdings()
         equity = backtest_history.get_equity()
