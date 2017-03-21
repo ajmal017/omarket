@@ -148,13 +148,12 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale, warmup_period)
         backtest_history = BacktestHistory(data_collector.fills_df, data_collector.starting_equity)
+        backtest_history.trades_pnl.to_pickle('trades_pnl.pkl')
+
         trades = backtest_history.get_trades()
         holdings = backtest_history.get_holdings()
         equity = backtest_history.get_equity()
         target_df = data_collector.new_targets
-
-        holdings.to_pickle('holdings.pkl')
-        equity.to_pickle('equity.pkl')
 
         positions = holdings[['date', 'security', 'total_qty']].groupby(['date', 'security']).sum().unstack().ffill()
         latest_holdings = holdings.pivot_table(index='date', columns='security', values='total_qty',
@@ -176,8 +175,12 @@ def main(args):
 
     elif args.display_portfolio is not None:
         pyplot.style.use('ggplot')
-        holdings = pandas.read_pickle('holdings.pkl')
-        equity = pandas.read_pickle('equity.pkl')
+        trades_pnl_df = pandas.read_pickle('trades_pnl.pkl')
+        backtest_history = BacktestHistory(trades_pnl_df)
+        backtest_history.set_start_equity(80000)
+
+        holdings = backtest_history.get_holdings()
+        equity = backtest_history.get_equity()
 
         benchmark = load_prices(prices_path, 'PCX', 'SPY')
         equity_df = benchmark[['close adj']].join(equity).dropna()
@@ -248,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--step-size', type=int, help='deviation unit measured in number of standard deviations',
                         default=2)
     parser.add_argument('--starting-equity', type=float,
-                        help='virtual amount of equity when starting backtest for each strategy step', default=8000)
+                        help='amount of equity allocated to each strategy (for one risk step)', default=8000)
     parser.add_argument('--actual-equity', type=float, help='total equity available for trading')
     parser.add_argument('--max-net-position', type=float,
                         help='max allowed net position for one step, measured as a fraction of equity', default=0.4)

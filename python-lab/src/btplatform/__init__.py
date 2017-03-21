@@ -232,9 +232,12 @@ def process_strategy(securities, strategy_runner, data_collector, prices_by_secu
 
 class BacktestHistory(object):
 
-    def __init__(self, trades_pnl, start_equity):
+    def __init__(self, trades_pnl, start_equity=0.):
         self._trades_pnl = trades_pnl
         self._start_equity = start_equity
+
+    def set_start_equity(self, amount):
+        self._start_equity = amount
 
     def get_equity(self):
         total_pnl = self._trades_pnl[['date', 'realized_pnl', 'unrealized_pnl']].groupby(by=['date']).sum()
@@ -273,4 +276,7 @@ class BacktestHistory(object):
         cum_returns = (1. + self.get_return()).cumprod()
         return 1. - cum_returns.div(cum_returns.cummax())
 
+    @property
+    def trades_pnl(self):
+        return self._trades_pnl
 

@@ -5,7 +5,7 @@ import random
 import pandas
 from matplotlib import pyplot
 
-from fls import FlexibleLeastSquare, DynamicLinearRegression
+from fls import DynamicLinearRegression
 
 
 def random_walk(start_value, amplitude):
