@@ -121,6 +121,15 @@ def create_summary(strategy_name, backtest_history, closed_trades):
         return summary
 
 
+def load_portfolios(portfolios_filename):
+    with open(portfolios_filename) as portfolio_file:
+        portfolios = [line.strip().split(',') for line in portfolio_file.readlines()
+                      if len(line.strip()) > 0 and line[0] != '#']
+
+    logging.info('loaded portfolios: %s' % portfolios)
+    return portfolios
+
+
 def main(args):
     # TODO arg line
     warmup_period = 10
@@ -136,10 +145,7 @@ def main(args):
                        max_risk_scale=args.max_risk_scale, warmup_period=warmup_period)
 
     elif args.portfolio is not None:
-        with open(args.portfolio) as portfolio_file:
-            portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
-
-        logging.info('loaded portfolios: %s' % portfolios)
+        portfolios = load_portfolios(args.portfolio)
         step_size = args.step_size
         starting_equity = args.starting_equity
         max_net_position = args.max_net_position
@@ -174,10 +180,7 @@ def main(args):
         logging.info('future trades:\n%s' % target_trades.round())
 
     elif args.display_portfolio is not None:
-        with open(args.display_portfolio) as portfolio_file:
-            portfolios = [line.strip().split(',') for line in portfolio_file.readlines() if len(line.strip()) > 0]
-
-        logging.info('loaded portfolios: %s' % portfolios)
+        portfolios = load_portfolios(args.display_portfolio)
 
         pyplot.style.use('ggplot')
         trades_pnl_df = pandas.read_pickle('trades_pnl.pkl')
@@ -187,7 +190,7 @@ def main(args):
         pnl_data = backtest_history.trades_pnl[['strategy', 'date', 'realized_pnl', 'unrealized_pnl']]
         by_strategy_date = pnl_data.groupby(by=['strategy', 'date'])
         layout_columns = 3
-        layout_rows = len(portfolios) // layout_columns + 1
+        layout_rows = 1 + len(portfolios) // layout_columns
         layout_grid = (layout_rows, layout_columns)
         by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(subplots=True, layout=layout_grid)
 
