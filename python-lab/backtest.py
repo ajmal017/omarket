@@ -86,11 +86,12 @@ def chart_backtest(start_date, end_date, securities, prices_path, lookback_perio
     data_collection = backtest_strategy(start_date, end_date, strategy_runner, securities, prices_path)
     backtest_history = BacktestHistory(position_adjuster.get_fills(), start_equity)
     logging.info('fit quality: %s', fit_quality(backtest_history.get_equity() - start_equity))
-    backtest_history.get_equity().plot()
-    backtest_history.get_gross_net_position().plot()
+    backtest_history.get_equity().plot(linewidth=2.)
+    backtest_history.get_gross_net_position().plot(linewidth=2.)
     pyplot.gca().get_yaxis().get_major_formatter().set_useOffset(False)
-    data_collection.get_factors(','.join(securities)).plot(subplots=True)
-    data_collection.get_bollinger(','.join(securities)).plot(subplots=False)
+    data_collection.get_factors(','.join(securities)).plot(linewidth=2., subplots=True)
+    styles = {'level_inf': 'm--', 'level_sup': 'b--', 'signal': 'k-'}
+    data_collection.get_bollinger(','.join(securities)).plot(linewidth=2., subplots=False, style=styles)
     pyplot.show()
 
 
@@ -198,7 +199,7 @@ def main(args):
 
         pnl_data = backtest_history.trades_pnl[['strategy', 'date', 'realized_pnl', 'unrealized_pnl']]
         by_strategy_date = pnl_data.groupby(by=['strategy', 'date'])
-        by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(subplots=True, layout=(-1, 3))
+        by_strategy_date.sum().apply(sum, axis=1).unstack().transpose().plot(linewidth=2., subplots=True, layout=(-1, 2))
 
         holdings = backtest_history.get_holdings()
         equity = backtest_history.get_equity()
@@ -208,11 +209,11 @@ def main(args):
         equity_df.columns = ['benchmark', 'equity']
         equity_df['benchmark'] = (equity_df['benchmark'].pct_change() + 1.).cumprod() * equity_df.head(1)[
             'equity'].min()
-        equity_df.plot()
+        equity_df.plot(linewidth=2.)
         logging.info('fit quality: %s', fit_quality(equity - args.starting_equity))
         by_security_pos = holdings.pivot_table(index='date', columns='security', values='market_value',
                                                aggfunc=numpy.sum)
-        by_security_pos.plot()
+        by_security_pos.plot(linewidth=2.)
         positions_aggregated_net = holdings.groupby('date')['market_value'].sum()
         positions_aggregated_gross = holdings.groupby('date')['market_value'].agg(lambda x: numpy.abs(x).sum())
         positions_net_gross = numpy.array([positions_aggregated_net, positions_aggregated_gross]).transpose()
@@ -223,7 +224,7 @@ def main(args):
         positions_aggregated.rename(columns={'equity': 'margin_warning'}, inplace=True)
         positions_aggregated = positions_aggregated.join(equity * 4.0)
         positions_aggregated.rename(columns={'equity': 'margin_violation'}, inplace=True)
-        positions_aggregated.plot(subplots=False)
+        positions_aggregated.plot(linewidth=2., subplots=False)
         pyplot.show()
 
     elif args.batch is not None:

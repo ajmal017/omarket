@@ -53,6 +53,16 @@ class ExecutionEngine(object):
 class PositionAdjuster(object):
 
     def __init__(self, securities, strategy_name, max_net_position, max_gross_position, max_risk_scale, start_equity, step_size):
+        """
+
+        :param securities:
+        :param strategy_name:
+        :param max_net_position:
+        :param max_gross_position:
+        :param max_risk_scale:
+        :param start_equity:
+        :param step_size: size of a step in terms of standard deviations
+        """
         self._securities = securities
         self._current_quantities = [0.] * len(securities)
         self._max_net_position = max_net_position
@@ -164,11 +174,11 @@ class PositionAdjuster(object):
             self._closed_trades[-1]['pnl'] = self._closed_trades[-1]['equity_end'] - self._closed_trades[-1][
                 'equity_start']
 
+    def level_sup(self):
+        return self.level_inf() + 2. * self._deviation
+
     def level_inf(self):
         return (self._signal_zone - 1) * self._deviation
-
-    def level_sup(self):
-        return (self._signal_zone + 1) * self._deviation
 
     def get_cumulated_pnl(self, prices):
         return self._execution_engine.get_nav(prices)

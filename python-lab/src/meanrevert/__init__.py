@@ -155,6 +155,7 @@ class MeanReversionStrategyRunner(object):
             signal = self.strategy.get_state('signal')
             deviation = self.strategy.get_state('deviation')
             weights = self.strategy.get_state('weights')
+            # TODO use signal standard deviation instead of regression error?
             self.target_quantities = self.position_adjuster.update_target_positions(self.day, signal, deviation,
                                                                                     weights, prices_close)
 
