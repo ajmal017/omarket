@@ -175,9 +175,11 @@ class PositionAdjuster(object):
                 'equity_start']
 
     def level_sup(self):
+        # simply 2 deviations above level_inf
         return self.level_inf() + 2. * self._deviation
 
     def level_inf(self):
+        # one deviation below estimated mean
         return (self._signal_zone - 1) * self._deviation
 
     def get_cumulated_pnl(self, prices):
