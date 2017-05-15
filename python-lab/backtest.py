@@ -143,7 +143,7 @@ def load_portfolios(portfolios_filename):
 def main(args):
     # TODO arg line
     warmup_period = 10
-    prices_path = os.sep.join(['..', 'data', 'eod'])
+    prices_path = args.prices_path
     start_date = date(int(args.start_yyyymmdd[:4]), int(args.start_yyyymmdd[4:6]), int(args.start_yyyymmdd[6:8]))
     end_date = date(int(args.end_yyyymmdd[:4]), int(args.end_yyyymmdd[4:6]), int(args.end_yyyymmdd[6:8]))
     if args.display_single is not None:
@@ -280,6 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--max-gross-position', type=float,
                         help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
+    parser.add_argument('--prices-path', type=str, help='path to prices data', default='data')
     args = parser.parse_args()
     pandas.set_option('expand_frame_repr', False)
     main(args)
