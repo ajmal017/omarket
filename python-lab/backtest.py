@@ -164,7 +164,7 @@ def main(args):
         data_collector = backtest_portfolio(portfolios, starting_equity, start_date, end_date, prices_path, step_size,
                                             max_net_position, max_gross_position, max_risk_scale, warmup_period)
         backtest_history = BacktestHistory(data_collector.fills_df, data_collector.starting_equity)
-        backtest_history.trades_pnl.to_pickle('trades_pnl.pkl')
+        backtest_history.trades_pnl.to_pickle(os.sep.join([args.trades_pnl_path, 'trades_pnl.pkl']))
 
         trades = backtest_history.get_trades()
         holdings = backtest_history.get_holdings()
@@ -193,7 +193,7 @@ def main(args):
         portfolios = load_portfolios(args.display_portfolio)
 
         pyplot.style.use('ggplot')
-        trades_pnl_df = pandas.read_pickle('trades_pnl.pkl')
+        trades_pnl_df = pandas.read_pickle(os.sep.join([args.trades_pnl_path, 'trades_pnl.pkl']))
         backtest_history = BacktestHistory(trades_pnl_df)
         backtest_history.set_start_equity(len(portfolios) * args.starting_equity)
 
@@ -281,6 +281,7 @@ if __name__ == "__main__":
                         help='max allowed gross position by step, measured as a fraction of equity', default=2.)
     parser.add_argument('--max-risk-scale', type=int, help='max number of steps', default=3)
     parser.add_argument('--prices-path', type=str, help='path to prices data', default='data')
+    parser.add_argument('--trades-pnl-path', type=str, help='path to trades pnl data', default='.')
     args = parser.parse_args()
     pandas.set_option('expand_frame_repr', False)
     main(args)
