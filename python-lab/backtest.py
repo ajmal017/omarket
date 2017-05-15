@@ -193,7 +193,9 @@ def main(args):
         portfolios = load_portfolios(args.display_portfolio)
 
         pyplot.style.use('ggplot')
-        trades_pnl_df = pandas.read_pickle(os.sep.join([args.trades_pnl_path, 'trades_pnl.pkl']))
+        trades_pnl_path = os.sep.join([args.trades_pnl_path, 'trades_pnl.pkl'])
+        logging.info('loading data from path: %s', os.path.abspath(trades_pnl_path))
+        trades_pnl_df = pandas.read_pickle(trades_pnl_path)
         backtest_history = BacktestHistory(trades_pnl_df)
         backtest_history.set_start_equity(len(portfolios) * args.starting_equity)
 
