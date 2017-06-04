@@ -3,6 +3,7 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
 import org.apache.commons.io.input.ReversedLinesFileReader;
+import org.omarket.YahooAccessException;
 import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
 import org.slf4j.Logger;
@@ -97,6 +98,9 @@ public class UpdateEODMain {
                         }
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
+                    }catch (YahooAccessException e) {
+                        logger.error("critical error while accessing Yahoo data", e);
+                        System.exit(-1);
                     }
                 }, onError -> {
                     logger.error("failed to process contracts", onError);
@@ -190,10 +194,11 @@ public class UpdateEODMain {
 
     }
 
-    private static void downloadEOD(String symbol, Path eodStorage, LocalDate fromDate) throws IOException {
+    private static void downloadEOD(String symbol, Path eodStorage, LocalDate fromDate) throws IOException, YahooAccessException {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(java.sql.Date.valueOf(fromDate));
-        Stock stock = YahooFinance.get(symbol, true);
+        try {
+            Stock stock = YahooFinance.get(symbol, true);
         List<HistoricalQuote> bars = stock.getHistory(calendar, Interval.DAILY);
         Map<Integer, Set<HistoricalQuote>> byYear = new TreeMap<>();
         for (HistoricalQuote bar : bars) {
@@ -249,6 +254,10 @@ public class UpdateEODMain {
 
         } else {
             logger.info("no data saved for stock " + stock.getSymbol());
+        }
+
+        } catch(java.io.FileNotFoundException fileNotFoundException) {
+            throw new YahooAccessException(fileNotFoundException);
         }
     }
 
