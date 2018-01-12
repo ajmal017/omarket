@@ -21,3 +21,6 @@ hs_err_pid*
 /src/main/resources/webroot/node_modules/
 /.R*
 __pycache__
+.gradle
+/classes/
+/gradle/

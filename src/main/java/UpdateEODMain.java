@@ -55,7 +55,6 @@ public class UpdateEODMain {
 
     public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
         final String resourceName = "update-eod.json";
-        YahooFinance.logger.setLevel(java.util.logging.Level.WARNING);
         logger.info("starting EOD update");
         InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
         JsonReader reader = new JsonReader(new InputStreamReader(resourceStream));
