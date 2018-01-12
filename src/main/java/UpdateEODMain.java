@@ -236,6 +236,10 @@ public class UpdateEODMain {
             final String[] lastBarDate = {null};
             for (Integer year : years) {
                 Set<HistoricalQuote> quotes = byYear.get(year);
+                if (quotes == null){
+                    logger.warn(format("year %s not forund for stock %s", year, stock));
+                    continue;
+                }
                 Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");
                 BufferedWriter file = Files.newBufferedWriter(yearEOD, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 CSVWriter writer = new CSVWriter(file);
