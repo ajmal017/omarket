@@ -91,7 +91,7 @@ public class UpdateEODMain {
                         } else {
                             LocalDate fromDate = LocalDate.now();
                             if (!onlyCurrentYear) {
-                                fromDate = fromDate.minus(Period.ofYears(5));
+                                fromDate = fromDate.minus(Period.ofYears(2));
                             }
                             fromDate = fromDate.withDayOfYear(1);
                             logger.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
