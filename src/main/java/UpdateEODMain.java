@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -44,6 +45,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
@@ -180,6 +182,13 @@ public class UpdateEODMain {
         Path currentFile = eodPath.resolve(String.valueOf(lastBusinessDay.getYear()) + ".csv");
         if (!Files.exists(eodPath)) {
             return false;
+        }
+        if (!Files.exists(currentFile, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                Files.createFile(currentFile);
+            } catch (IOException e) {
+                logger.error(format("unable to create file %s", currentFile), e);
+            }
         }
         try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
             String lastLine = reader.readLine();
