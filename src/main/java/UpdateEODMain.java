@@ -192,9 +192,13 @@ public class UpdateEODMain {
         }
         try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
             String lastLine = reader.readLine();
-            String lastYYYYMMDD = lastLine.split(",")[0];
-            if (lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)) {
-                return true;
+            if(lastLine == null){
+                return false;
+            } else {
+                String lastYYYYMMDD = lastLine.split(",")[0];
+                if (lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)) {
+                    return true;
+                }
             }
         } catch (IOException e) {
             logger.error("failed to access EOD database", e);
