@@ -97,6 +97,8 @@ public class UpdateEODMain {
                             logger.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
                             downloadEOD(symbol, eodStorage, fromDate);
                         }
+                    } catch (java.io.FileNotFoundException e) {
+                        logger.error("ignoring error", e);
                     } catch (IOException e) {
                         logger.error("failed to retrieve yahoo data", e);
                         System.exit(-1);
