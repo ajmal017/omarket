@@ -251,18 +251,22 @@ public class UpdateEODMain {
                     BigDecimal close = bar.getClose();
                     Long volume = bar.getVolume();
                     BigDecimal adjustedClose = bar.getAdjClose();
-                    String barDate = FORMAT_YYYYMMDD.format(date.getTime());
-                    String[] row = new String[]{
-                            FORMAT_YYYYMMDD.format(date.getTime()),
-                            open.toPlainString(),
-                            high.toPlainString(),
-                            low.toPlainString(),
-                            close.toPlainString(),
-                            adjustedClose.toPlainString(),
-                            String.valueOf(volume)
-                    };
-                    lastBarDate[0] = barDate;
-                    writer.writeNext(row, false);
+                    if ((date != null) && (high != null) && (open != null) && (low != null) && (close != null)) {
+                        String barDate = FORMAT_YYYYMMDD.format(date.getTime());
+                        String[] row = new String[]{
+                                FORMAT_YYYYMMDD.format(date.getTime()),
+                                open.toPlainString(),
+                                high.toPlainString(),
+                                low.toPlainString(),
+                                close.toPlainString(),
+                                adjustedClose.toPlainString(),
+                                String.valueOf(volume)
+                        };
+                        lastBarDate[0] = barDate;
+                        writer.writeNext(row, false);
+                    } else {
+                        logger.warn(format("ignoring invalid quote: %s", bar));
+                    }
                 });
                 file.close();
             }
