@@ -2,17 +2,16 @@ package org.omarket.trading.verticles;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import com.ib.client.Contract;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.RxHelper;
-import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.Vertx;
-import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.rxjava.core.AbstractVerticle;
+import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
@@ -69,7 +68,11 @@ public class MarketDataVerticle extends AbstractVerticle {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
-            final Security security = Security.fromJson(message.body());
+            io.vertx.core.json.JsonObject vertxBody = message.body();
+            String stringSecurity = vertxBody.encode();
+            JsonParser parser = new JsonParser();
+            com.google.gson.JsonObject googleJson = parser.parse(stringSecurity).getAsJsonObject();
+            final Security security = Security.fromJson(googleJson);
             logger.info("received tick subscription request for: " + security);
             String productCode = security.getCode();
             if (!subscribedProducts.containsKey(productCode)) {
@@ -231,7 +234,11 @@ public class MarketDataVerticle extends AbstractVerticle {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {
-            final Security contractDetails = Security.fromJson(request.body());
+            io.vertx.core.json.JsonObject vertxBody = request.body();
+            String stringSecurity = vertxBody.encode();
+            JsonParser parser = new JsonParser();
+            com.google.gson.JsonObject googleJson = parser.parse(stringSecurity).getAsJsonObject();
+            final Security contractDetails = Security.fromJson(googleJson);
             String productCode = contractDetails.getCode();
             logger.info("received historical eod request for: " + productCode);
             String replyAddress = ADDRESS_EOD_DATA_PREFIX + "." + productCode;

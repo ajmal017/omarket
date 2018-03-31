@@ -3,9 +3,6 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
 import org.apache.commons.io.input.ReversedLinesFileReader;
-import org.omarket.YahooAccessException;
-import org.omarket.trading.ContractDB;
-import org.omarket.trading.Security;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -48,6 +45,10 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
+
+import org.omarket.YahooAccessException;
+import org.omarket.trading.ContractDB;
+import org.omarket.trading.Security;
 
 public class UpdateEODMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);

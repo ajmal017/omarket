@@ -1,6 +1,7 @@
 package org.omarket.trading;
 
-import io.vertx.core.json.JsonObject;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
@@ -8,7 +9,13 @@ import rx.Observable;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedList;
 import java.util.List;
@@ -141,7 +148,9 @@ public class ContractDB {
             throw new IOException("missing data for contract: " + productCode);
         }
         String content = Files.lines(descriptionFilePath, StandardCharsets.UTF_8).collect(Collectors.joining());
-        return Security.fromJson(new JsonObject(content));
+        JsonParser parser = new JsonParser();
+        JsonObject jsonSecurity = parser.parse(content).getAsJsonObject();
+        return Security.fromJson(jsonSecurity);
     }
 
     public static void saveContract(Path contractsDirPath, Security product) throws IOException {
@@ -183,9 +192,10 @@ public class ContractDB {
                 }
                 String content = filter.prepare(file);
                 if(filter.accept(content)){
-                    JsonObject contract =  new JsonObject(content);
-                    contracts.add(Security.fromJson(contract));
-                    logger.debug("added contract: " + contract);
+                    JsonParser parser = new JsonParser();
+                    JsonObject jsonContract = parser.parse(content).getAsJsonObject();
+                    contracts.add(Security.fromJson(jsonContract));
+                    logger.debug("added contract: {}", jsonContract);
                 }
                 return FileVisitResult.CONTINUE;
             }

@@ -1,4 +1,6 @@
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import io.vertx.core.DeploymentOptions;
@@ -26,10 +28,15 @@ import java.util.concurrent.TimeUnit;
 public class UpdateContractDBMain {
     private final static Logger logger = LoggerFactory.getLogger(UpdateContractDBMain.class);
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, URISyntaxException, IOException {
         final Vertx vertx = Vertx.vertx();
-        int defaultClientId = 2;
-        DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
+        DeploymentOptions options;
+        if(args.length == 0){
+            int defaultClientId = 2;
+            options = VerticleProperties.makeDeploymentOptions(defaultClientId);
+        } else {
+            options = VerticleProperties.makeDeploymentOptions(args[0]);
+        }
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
         marketDataDeployment.flatMap(deploymentId -> {
             logger.info("succesfully deployed market data verticle: " + deploymentId);

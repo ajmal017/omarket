@@ -1,9 +1,8 @@
 package org.omarket.trading;
 
+import com.google.gson.JsonObject;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -35,16 +34,16 @@ public class Security {
     }
 
     public static Security fromJson(JsonObject contractDetails){
-        JsonObject contract = contractDetails.getJsonObject("m_contract");
-        String currency = contract.getString("m_currency");
-        String primaryExchange = contract.getString("m_primaryExch");
-        String exchange = contract.getString("m_exchange");
-        String securityType = contract.getString("m_secType");
-        String conId = String.valueOf(contract.getInteger("m_conid"));
-        String localSymbol = contract.getString("m_localSymbol");
-        Double minTick = contractDetails.getDouble("m_minTick");
-        String priceMagnifier = contractDetails.getString("m_priceMagnifier");
-        String longName = contractDetails.getString("m_longName");
+        JsonObject contract = contractDetails.getAsJsonObject("m_contract");
+        String currency = contract.get("m_currency").getAsString();
+        String primaryExchange = contract.get("m_primaryExch").getAsString();
+        String exchange = contract.get("m_exchange").getAsString();
+        String securityType = contract.get("m_secType").getAsString();
+        String conId = String.valueOf(contract.get("m_conid").getAsInt());
+        String localSymbol = contract.get("m_localSymbol").getAsString();
+        Double minTick = contractDetails.get("m_minTick").getAsDouble();
+        String priceMagnifier = contractDetails.get("m_priceMagnifier").getAsString();
+        String longName = contractDetails.get("m_longName").getAsString();
         return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
@@ -107,17 +106,17 @@ public class Security {
     public String toJson() {
         JsonObject contractDetails = new JsonObject();
         JsonObject contract = new JsonObject();
-        contract.put("m_currency", currency);
-        contract.put("m_primaryExch", primaryExchange);
-        contract.put("m_exchange", exchange);
-        contract.put("m_secType", securityType);
-        contract.put("m_conid", Integer.valueOf(code));
-        contract.put("m_localSymbol", symbol);
-        contractDetails.put("m_contract", contract);
-        contractDetails.put("m_minTick", minTick);
-        contractDetails.put("m_longName", longName);
-        contractDetails.put("m_priceMagnifier", priceMagnifier);
-        return Json.encode(contractDetails);
+        contract.addProperty("m_currency", currency);
+        contract.addProperty("m_primaryExch", primaryExchange);
+        contract.addProperty("m_exchange", exchange);
+        contract.addProperty("m_secType", securityType);
+        contract.addProperty("m_conid", Integer.valueOf(code));
+        contract.addProperty("m_localSymbol", symbol);
+        contractDetails.add("m_contract", contract);
+        contractDetails.addProperty("m_minTick", minTick);
+        contractDetails.addProperty("m_longName", longName);
+        contractDetails.addProperty("m_priceMagnifier", priceMagnifier);
+        return contractDetails.toString();
     }
 
 }

@@ -1,0 +1,7 @@
+{
+  "ibrokers.host": "127.0.0.1",
+  "ibrokers.port": 4001,
+  "ibrokers.clientId": 2,
+  "ibrokers.ticks.storagePath": ["data", "ticks"],
+  "oot.contracts.dbPath": ["data", "contracts"]
+}

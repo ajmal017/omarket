@@ -24,3 +24,7 @@ __pycache__
 .gradle
 /classes/
 /gradle/
+/contracts-db/data/
+/omarket-app/data/
+.env
+*/target

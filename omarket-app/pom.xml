@@ -4,7 +4,7 @@
                       http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.omarket.trading</groupId>
-    <artifactId>oott-app</artifactId>
+    <artifactId>omarket-app</artifactId>
 
     <properties>
         <slf4jVersion>1.6.1</slf4jVersion>
@@ -117,6 +117,11 @@
             <artifactId>yahoofinance-api</artifactId>
             <version>v3.12.3</version>
         </dependency>
+        <dependency>
+            <groupId>rg.omarket.trading</groupId>
+            <artifactId>contracts-db</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -148,16 +153,6 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <transformers>
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <manifestEntries>
-                                        <Main-Class>io.vertx.core.Launcher</Main-Class>
-                                        <Main-Verticle>io.vertx.blog.first.MyFirstVerticle</Main-Verticle>
-                                    </manifestEntries>
-                                </transformer>
-                            </transformers>
-                            <artifactSet/>
                             <outputFile>${project.build.directory}/${project.artifactId}-${project.version}-fat.jar</outputFile>
                         </configuration>
                     </execution>

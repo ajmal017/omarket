@@ -1,0 +1,12 @@
+version: '3'
+services:
+  ibroker:
+    image: algotrader/ibgateway:963
+    environment:
+      # loaded from .env file in same directory
+      TWS_USERNAME: ${TWS_USERNAME}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+    ports:
+      - 4001:4001
+    volumes:
+      - ./tws:/var/lib/tws
