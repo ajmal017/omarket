@@ -6,7 +6,9 @@ services:
       # loaded from .env file in same directory
       TWS_USERNAME: ${TWS_USERNAME}
       TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE}
     ports:
       - 4001:4001
     volumes:
+      # loaded from .env file in same directory
       - ./tws:/var/lib/tws
