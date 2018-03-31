@@ -118,7 +118,7 @@
             <version>v3.12.3</version>
         </dependency>
         <dependency>
-            <groupId>rg.omarket.trading</groupId>
+            <groupId>org.omarket.trading</groupId>
             <artifactId>contracts-db</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
