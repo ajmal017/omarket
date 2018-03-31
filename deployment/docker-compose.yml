@@ -1,6 +1,6 @@
 version: '3'
 services:
-  ibroker:
+  tws:
     image: algotrader/ibgateway:963
     environment:
       # loaded from .env file in same directory
@@ -12,3 +12,16 @@ services:
     volumes:
       # loaded from .env file in same directory
       - ./tws:/var/lib/tws
+
+  amq:
+    image: vromero/activemq-artemis:2.4.0
+    environment:
+      ARTEMIS_USERNAME: "admin"
+      ARTEMIS_PASSWORD: "admin123"
+      ARTEMIS_MIN_MEMORY: "512M"
+      ARTEMIS_MAX_MEMORY: "2G"
+    volumes:
+      - ./amq/jolokia-access.xml:/var/lib/artemis/etc/jolokia-access.xml
+    ports:
+      - "8161:8161"
+      - "61616:61616"
