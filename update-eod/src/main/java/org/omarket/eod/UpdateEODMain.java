@@ -11,8 +11,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Component;
 import rx.Observable;
 import yahoofinance.Stock;
 import yahoofinance.YahooFinance;
@@ -54,9 +59,10 @@ import static java.lang.String.format;
 import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
-@SpringBootApplication
 @Slf4j
-public class UpdateEODMain {
+@Component
+class UpdateEODService {
+
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
 
     private static String propertiesArrayJoin(JsonElement input, String separator){
@@ -64,8 +70,8 @@ public class UpdateEODMain {
         return Arrays.stream(elements).collect(Collectors.joining(separator));
     }
 
-    public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
-        SpringApplication.run(UpdateEODMain.class, args);
+    public void update() throws IOException {
+
         final String resourceName = "update-eod.json";
         log.info("starting EOD update");
         InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
@@ -117,6 +123,44 @@ public class UpdateEODMain {
                 });
     }
 
+    private static boolean isUpdateToDate(Path eodStorage, String exchange, String symbol) {
+        Path eodPath = getEODPath(eodStorage, exchange, symbol);
+        LocalDate day = LocalDate.now().minusDays(1);
+        LocalDate lastBusinessDay;
+        if (day.getDayOfWeek() == DayOfWeek.SATURDAY
+                || day.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            lastBusinessDay = day.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
+        } else {
+            lastBusinessDay = day;
+        }
+        Path currentFile = eodPath.resolve(String.valueOf(lastBusinessDay.getYear()) + ".csv");
+        if (!Files.exists(eodPath)) {
+            return false;
+        }
+        if (!Files.exists(currentFile, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                Files.createFile(currentFile);
+            } catch (IOException e) {
+                log.error(format("unable to create file %s", currentFile), e);
+            }
+        }
+        try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
+            String lastLine = reader.readLine();
+            if (lastLine == null) {
+                return false;
+            } else {
+                String lastYYYYMMDD = lastLine.split(",")[0];
+                if (lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            log.error("failed to access EOD database", e);
+        }
+        return false;
+
+    }
+
     private static String findExchange(Path eodStorage, String symbol) {
         Path cacheStorage = eodStorage.resolve("cache.json");
         Gson gson = new Gson();
@@ -157,7 +201,7 @@ public class UpdateEODMain {
             log.error("failed to access Yahoo Finance", e);
             return null;
         }
-        Map<String, String> stockData = new HashMap<String, String>();
+        Map<String, String> stockData = new HashMap<>();
         stockData.put("stockExchange", stock.getStockExchange());
         stockData.put("currency", stock.getCurrency());
         stockData.put("name", stock.getName());
@@ -175,44 +219,6 @@ public class UpdateEODMain {
     private static Path getEODPath(Path eodStorage, String exchange, String symbol) {
         Path exchangeStorage = eodStorage.resolve(exchange);
         return exchangeStorage.resolve(symbol.substring(0, 1)).resolve(symbol);
-    }
-
-    private static boolean isUpdateToDate(Path eodStorage, String exchange, String symbol) {
-        Path eodPath = getEODPath(eodStorage, exchange, symbol);
-        LocalDate day = LocalDate.now().minusDays(1);
-        LocalDate lastBusinessDay;
-        if (day.getDayOfWeek() == DayOfWeek.SATURDAY
-                || day.getDayOfWeek() == DayOfWeek.SUNDAY) {
-            lastBusinessDay = day.with(TemporalAdjusters.previous(DayOfWeek.FRIDAY));
-        } else {
-            lastBusinessDay = day;
-        }
-        Path currentFile = eodPath.resolve(String.valueOf(lastBusinessDay.getYear()) + ".csv");
-        if (!Files.exists(eodPath)) {
-            return false;
-        }
-        if (!Files.exists(currentFile, LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                Files.createFile(currentFile);
-            } catch (IOException e) {
-                log.error(format("unable to create file %s", currentFile), e);
-            }
-        }
-        try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
-            String lastLine = reader.readLine();
-            if (lastLine == null) {
-                return false;
-            } else {
-                String lastYYYYMMDD = lastLine.split(",")[0];
-                if (lastBusinessDay.format(BASIC_ISO_DATE).equals(lastYYYYMMDD)) {
-                    return true;
-                }
-            }
-        } catch (IOException e) {
-            log.error("failed to access EOD database", e);
-        }
-        return false;
-
     }
 
     private static void downloadEOD(String symbol, Path eodStorage, LocalDate fromDate) throws IOException, YahooAccessException {
@@ -288,6 +294,33 @@ public class UpdateEODMain {
         } catch (java.io.FileNotFoundException fileNotFoundException) {
             throw new YahooAccessException(fileNotFoundException);
         }
+    }
+
+}
+
+@Slf4j
+@Component
+class UpdateEODRunner implements ApplicationRunner {
+
+    @Autowired
+    private UpdateEODService service;
+
+    @Override
+    public void run(ApplicationArguments args) {
+        try {
+            service.update();
+        } catch (IOException e) {
+            log.error("failed to update", e);
+        }
+    }
+}
+
+@Slf4j
+@SpringBootApplication
+public class UpdateEODMain {
+
+    public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
+        SpringApplication.run(UpdateEODMain.class, args);
     }
 
 }
