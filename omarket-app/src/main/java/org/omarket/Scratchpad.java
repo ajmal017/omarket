@@ -1,8 +1,5 @@
+package org.omarket;
 
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
-import io.vertx.rxjava.core.Vertx;
 import joinery.DataFrame;
 import org.apache.commons.math3.exception.DimensionMismatchException;
 import org.apache.commons.math3.exception.NullArgumentException;
@@ -12,9 +9,6 @@ import org.apache.commons.math3.linear.*;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.Pair;
 import org.omarket.stats.KalmanFilter;
-import org.omarket.trading.quote.Quote;
-import org.omarket.trading.quote.QuoteConverter;
-import org.omarket.trading.verticles.HistoricalDataVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.functions.Func1;
@@ -22,8 +16,6 @@ import rx.Observable;
 import rx.schedulers.Schedulers;
 import yahoofinance.Stock;
 import yahoofinance.YahooFinance;
-import yahoofinance.histquotes.HistoricalQuote;
-import yahoofinance.histquotes.Interval;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,13 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 
-import yahoofinance.Stock;
-import yahoofinance.YahooFinance;
-import yahoofinance.histquotes.HistoricalQuote;
-import yahoofinance.histquotes.Interval;
 import static rx.Observable.combineLatest;
 import static rx.Observable.interval;
-import static yahoofinance.Utils.storeObject;
 
 class RandomWalk implements Func1<Boolean, Double> {
     private final Double step;

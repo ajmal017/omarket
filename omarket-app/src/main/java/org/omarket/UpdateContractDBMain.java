@@ -1,17 +1,16 @@
+package org.omarket;
+
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
+import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractFetcher;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.omarket.trading.verticles.VerticleProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import rx.Observable;
 
 import java.io.IOException;
@@ -25,10 +24,16 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class UpdateContractDBMain {
-    private final static Logger logger = LoggerFactory.getLogger(UpdateContractDBMain.class);
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-    public static void main(String[] args) throws InterruptedException, URISyntaxException, IOException {
+@SpringBootApplication
+@Slf4j
+public class UpdateContractDBMain {
+
+    public static void main(String[] args) throws IOException {
+        SpringApplication.run(UpdateContractDBMain.class, args);
+        
         final Vertx vertx = Vertx.vertx();
         DeploymentOptions options;
         if(args.length == 0){
@@ -39,7 +44,7 @@ public class UpdateContractDBMain {
         }
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
         marketDataDeployment.flatMap(deploymentId -> {
-            logger.info("succesfully deployed market data verticle: " + deploymentId);
+            log.info("succesfully deployed market data verticle: " + deploymentId);
             Observable<String> codesStream = Observable.empty();
             try {
                 URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");
@@ -54,7 +59,7 @@ public class UpdateContractDBMain {
                     codesStream = Observable.from(ibCodesETFs);
                 }
             } catch (URISyntaxException | IOException e) {
-                logger.error("failed to load resource: ", e);
+                log.error("failed to load resource: ", e);
                 vertx.close();
             }
             return codesStream;
@@ -64,16 +69,16 @@ public class UpdateContractDBMain {
                 .doOnNext(result -> {
                     JsonObject error = result.body().getJsonObject("error");
                     if (!error.equals(MarketDataVerticle.EMPTY)) {
-                        logger.error("error occured:" + error);
+                        log.error("error occured:" + error);
                     }
                 })
                 .subscribe(response -> {
-                    logger.info("processed: " + response);
+                    log.info("processed: " + response);
                 }, failed -> {
-                    logger.error("terminating - unrecoverable error occurred:", failed);
+                    log.error("terminating - unrecoverable error occurred:", failed);
                     System.exit(0);
                 }, () -> {
-                    logger.info("completed");
+                    log.info("completed");
                     System.exit(0);
                 });
     }

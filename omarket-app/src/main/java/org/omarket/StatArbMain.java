@@ -1,3 +1,5 @@
+package org.omarket;
+
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.rxjava.core.Vertx;

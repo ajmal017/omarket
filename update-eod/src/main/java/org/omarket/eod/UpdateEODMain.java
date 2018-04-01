@@ -1,10 +1,18 @@
+package org.omarket.eod;
+
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.ReversedLinesFileReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.omarket.trading.ContractDB;
+import org.omarket.trading.Security;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import rx.Observable;
 import yahoofinance.Stock;
 import yahoofinance.YahooFinance;
@@ -31,7 +39,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -46,28 +54,27 @@ import static java.lang.String.format;
 import static java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 
-import org.omarket.YahooAccessException;
-import org.omarket.trading.ContractDB;
-import org.omarket.trading.Security;
-
+@SpringBootApplication
+@Slf4j
 public class UpdateEODMain {
-    private final static Logger logger = LoggerFactory.getLogger(UpdateEODMain.class);
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
 
+    private static String propertiesArrayJoin(JsonElement input, String separator){
+        String[] elements = new Gson().fromJson(input.getAsJsonArray(), String[].class);
+        return Arrays.stream(elements).collect(Collectors.joining(separator));
+    }
+
     public static void main(String[] args) throws InterruptedException, IOException, URISyntaxException {
+        SpringApplication.run(UpdateEODMain.class, args);
         final String resourceName = "update-eod.json";
-        logger.info("starting EOD update");
+        log.info("starting EOD update");
         InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
-        JsonReader reader = new JsonReader(new InputStreamReader(resourceStream));
-        Type jsonPropertyType = new TypeToken<Map>() {
-        }.getType();
-        Gson gson = new Gson();
-        Map properties = gson.fromJson(reader, jsonPropertyType);
-        final ArrayList<String> dbEODPathElements = (ArrayList<String>) properties.get("db.eod.path");
-        String dbPath = dbEODPathElements.stream().collect(Collectors.joining(File.separator));
-        final ArrayList<String> dbContractsPathElements = (ArrayList<String>) properties.get("db.contracts.path");
-        String dbContractsPath = dbContractsPathElements.stream().collect(Collectors.joining(File.separator));
-        final boolean onlyCurrentYear = (Boolean) properties.get("current.year.flag");
+        JsonReader jsonReader = new JsonReader(new InputStreamReader(resourceStream));
+        JsonParser parser = new JsonParser();
+        JsonObject properties = parser.parse(jsonReader).getAsJsonObject();
+        String dbPath = propertiesArrayJoin(properties.get("db.eod.path"), File.separator);
+        String dbContractsPath = propertiesArrayJoin(properties.get("db.contracts.path"), File.separator);
+        final boolean onlyCurrentYear = properties.get("current.year.flag").getAsBoolean();
         final Path eodStorage = Paths.get(dbPath);
         ContractDB.ContractFilter filter = new ContractDB.ContractFilter() {
             @Override
@@ -83,29 +90,29 @@ public class UpdateEODMain {
                 .subscribe(contract -> {
                     try {
                         String symbol = contract.getSymbol();
-                        logger.debug("processing: " + symbol);
+                        log.debug("processing: " + symbol);
                         String yahooExchange = findExchange(eodStorage, symbol);
                         if (yahooExchange == null || yahooExchange.equals("OLD")) {
-                            logger.info("ignoring old security: " + symbol);
+                            log.info("ignoring old security: " + symbol);
                         } else if (isUpdateToDate(eodStorage, yahooExchange, symbol)) {
-                            logger.debug("already up-to-date: " + symbol);
+                            log.debug("already up-to-date: " + symbol);
                         } else {
                             LocalDate fromDate = LocalDate.now();
                             if (!onlyCurrentYear) {
                                 fromDate = fromDate.minus(Period.ofYears(2));
                             }
                             fromDate = fromDate.withDayOfYear(1);
-                            logger.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
+                            log.info("downloading: " + symbol + " from " + fromDate.format(ISO_LOCAL_DATE));
                             downloadEOD(symbol, eodStorage, fromDate);
                         }
                     } catch (IOException e) {
-                        logger.error("failed to retrieve yahoo data", e);
+                        log.error("failed to retrieve yahoo data", e);
                         System.exit(-1);
                     } catch (YahooAccessException e) {
-                        logger.error("critical error while accessing Yahoo data", e);
+                        log.error("critical error while accessing Yahoo data", e);
                     }
                 }, onError -> {
-                    logger.error("failed to process contracts", onError);
+                    log.error("failed to process contracts", onError);
                     System.exit(-1);
                 });
     }
@@ -127,18 +134,18 @@ public class UpdateEODMain {
                         return cache.get(symbol).get("stockExchange");
                     }
                 } catch (IOException e) {
-                    logger.error("failed to access cache storage", e);
+                    log.error("failed to access cache storage", e);
                     return null;
                 }
             } catch (IOException e) {
-                logger.error("failed to access cache storage", e);
+                log.error("failed to access cache storage", e);
                 return null;
             }
         } else {
             try {
                 Files.createFile(cacheStorage);
             } catch (IOException e) {
-                logger.error("failed to access cache storage", e);
+                log.error("failed to access cache storage", e);
                 return null;
             }
             cache = new HashMap<>();
@@ -147,7 +154,7 @@ public class UpdateEODMain {
         try {
             stock = YahooFinance.get(symbol, false);
         } catch (IOException e) {
-            logger.error("failed to access Yahoo Finance", e);
+            log.error("failed to access Yahoo Finance", e);
             return null;
         }
         Map<String, String> stockData = new HashMap<String, String>();
@@ -159,7 +166,7 @@ public class UpdateEODMain {
             String json = gson.toJson(cache);
             writer.write(json);
         } catch (IOException e) {
-            logger.error("failed to access cache storage", e);
+            log.error("failed to access cache storage", e);
         }
         exchange = stock.getStockExchange();
         return exchange;
@@ -188,7 +195,7 @@ public class UpdateEODMain {
             try {
                 Files.createFile(currentFile);
             } catch (IOException e) {
-                logger.error(format("unable to create file %s", currentFile), e);
+                log.error(format("unable to create file %s", currentFile), e);
             }
         }
         try (ReversedLinesFileReader reader = new ReversedLinesFileReader(currentFile.toFile(), StandardCharsets.UTF_8)) {
@@ -202,7 +209,7 @@ public class UpdateEODMain {
                 }
             }
         } catch (IOException e) {
-            logger.error("failed to access EOD database", e);
+            log.error("failed to access EOD database", e);
         }
         return false;
 
@@ -238,7 +245,7 @@ public class UpdateEODMain {
             for (Integer year : years) {
                 Set<HistoricalQuote> quotes = byYear.get(year);
                 if (quotes == null){
-                    logger.warn(format("year %s not forund for stock %s", year, stock));
+                    log.warn(format("year %s not forund for stock %s", year, stock));
                     continue;
                 }
                 Path yearEOD = stockStorage.resolve(String.valueOf(year) + ".csv");
@@ -266,16 +273,16 @@ public class UpdateEODMain {
                         lastBarDate[0] = barDate;
                         writer.writeNext(row, false);
                     } else {
-                        logger.warn(format("ignoring invalid quote: %s", bar));
+                        log.warn(format("ignoring invalid quote: %s", bar));
                     }
                 });
                 file.close();
             }
             if (lastBarDate[0] != null) {
-                logger.info("saved data for stock " + stock.getSymbol() + " up to: " + lastBarDate[0]);
+                log.info("saved data for stock " + stock.getSymbol() + " up to: " + lastBarDate[0]);
 
             } else {
-                logger.info("no data saved for stock " + stock.getSymbol());
+                log.info("no data saved for stock " + stock.getSymbol());
             }
 
         } catch (java.io.FileNotFoundException fileNotFoundException) {

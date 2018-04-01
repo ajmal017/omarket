@@ -1,3 +1,5 @@
+package org.omarket;
+
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rx.java.ObservableFuture;

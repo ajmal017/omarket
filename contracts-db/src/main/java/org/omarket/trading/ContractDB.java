@@ -2,8 +2,7 @@ package org.omarket.trading;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import rx.Observable;
 
 import java.io.BufferedWriter;
@@ -24,9 +23,9 @@ import java.util.stream.Collectors;
 /**
  * Created by Christophe on 04/01/2017.
  */
+@Slf4j
 public class ContractDB {
 
-    private final static Logger logger = LoggerFactory.getLogger(ContractDB.class);
     public final static ContractFilter FILTER_NONE = new ContractFilter(){
 
         @Override
@@ -177,7 +176,7 @@ public class ContractDB {
         BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
         writer.write(product.toJson());
         writer.close();
-        logger.info("saved contract: " + filePath);
+        log.info("saved contract: " + filePath);
     }
 
     public static Observable<Security> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
@@ -195,7 +194,7 @@ public class ContractDB {
                     JsonParser parser = new JsonParser();
                     JsonObject jsonContract = parser.parse(content).getAsJsonObject();
                     contracts.add(Security.fromJson(jsonContract));
-                    logger.debug("added contract: {}", jsonContract);
+                    log.debug("added contract: {}", jsonContract);
                 }
                 return FileVisitResult.CONTINUE;
             }
