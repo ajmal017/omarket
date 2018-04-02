@@ -14,10 +14,10 @@ import org.omarket.trading.Security;
 import org.omarket.trading.quote.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +31,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static org.omarket.trading.ContractDB.saveContract;
+import org.omarket.trading.ContractDBService;
 import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
@@ -42,6 +42,9 @@ import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGe
  * Created by Christophe on 03/11/2016.
  */
 public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
+
+    private final ContractDBService contractDBservice;
+
     private final static int PRICE_BID = 1;
     private final static int PRICE_ASK = 2;
     private final static int SIZE_BID = 0;
@@ -59,7 +62,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
 
-    public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath, Path contractsDBPath) {
+    @Autowired
+    public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath, Path contractsDBPath, ContractDBService contractDBservice) {
         this.eventBus = eventBus;
         this.storageDirPath = storageDirPath;
         this.contractsDBPath = contractsDBPath;
@@ -67,6 +71,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
+        this.contractDBservice = contractDBservice;
     }
 
     private static Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
@@ -124,7 +129,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         Files.createDirectories(storageDirPath);
         Path productStorage = prepareTickPath(storageDirPath, security);
-        saveContract(contractsDBPath, security);
+        contractDBservice.saveContract(contractsDBPath, security);
         subscribed.put(ibCode, productStorage);
         MutableQuote quote = QuoteFactory.createMutable(security.getMinTick(), security.getCode());
         orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
@@ -144,7 +149,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if(updateContractDB.contains(requestId)) {
             Security security = Security.fromContractDetails(contractDetails);
             try {
-                ContractDB.saveContract(Paths.get("data", "contracts"), security);
+                contractDBservice.saveContract(Paths.get("data", "contracts"), security);
                 updateContractDB.remove(requestId);
             } catch (IOException e) {
                 logger.error("failed to update contract db", e);

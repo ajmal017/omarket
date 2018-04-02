@@ -15,7 +15,7 @@
     </parent>
 
     <properties>
-        <slf4jVersion>1.6.1</slf4jVersion>
+        <slf4jVersion>1.7.16</slf4jVersion>
         <vertxVersion>3.3.2</vertxVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

@@ -35,7 +35,6 @@ import java.util.*;
  *
  */
 public class OrderBook {
-    private static Logger logger = LoggerFactory.getLogger(OrderBook.class);
 
     private TreeMap<BigDecimal, TreeMap<String, Order>> bidSide = new TreeMap<>();
     private TreeMap<BigDecimal, TreeMap<String, Order>> askSide = new TreeMap<>();

@@ -3,6 +3,7 @@ package org.omarket.trading.verticles;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.filter.KalmanFilter;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
@@ -17,8 +18,8 @@ import java.util.*;
 /**
  * Created by Christophe on 01/11/2016.
  */
+@Slf4j
 public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
-    private final static Logger logger = LoggerFactory.getLogger(DummyMeanReversionStrategyVerticle.class);
     final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.dummy";
 
     private final static String IB_CODE_GCG7 = "188989072";
@@ -35,8 +36,8 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
 
     @Override
     protected void init() {
-        logger.info("starting single leg mean reversion strategy verticle");
-        logger.info("using default parameter for thresholdStep");
+        log.info("starting single leg mean reversion strategy verticle");
+        log.info("using default parameter for thresholdStep");
         getParameters().put("thresholdStep", 0.1);
     }
 
@@ -72,12 +73,12 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             BigDecimal ask = (BigDecimal) row.get("ask");
             return 0.5 * (bid.doubleValue() + ask.doubleValue());
         });
-        logger.info("gold:\n" + samplesGold);
-        logger.info("gdx:\n" + samplesGDX);
+        log.info("gold:\n" + samplesGold);
+        log.info("gdx:\n" + samplesGDX);
         Double[] midGoldValues = (Double[]) samplesGold.col("mid").toArray(new Double[0]);
         Double[] midGDXValues = (Double[]) samplesGDX.col("mid").toArray(new Double[0]);
-        logger.info("gold values:" + samplesGold.col("mid"));
-        logger.info("gdx values:" + samplesGDX.col("mid"));
+        log.info("gold values:" + samplesGold.col("mid"));
+        log.info("gdx values:" + samplesGDX.col("mid"));
         ProcessModel pm = new LinearRegressionProcessModel();
         LinearRegressionMeasurementModel mm = new LinearRegressionMeasurementModel();
         KalmanFilter filter = new KalmanFilter(pm, mm);
@@ -90,10 +91,10 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             mm.setMeasurement(independentVariable);
             filter.correct(new double[]{dependentVariable});
             count++;
-            logger.info("estimates: " + Arrays.asList(filter.getStateEstimation()));
+            log.info("estimates: " + Arrays.asList(filter.getStateEstimation()));
         }
 
-        logger.info("*** completed processing quote ***");
+        log.info("*** completed processing quote ***");
     }
 
     private static class LinearRegressionProcessModel implements ProcessModel {

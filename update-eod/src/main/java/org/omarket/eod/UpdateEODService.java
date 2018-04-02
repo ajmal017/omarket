@@ -9,9 +9,10 @@ import com.google.gson.stream.JsonReader;
 import com.opencsv.CSVWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.ReversedLinesFileReader;
-import org.omarket.trading.ContractDB;
+import org.omarket.trading.ContractDBService;
 import org.omarket.trading.ContractFilter;
 import org.omarket.trading.Security;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 import yahoofinance.Stock;
@@ -57,6 +58,8 @@ import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 @Component
 public class UpdateEODService {
 
+    private final ContractDBService contractDBservice;
+
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
     private final Path dbContractsPath;
     private final boolean onlyCurrentYear;
@@ -67,7 +70,8 @@ public class UpdateEODService {
         return Arrays.stream(elements).collect(Collectors.joining(separator));
     }
 
-    public UpdateEODService(){
+    @Autowired
+    public UpdateEODService(ContractDBService contractDBservice){
         final String resourceName = "update-eod.json";
         log.info("starting EOD update");
         InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
@@ -79,6 +83,7 @@ public class UpdateEODService {
         onlyCurrentYear = properties.get("current.year.flag").getAsBoolean();
         final Path eodStorage = Paths.get(dbPath);
         setStorageEOD(eodStorage);
+        this.contractDBservice = contractDBservice;
     }
 
     public void update() throws IOException {
@@ -91,7 +96,7 @@ public class UpdateEODService {
                 return exchangeMatch && typeMatch && currencyMatch;
             }
         };
-        Observable<Security> contracts = ContractDB.loadContracts(getDbContractsPath(), filter);
+        Observable<Security> contracts = contractDBservice.loadContracts(getDbContractsPath(), filter);
         contracts
                 .subscribe(contract -> {
                     try {

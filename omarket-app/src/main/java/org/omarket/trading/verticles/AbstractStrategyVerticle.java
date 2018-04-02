@@ -3,13 +3,14 @@ package org.omarket.trading.verticles;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import joinery.DataFrame;
+import lombok.extern.slf4j.Slf4j;
+import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
+import org.springframework.beans.factory.annotation.Autowired;
 import rx.Observable;
 import rx.exceptions.Exceptions;
 import rx.functions.Action1;
@@ -24,16 +25,17 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-import static org.omarket.trading.ContractDB.loadContract;
 import static org.omarket.trading.quote.QuoteFactory.createFrom;
 
 /**
  * Created by Christophe on 18/11/2016.
  */
-
+@Slf4j
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements QuoteProcessor {
-    private final static Logger logger = LoggerFactory.getLogger(AbstractStrategyVerticle.class);
 
+
+    @Autowired
+    private ContractDBService contractDBService;
     static final String KEY_PRODUCT_CODES = "productCodes";
     static final String KEY_REPLY_TO = "replyTo";
     static final String KEY_COMPLETION_ADDRESS = "completionAddress";
@@ -82,7 +84,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         String[] productCodes = getProductCodes();
         Map<String, Security> products = new HashMap<>();
         for(String productCode: productCodes){
-            Security contract = loadContract(contractDBPath, productCode);
+            Security contract = contractDBService.loadContract(contractDBPath, productCode);
             products.put(productCode, contract);
         }
         return products;
@@ -117,21 +119,21 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 tickStream.subscribe(
                                 tickDataProcessor,
                                 error -> {
-                                    logger.error("error occured during backtest", error);
+                                    log.error("error occured during backtest", error);
                                 });
 
                 MessageConsumer<JsonObject> realtimeStartConsumer = vertx.eventBus().consumer(getRealtimeQuotesAddress());
                 Observable<JsonObject> realtimeStartStream = realtimeStartConsumer.bodyStream().toObservable();
                 realtimeStartStream.subscribe(message -> {
-                    logger.info("unregistering historical data consumer");
+                    log.info("unregistering historical data consumer");
                     historicalTickDataConsumer.unregister();
-                    logger.info("starting realtime processing");
+                    log.info("starting realtime processing");
                     // TODO - enable realtime processing: subscribe to market data using quoteProcessor
                 });
-                logger.info("initialization completed");
+                log.info("initialization completed");
                 future.complete();
             } catch (Exception e) {
-                logger.error("failed to initialize strategy", e);
+                log.error("failed to initialize strategy", e);
                 future.fail(e);
             }
         });
@@ -148,14 +150,14 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                         request.put(KEY_PRODUCT_CODES, codes);
                         request.put(KEY_REPLY_TO, getHistoricalQuotesAddress());
                         request.put(KEY_COMPLETION_ADDRESS, getRealtimeQuotesAddress());
-                        logger.info("requesting historical data for products: " + productCodes + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
+                        log.info("requesting historical data for products: " + productCodes + " on address: " + HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY);
                         vertx.eventBus().send(HistoricalDataVerticle.ADDRESS_PROVIDE_HISTORY, request);
                     } catch (IOException e) {
-                        logger.error("failed to access product description", e);
+                        log.error("failed to access product description", e);
                     }
                 })
                 .doOnError(error -> {
-                    logger.error("initialization step failed for " + this.deploymentID());
+                    log.error("initialization step failed for " + this.deploymentID());
                 })
                 .subscribe();
     }
@@ -218,10 +220,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             String productCode = quote.getProductCode();
             Quote prevQuote = prevQuotes.getOrDefault(productCode, null);
             if (prevQuote != null && !quote.sameSampledTime(prevQuote, samplingUnit)) {
-                logger.info("prev quote:" + prevQuote.getLastModified());
-                logger.info("current quote:" + quote.getLastModified());
+                log.info("prev quote:" + prevQuote.getLastModified());
+                log.info("current quote:" + quote.getLastModified());
                 ZonedDateTime samplingTime = quote.getLastModified().minus(1, samplingUnit);
-                logger.info("adding new sample for " + samplingTime);
+                log.info("adding new sample for " + samplingTime);
                 Quote newQuote = createFrom(prevQuote, samplingTime, samplingUnit);
                 ZonedDateTime lastModified = newQuote.getLastModified();
                 ZonedDateTime endDateTime = lastModified.minus(1, samplingUnit);
@@ -240,15 +242,15 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         private void forwardFillQuotes(String productCode, ZonedDateTime endDateTime) {
             Quote first = first(productCode);
             if (first != null) {
-                logger.debug("filling samples from " + first.getLastModified() + " to " + endDateTime);
+                log.debug("filling samples from " + first.getLastModified() + " to " + endDateTime);
                 Quote last = last(productCode);
                 if (last == null) {
                     return;
                 }
-                logger.debug("last time: " + last.getLastModified());
+                log.debug("last time: " + last.getLastModified());
                 while (last.getLastModified().isBefore(endDateTime)) {
                     Quote fillQuote = createFrom(last, samplingUnit, 1);
-                    logger.debug("filling with sample for: " + fillQuote.getLastModified());
+                    log.debug("filling with sample for: " + fillQuote.getLastModified());
                     last = addQuote(fillQuote);
                 }
             }
@@ -277,9 +279,9 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         @Override
         public void call(Quote quote) {
             sampleQuotes.addQuoteSampled(quote);
-            logger.info("samples for product " + quote.getProductCode() + ":\n" + sampleQuotes);
+            log.info("samples for product " + quote.getProductCode() + ":\n" + sampleQuotes);
             quotes.addQuote(quote);
-            logger.info("forwarding order book to concrete strategy after update from: " + quote);
+            log.info("forwarding order book to concrete strategy after update from: " + quote);
             processQuotes(contracts, quotes.getQuotes(), sampleQuotes.getDataFrames());
         }
     }

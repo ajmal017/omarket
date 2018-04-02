@@ -13,9 +13,11 @@ import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
+import org.springframework.beans.factory.annotation.Autowired;
 import rx.Observable;
 
 import java.math.BigDecimal;
@@ -29,6 +31,10 @@ import java.util.Set;
  * Created by Christophe on 01/11/2016.
  */
 public class MarketDataVerticle extends AbstractVerticle {
+
+    @Autowired
+    private ContractDBService contractDBService;
+
     public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
     public final static String ADDRESS_EOD_REQUEST = "oot.marketData.subscribeDaily";
     public static final String ADDRESS_EOD_DATA_PREFIX = "oot.marketData.hist";
@@ -276,7 +282,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
 
-        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath, contractDBPath);
+        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath, contractDBPath, contractDBService);
         vertx.executeBlocking(future -> {
             try {
                 org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,

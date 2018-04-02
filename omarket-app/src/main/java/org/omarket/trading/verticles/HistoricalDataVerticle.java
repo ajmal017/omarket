@@ -8,6 +8,7 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
+import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
@@ -31,17 +32,17 @@ import static rx.Observable.*;
 /**
  * Created by Christophe on 01/11/2016.
  */
+@Slf4j
 public class HistoricalDataVerticle extends AbstractVerticle {
-    private final static Logger logger = LoggerFactory.getLogger(HistoricalDataVerticle.class.getName());
     public final static String ADDRESS_PROVIDE_HISTORY = "oot.historicalData.provide";
 
     public void start(Future<Void> startFuture) throws Exception {
-        logger.info("starting historical data");
+        log.info("starting historical data");
         JsonArray storageDirs = config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH);
         List<String> dirs = storageDirs.getList();
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
-        logger.info("ticks data storage set to '" + storageDirPath + "'");
+        log.info("ticks data storage set to '" + storageDirPath + "'");
 
         final MessageConsumer<JsonObject> provideRequest = vertx.eventBus().consumer(ADDRESS_PROVIDE_HISTORY);
         Observable<JsonObject> contractStream = provideRequest.bodyStream().toObservable();
@@ -51,7 +52,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                         final JsonArray productCodes = message.getJsonArray(AbstractStrategyVerticle.KEY_PRODUCT_CODES);
                         final String address = message.getString(AbstractStrategyVerticle.KEY_REPLY_TO);
                         final String completionAddress = message.getString(AbstractStrategyVerticle.KEY_COMPLETION_ADDRESS);
-                        logger.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
+                        log.info("data for contracts " + productCodes.toString() + " will be sent to " + address);
                         List<Observable<Quote>> quoteStreams = new LinkedList<>();
                         try {
                             for (Object productCode : productCodes.getList()) {
@@ -59,20 +60,20 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                                 quoteStreams.add(stream);
                             }
                         } catch (IOException e) {
-                            logger.error("failed while accessing historical data", e);
+                            log.error("failed while accessing historical data", e);
                             future.fail(e);
                         }
                         mergeQuoteStreams(quoteStreams)
                                 .map(QuoteConverter::toJSON)
                                 .forEach(
                                         quoteJson -> {
-                                            logger.debug("sending: " + quoteJson + " on address " + address);
+                                            log.debug("sending: " + quoteJson + " on address " + address);
                                             vertx.eventBus().send(address, quoteJson);
                                         },
                                         future::fail,
                                         () -> {
                                             JsonObject empty = new JsonObject();
-                                            logger.info("notifying completion on " + completionAddress);
+                                            log.info("notifying completion on " + completionAddress);
                                             vertx.eventBus().send(completionAddress, empty);
                                             future.complete();
                                         }
@@ -80,14 +81,14 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                     });
                     execStream
                             .doOnCompleted(() -> {
-                                logger.info("completed historical data");
+                                log.info("completed historical data");
                             })
                             .doOnError(error -> {
-                                logger.error("failed to send historical data", error);
+                                log.error("failed to send historical data", error);
                             })
                             .subscribe();
                 });
-        logger.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
+        log.info("ready to provide historical data upon request (address: " + ADDRESS_PROVIDE_HISTORY + ")");
         startFuture.complete();
     }
 
@@ -95,7 +96,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
-        logger.info("accessing storage: " + productStorage);
+        log.info("accessing storage: " + productStorage);
         Observable<String[]> quotesStream = empty();
         if (Files.exists(productStorage)) {
             Map<String, Path> tickFiles = getTickFiles(productCode, productStorage);
@@ -109,7 +110,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                 }));
             }
         } else {
-            logger.info("storage data not found: " + productStorage);
+            log.info("storage data not found: " + productStorage);
         }
         return quotesStream.map(row -> createQuote(row, productCode));
     }
