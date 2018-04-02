@@ -3,6 +3,7 @@ package org.omarket.trading;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import rx.Observable;
 
 import java.io.BufferedWriter;
@@ -20,15 +21,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
-/**
- * Created by Christophe on 04/01/2017.
- */
 @Slf4j
-public class ContractDB {
+@Service
+class ContractDBServiceImpl implements ContractDBService {
 
-
-    public final static ContractFilter filterCurrency(String currencyCode){
+    @Override
+    public final ContractFilter filterCurrency(String currencyCode){
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -37,7 +35,8 @@ public class ContractDB {
         };
     }
 
-    public final static ContractFilter filterExchange(String exchangeCode){
+    @Override
+    public final ContractFilter filterExchange(String exchangeCode){
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -46,7 +45,8 @@ public class ContractDB {
         };
     }
 
-    public final static ContractFilter filterSecurityType(String securityType){
+    @Override
+    public final ContractFilter filterSecurityType(String securityType){
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -55,7 +55,39 @@ public class ContractDB {
         };
     }
 
-    public static Security loadContract(Path contractsDirPath, String productCode) throws IOException {
+    @Override
+    public ContractFilter composeFilter(ContractFilter... filters) {
+        return new ContractFilter() {
+
+            @Override
+            protected String prepare(Path path) throws IOException {
+                int count = path.getNameCount();
+                for(ContractFilter filter: filters){
+                    filter.prepare(path);
+                    filter.setFilename (path.getFileName());
+                    filter.setPrimaryExchange(path.getName(count - 3));
+                    filter.setCurrency(path.getName(count - 4));
+                    filter.setSecurityType(path.getName(count - 5));
+                }
+                return super.prepare(path);
+            }
+
+            @Override
+            protected boolean accept(String content) {
+                boolean accepted = true;
+                for(ContractFilter filter: filters){
+                    if(!filter.accept(content)){
+                        accepted = false;
+                        break;
+                    }
+                }
+                return accepted;
+            }
+        };
+    }
+
+    @Override
+    public Security loadContract(Path contractsDirPath, String productCode) throws IOException {
         final Path[] targetFile = new Path[1];
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
@@ -80,7 +112,8 @@ public class ContractDB {
         return Security.fromJson(jsonSecurity);
     }
 
-    public static void saveContract(Path contractsDirPath, Security product) throws IOException {
+    @Override
+    public void saveContract(Path contractsDirPath, Security product) throws IOException {
         String primaryExchange = product.getExchange();
         String securityType = product.getSecurityType();
         String currency = product.getCurrency();
@@ -107,7 +140,8 @@ public class ContractDB {
         log.info("saved contract: " + filePath);
     }
 
-    public static Observable<Security> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
+    @Override
+    public Observable<Security> loadContracts(Path contractsDirPath, ContractFilter filter) throws IOException {
         List<Security> contracts = new LinkedList<>();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
