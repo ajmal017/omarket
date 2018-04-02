@@ -1,14 +1,12 @@
 package org.omarket.trading;
 
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
-@TestConfiguration
+@SpringBootConfiguration
 public class ContractDBServiceConfiguration {
     @Bean
-    public ContractDBService contractDBService() {
+    public ContractDBService service() {
         return new ContractDBServiceImpl();
     }
 }

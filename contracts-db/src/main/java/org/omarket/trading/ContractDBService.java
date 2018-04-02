@@ -1,10 +1,12 @@
 package org.omarket.trading;
 
+import org.springframework.stereotype.Service;
 import rx.Observable;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
+@Service
 public interface ContractDBService {
     ContractFilter FILTER_NONE = new ContractFilter(){
 

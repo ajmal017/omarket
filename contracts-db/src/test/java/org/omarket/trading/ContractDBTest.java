@@ -1,8 +1,10 @@
 package org.omarket.trading;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestComponent;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -13,12 +15,12 @@ import static org.junit.Assert.assertEquals;
 /**
  * Created by Christophe on 04/01/2017.
  */
-@TestComponent
+@RunWith(SpringRunner.class)
+@SpringBootTest
 public class ContractDBTest {
 
     @Autowired
-    private ContractDBServiceImpl service;
-
+    private ContractDBService service;
     @Test
     public void loadContractsAll() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
