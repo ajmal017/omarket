@@ -6,31 +6,70 @@ import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.verticles.DummyMeanReversionStrategyVerticle;
 import org.omarket.trading.verticles.HistoricalDataVerticle;
 import org.omarket.trading.verticles.VerticleProperties;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.stereotype.Component;
 
-public class StatArbMain {
-    private final static Logger logger = LoggerFactory.getLogger(StatArbMain.class);
+import java.util.Objects;
 
-    public static void main(String[] args) throws InterruptedException {
-        int defaultClientId = 1;
+@Slf4j
+@Component
+class StatArbService {
+    private final VerticleProperties props;
+
+    @Autowired
+    public StatArbService(VerticleProperties props) {
+        this.props = props;
+    }
+
+    public static void run(DeploymentOptions options) throws InterruptedException {
         final Vertx vertx = Vertx.vertx();
 
         Verticle historicalDataVerticle = new HistoricalDataVerticle();
         Verticle singleLegMeanReversionStrategyVerticle = new DummyMeanReversionStrategyVerticle();
 
-        DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
         RxHelper.deployVerticle(vertx, historicalDataVerticle, options)
                 .subscribe(historicalDataId -> {
-                    logger.info("historical data verticle deployed as " + historicalDataId);
+                    log.info("historical data verticle deployed as " + historicalDataId);
                     RxHelper.deployVerticle(vertx, singleLegMeanReversionStrategyVerticle, options)
                             .doOnNext(strategyId -> {
-                                logger.info("strategy verticle deployed as " + strategyId);
+                                log.info("strategy verticle deployed as " + strategyId);
                             })
-                            .doOnError(logger::error);
+                            .doOnError(err -> log.error("failed to deploy", err));
                 })
                 ;
     }
 
+}
+
+@Slf4j
+@Component
+class StatArbRunner implements ApplicationRunner {
+
+    private final RecorderService service;
+
+    private final VerticleProperties props;
+
+    @Value("${org.omarket.client_id.statarb}")
+    private String clientId;
+
+    @Autowired
+    public StatArbRunner(RecorderService service, VerticleProperties props) {
+        this.service = service;
+        this.props = props;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) throws Exception {
+        if (Objects.equals(args.getNonOptionArgs().get(0), "statarb")) {
+            DeploymentOptions options = props.makeDeploymentOptions(Integer.valueOf(clientId));
+            service.record(options);
+        }
+    }
 }

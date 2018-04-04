@@ -18,18 +18,21 @@ public class RecorderRunner implements ApplicationRunner {
 
     private final RecorderService service;
 
+    private final VerticleProperties props;
+
     @Value("${org.omarket.client_id.record_prices}")
     private String clientId;
 
     @Autowired
-    public RecorderRunner(RecorderService service) {
+    public RecorderRunner(RecorderService service, VerticleProperties props) {
         this.service = service;
+        this.props = props;
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if (Objects.equals(args.getNonOptionArgs().get(0), "record-prices")) {
-            DeploymentOptions options = VerticleProperties.makeDeploymentOptions(Integer.valueOf(clientId));
+            DeploymentOptions options = props.makeDeploymentOptions(Integer.valueOf(clientId));
             service.record(options);
         }
     }

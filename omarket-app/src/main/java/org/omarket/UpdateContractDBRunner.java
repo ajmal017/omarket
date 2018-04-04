@@ -19,19 +19,21 @@ import java.util.Objects;
 public class UpdateContractDBRunner implements ApplicationRunner {
 
     private final UpdateContractDBService service;
+    private final VerticleProperties props;
 
     @Value("${org.omarket.client_id.update_contracts}")
     private String clientId;
 
     @Autowired
-    public UpdateContractDBRunner(UpdateContractDBService service) {
+    public UpdateContractDBRunner(UpdateContractDBService service, VerticleProperties props) {
         this.service = service;
+        this.props = props;
     }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if(Objects.equals(args.getNonOptionArgs().get(0), "update-contracts")) {
-            DeploymentOptions options = VerticleProperties.makeDeploymentOptions(Integer.valueOf(clientId));
+            DeploymentOptions options = props.makeDeploymentOptions(Integer.valueOf(clientId));
             service.update(options);
         }
     }

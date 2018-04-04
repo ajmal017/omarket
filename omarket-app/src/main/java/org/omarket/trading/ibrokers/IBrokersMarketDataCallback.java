@@ -62,7 +62,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
 
-    @Autowired
     public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath, Path contractsDBPath, ContractDBService contractDBservice) {
         this.eventBus = eventBus;
         this.storageDirPath = storageDirPath;
