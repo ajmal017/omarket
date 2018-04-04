@@ -3,12 +3,15 @@ package org.omarket.trading;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.QuoteFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import static org.junit.Assert.assertEquals;
 
@@ -18,11 +21,10 @@ import static org.junit.Assert.assertEquals;
  * Testing a mutable quote.
  *
  */
+@RunWith(SpringRunner.class)
 @SpringBootTest
+@ComponentScan({"org.omarket"})
 public class MutableQuoteImplTest {
-
-    @Autowired
-    private QuoteFactory quoteFactory;
 
     private static Logger logger = LoggerFactory.getLogger(MutableQuoteImplTest.class);
 
@@ -38,6 +40,7 @@ public class MutableQuoteImplTest {
 
     @Test
     public void basicUsagePrecision2() throws Exception {
+        QuoteFactory quoteFactory = new QuoteFactory();
         MutableQuote orderBook = quoteFactory.createMutable("0.02", "test000");
         orderBook.updateBestBidPrice(10.125);
         orderBook.updateBestAskPrice(10.159);
@@ -46,6 +49,7 @@ public class MutableQuoteImplTest {
 
     @Test
     public void basicUsagePrecision0() throws Exception {
+        QuoteFactory quoteFactory = new QuoteFactory();
         MutableQuote orderBook = quoteFactory.createMutable("1", "test000");
         orderBook.updateBestBidPrice(10.125);
         orderBook.updateBestAskPrice(10.139);

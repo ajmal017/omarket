@@ -21,6 +21,7 @@ public class ContractDBTest {
 
     @Autowired
     private ContractDBService service;
+
     @Test
     public void loadContractsAll() throws Exception {
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());

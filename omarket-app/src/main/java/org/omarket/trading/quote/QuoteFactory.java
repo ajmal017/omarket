@@ -1,9 +1,8 @@
 package org.omarket.trading.quote;
 
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
@@ -13,7 +12,7 @@ import java.time.temporal.ChronoUnit;
  * Created by Christophe on 07/12/2016.
  */
 @Slf4j
-@Component
+@Service
 public class QuoteFactory {
 
     public QuoteImpl create(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode){
