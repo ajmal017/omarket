@@ -10,6 +10,7 @@ import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import rx.Observable;
 import rx.exceptions.Exceptions;
@@ -25,7 +26,6 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-import static org.omarket.trading.quote.QuoteFactory.createFrom;
 
 /**
  * Created by Christophe on 18/11/2016.
@@ -36,6 +36,13 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
 
     @Autowired
     private ContractDBService contractDBService;
+
+    @Autowired
+    private QuoteFactory quoteFactory;
+
+    @Autowired
+    private QuoteConverter quoteConverter;
+
     static final String KEY_PRODUCT_CODES = "productCodes";
     static final String KEY_REPLY_TO = "replyTo";
     static final String KEY_COMPLETION_ADDRESS = "completionAddress";
@@ -108,7 +115,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 Observable<Quote> tickStream = historicalTickDataStream
                         .map(quoteJson -> {
                             try {
-                                return QuoteConverter.fromJSON(quoteJson);
+                                return quoteConverter.fromJSON(quoteJson);
                             } catch (ParseException e) {
                                 throw Exceptions.propagate(e);
                             }
@@ -224,7 +231,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 log.info("current quote:" + quote.getLastModified());
                 ZonedDateTime samplingTime = quote.getLastModified().minus(1, samplingUnit);
                 log.info("adding new sample for " + samplingTime);
-                Quote newQuote = createFrom(prevQuote, samplingTime, samplingUnit);
+                Quote newQuote = quoteFactory.createFrom(prevQuote, samplingTime, samplingUnit);
                 ZonedDateTime lastModified = newQuote.getLastModified();
                 ZonedDateTime endDateTime = lastModified.minus(1, samplingUnit);
                 forwardFillQuotes(productCode, endDateTime);
@@ -249,7 +256,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 }
                 log.debug("last time: " + last.getLastModified());
                 while (last.getLastModified().isBefore(endDateTime)) {
-                    Quote fillQuote = createFrom(last, samplingUnit, 1);
+                    Quote fillQuote = quoteFactory.createFrom(last, samplingUnit, 1);
                     log.debug("filling with sample for: " + fillQuote.getLastModified());
                     last = addQuote(fillQuote);
                 }

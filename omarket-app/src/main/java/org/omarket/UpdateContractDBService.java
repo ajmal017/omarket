@@ -10,6 +10,7 @@ import io.vertx.rxjava.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractFetcher;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
@@ -27,9 +28,17 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class UpdateContractDBService {
+
+    private final MarketDataVerticle marketDataVerticle;
+
+    @Autowired
+    public UpdateContractDBService(MarketDataVerticle marketDataVerticle) {
+        this.marketDataVerticle = marketDataVerticle;
+    }
+
     public void update(DeploymentOptions options) {
         final Vertx vertx = Vertx.vertx();
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
         marketDataDeployment.flatMap(deploymentId -> {
             log.info("succesfully deployed market data verticle: " + deploymentId);
             Observable<String> codesStream = Observable.empty();

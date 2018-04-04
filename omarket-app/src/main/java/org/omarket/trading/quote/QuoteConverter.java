@@ -1,6 +1,8 @@
 package org.omarket.trading.quote;
 
 import io.vertx.core.json.JsonObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -14,10 +16,14 @@ import java.time.format.DateTimeFormatter;
 /**
  * Created by Christophe on 07/12/2016.
  */
+@Component
 public class QuoteConverter {
 
     private final static DateTimeFormatter millisFormat = DateTimeFormatter.ofPattern("mm:ss.SSS");
     private final static DateTimeFormatter isoFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
+
+    @Autowired
+    private QuoteFactory quoteFactory;
 
     public static String toPriceVolumeString(Quote quote) {
         String timestamp = millisFormat.format(quote.getLastModified());
@@ -47,7 +53,7 @@ public class QuoteConverter {
         return asJSON;
     }
 
-    public static Quote fromJSON(JsonObject json) throws ParseException {
+    public Quote fromJSON(JsonObject json) throws ParseException {
         LocalDateTime lastModifiedLocal = LocalDateTime.parse(json.getString("lastModified"), isoFormat);
         ZonedDateTime lastModified = ZonedDateTime.of(lastModifiedLocal, ZoneOffset.UTC);
         BigDecimal bestBidPrice = BigDecimal.valueOf(json.getDouble("bestBidPrice"));
@@ -55,6 +61,6 @@ public class QuoteConverter {
         Integer bestBidSize = json.getInteger("bestBidSize");
         Integer bestAskSize = json.getInteger("bestAskSize");
         String productCode = json.getString("productCode");
-        return QuoteFactory.create(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
+        return quoteFactory.create(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 }

@@ -8,17 +8,22 @@ import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
 @Slf4j
 @Component
 public class RecorderService {
+
+    @Autowired
+    private MarketDataVerticle marketDataVerticle;
+
     public void record(DeploymentOptions options) {
 
         final Vertx vertx = Vertx.vertx();
 
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
         String[] ibCodes = new String[]{
                 "70083656",
                 "59198014",

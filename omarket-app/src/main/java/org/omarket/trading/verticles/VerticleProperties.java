@@ -1,7 +1,5 @@
 package org.omarket.trading.verticles;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -9,14 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
-
-import static java.text.MessageFormat.format;
 
 
 /**
@@ -51,16 +44,4 @@ public class VerticleProperties {
         return FileSystems.getDefault().getPath(storageDirPathName);
     }
 
-    public static DeploymentOptions makeDeploymentOptions(String configPath) throws IOException {
-        Path configValidatedPath = Paths.get(configPath).toAbsolutePath();
-        if(Files.isRegularFile(configValidatedPath)) {
-            JsonParser parser = new JsonParser();
-            JsonElement jsonElement = parser.parse(Files.newBufferedReader(configValidatedPath));
-            com.google.gson.JsonObject googleJsonObject = jsonElement.getAsJsonObject();
-            JsonObject jsonConfig = new JsonObject(googleJsonObject.toString());
-            return new DeploymentOptions().setConfig(jsonConfig);
-        } else {
-            throw new RuntimeException(format("failed to load config file {}", configValidatedPath));
-        }
-    }
 }

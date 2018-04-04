@@ -22,16 +22,16 @@ import java.util.Objects;
 @Component
 class StatArbService {
     private final VerticleProperties props;
-
+    @Autowired
+    Verticle historicalDataVerticle;
     @Autowired
     public StatArbService(VerticleProperties props) {
         this.props = props;
     }
 
-    public static void run(DeploymentOptions options) throws InterruptedException {
+    public void run(DeploymentOptions options) throws InterruptedException {
         final Vertx vertx = Vertx.vertx();
 
-        Verticle historicalDataVerticle = new HistoricalDataVerticle();
         Verticle singleLegMeanReversionStrategyVerticle = new DummyMeanReversionStrategyVerticle();
 
         RxHelper.deployVerticle(vertx, historicalDataVerticle, options)
@@ -52,7 +52,7 @@ class StatArbService {
 @Component
 class StatArbRunner implements ApplicationRunner {
 
-    private final RecorderService service;
+    private final StatArbService service;
 
     private final VerticleProperties props;
 
@@ -60,7 +60,7 @@ class StatArbRunner implements ApplicationRunner {
     private String clientId;
 
     @Autowired
-    public StatArbRunner(RecorderService service, VerticleProperties props) {
+    public StatArbRunner(StatArbService service, VerticleProperties props) {
         this.service = service;
         this.props = props;
     }
@@ -69,7 +69,7 @@ class StatArbRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         if (Objects.equals(args.getNonOptionArgs().get(0), "statarb")) {
             DeploymentOptions options = props.makeDeploymentOptions(Integer.valueOf(clientId));
-            service.record(options);
+            service.run(options);
         }
     }
 }

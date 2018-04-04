@@ -11,6 +11,7 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.Vertx;
+import io.vertx.rxjava.core.eventbus.EventBus;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.ContractDBService;
@@ -18,6 +19,7 @@ import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import rx.Observable;
 
 import java.math.BigDecimal;
@@ -30,10 +32,12 @@ import java.util.Set;
 /**
  * Created by Christophe on 01/11/2016.
  */
+@Component
 public class MarketDataVerticle extends AbstractVerticle {
 
-    @Autowired
-    private ContractDBService contractDBService;
+    private final ContractDBService contractDBService;
+
+    private final IBrokersMarketDataCallback ibrokersClient;
 
     public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
     public final static String ADDRESS_EOD_REQUEST = "oot.marketData.subscribeDaily";
@@ -48,6 +52,12 @@ public class MarketDataVerticle extends AbstractVerticle {
     public static final JsonObject EMPTY = new JsonObject();
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, Security> subscribedProducts = new HashMap<>();
+
+    @Autowired
+    public MarketDataVerticle(ContractDBService contractDBService, IBrokersMarketDataCallback ibrokersClient) {
+        this.contractDBService = contractDBService;
+        this.ibrokersClient = ibrokersClient;
+    }
 
     public static String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
@@ -282,7 +292,10 @@ public class MarketDataVerticle extends AbstractVerticle {
         Integer ibrokersPort = config().getInteger("ibrokers.port");
         Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
 
-        IBrokersMarketDataCallback ibrokersClient = new IBrokersMarketDataCallback(vertx.eventBus(), storageDirPath, contractDBPath, contractDBService);
+        ibrokersClient.setContractDBService(contractDBService);
+        ibrokersClient.setEventBus(vertx.eventBus());
+        ibrokersClient.setStorageDirPath(storageDirPath);
+        ibrokersClient.setContractDBPath(contractDBPath);
         vertx.executeBlocking(future -> {
             try {
                 org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,

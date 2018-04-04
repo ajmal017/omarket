@@ -13,6 +13,8 @@ import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.util.OperatorMergeSorted;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import rx.Observable;
 
 import java.io.*;
@@ -33,8 +35,16 @@ import static rx.Observable.*;
  * Created by Christophe on 01/11/2016.
  */
 @Slf4j
+@Component
 public class HistoricalDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_PROVIDE_HISTORY = "oot.historicalData.provide";
+
+    private final QuoteFactory quoteFactory;
+
+    @Autowired
+    public HistoricalDataVerticle(QuoteFactory quoteFactory) {
+        this.quoteFactory = quoteFactory;
+    }
 
     public void start(Future<Void> startFuture) throws Exception {
         log.info("starting historical data");
@@ -92,7 +102,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         startFuture.complete();
     }
 
-    static public Observable<Quote> getHistoricalQuoteStream(final List<String> dirs, final String productCode) throws IOException {
+    public Observable<Quote> getHistoricalQuoteStream(final List<String> dirs, final String productCode) throws IOException {
         String storageDirPathName = String.join(File.separator, dirs);
         Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
         Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
@@ -115,7 +125,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         return quotesStream.map(row -> createQuote(row, productCode));
     }
 
-    private static Quote createQuote(String[] fields, String productCode) {
+    private Quote createQuote(String[] fields, String productCode) {
         Quote quote = null;
         if (fields.length > 0) {
             LocalDateTime timestamp = LocalDateTime.parse(fields[0], DATE_FORMAT);
@@ -124,7 +134,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
             BigDecimal priceBid = new BigDecimal(fields[2]);
             BigDecimal priceAsk = new BigDecimal(fields[3]);
             Integer volumeAsk = Integer.valueOf(fields[4]);
-            quote = QuoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk, productCode);
+            quote = quoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk, productCode);
         }
         return quote;
     }

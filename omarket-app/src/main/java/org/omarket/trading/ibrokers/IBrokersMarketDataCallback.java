@@ -32,6 +32,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import org.omarket.trading.ContractDBService;
+import org.springframework.stereotype.Component;
+
 import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
@@ -41,7 +43,10 @@ import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGe
 /**
  * Created by Christophe on 03/11/2016.
  */
+@Component
 public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
+
+    private final QuoteFactory quoteFactory;
 
     private final ContractDBService contractDBservice;
 
@@ -50,8 +55,8 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private final static int SIZE_BID = 0;
     private final static int SIZE_ASK = 3;
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
-    private final Path contractsDBPath;
-    private final Path storageDirPath;
+    private Path contractsDBPath;
+    private Path storageDirPath;
     private final SimpleDateFormat formatYearMonthDay;
     private final SimpleDateFormat formatHour;
     private Integer lastRequestId = null;
@@ -61,16 +66,17 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
+    private Path contractDBPath;
+    private ContractDBService contractDBService;
 
-    public IBrokersMarketDataCallback(EventBus eventBus, Path storageDirPath, Path contractsDBPath, ContractDBService contractDBservice) {
-        this.eventBus = eventBus;
-        this.storageDirPath = storageDirPath;
-        this.contractsDBPath = contractsDBPath;
+    @Autowired
+    public IBrokersMarketDataCallback(ContractDBService contractDBservice, QuoteFactory quoteFactory) {
         formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
         this.contractDBservice = contractDBservice;
+        this.quoteFactory = quoteFactory;
     }
 
     private static Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
@@ -130,7 +136,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         Path productStorage = prepareTickPath(storageDirPath, security);
         contractDBservice.saveContract(contractsDBPath, security);
         subscribed.put(ibCode, productStorage);
-        MutableQuote quote = QuoteFactory.createMutable(security.getMinTick(), security.getCode());
+        MutableQuote quote = quoteFactory.createMutable(security.getMinTick(), security.getCode());
         orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
         logger.info("requesting market data for " + security);
         getClient().reqMktData(requestId, contract, "", false, null);
@@ -294,4 +300,19 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.error(str);
     }
 
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
+
+    public void setStorageDirPath(Path storageDirPath) {
+        this.storageDirPath = storageDirPath;
+    }
+
+    public void setContractDBPath(Path contractDBPath) {
+        this.contractDBPath = contractDBPath;
+    }
+
+    public void setContractDBService(ContractDBService contractDBService) {
+        this.contractDBService = contractDBService;
+    }
 }
