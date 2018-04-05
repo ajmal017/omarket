@@ -3,7 +3,6 @@ package org.omarket;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
@@ -36,9 +35,9 @@ public class UpdateContractDBService {
         this.marketDataVerticle = marketDataVerticle;
     }
 
-    public void update(DeploymentOptions options) {
+    public void update() {
         final Vertx vertx = Vertx.vertx();
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle);
         marketDataDeployment.flatMap(deploymentId -> {
             log.info("succesfully deployed market data verticle: " + deploymentId);
             Observable<String> codesStream = Observable.empty();

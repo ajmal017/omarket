@@ -1,6 +1,5 @@
 package org.omarket;
 
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rxjava.core.RxHelper;
@@ -19,11 +18,11 @@ public class RecorderService {
     @Autowired
     private MarketDataVerticle marketDataVerticle;
 
-    public void record(DeploymentOptions options) {
+    public void record() {
 
         final Vertx vertx = Vertx.vertx();
 
-        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle, options);
+        Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle);
         String[] ibCodes = new String[]{
                 "70083656",
                 "59198014",

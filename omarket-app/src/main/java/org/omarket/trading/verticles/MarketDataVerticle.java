@@ -19,11 +19,13 @@ import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
 import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +40,21 @@ public class MarketDataVerticle extends AbstractVerticle {
     private final ContractDBService contractDBService;
 
     private final IBrokersMarketDataCallback ibrokersClient;
+
+    @Value("${ibrokers.host}")
+    private String ibrokersHost;
+
+    @Value("${ibrokers.port}")
+    private String ibrokersPort;
+
+    @Value("${org.omarket.client_id.record_prices}")
+    private String ibrokersClientId;
+
+    @Value("${ibrokers.ticks.storagePath}")
+    private String storageDir;
+
+    @Value("${oot.contracts.dbPath}")
+    private String contractDB;
 
     public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
     public final static String ADDRESS_EOD_REQUEST = "oot.marketData.subscribeDaily";
@@ -285,12 +302,9 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     public void start(Future<Void> startFuture) throws Exception {
         logger.info("starting market data");
-        Path storageDirPath = VerticleProperties.makePath(config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH));
-        Path contractDBPath = VerticleProperties.makePath(config().getJsonArray(VerticleProperties.PROPERTY_CONTRACT_DB_PATH));
+        Path storageDirPath = Paths.get(storageDir).toAbsolutePath();
+        Path contractDBPath = Paths.get(contractDB).toAbsolutePath();
         logger.info("ticks data storage set to '" + storageDirPath + "'");
-        String ibrokersHost = config().getString("ibrokers.host");
-        Integer ibrokersPort = config().getInteger("ibrokers.port");
-        Integer ibrokersClientId = config().getInteger("ibrokers.clientId");
 
         ibrokersClient.setContractDBService(contractDBService);
         ibrokersClient.setEventBus(vertx.eventBus());
@@ -298,7 +312,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         ibrokersClient.setContractDBPath(contractDBPath);
         vertx.executeBlocking(future -> {
             try {
-                org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, ibrokersPort, ibrokersClientId,
+                org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, Integer.valueOf(ibrokersPort), Integer.valueOf(ibrokersClientId),
                         ibrokersClient);
                 setupContractRetrieve(vertx, ibrokersClient);
                 setupContractDownload(vertx, ibrokersClient);

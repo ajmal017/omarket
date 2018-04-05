@@ -9,7 +9,6 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
 import org.omarket.trading.quote.*;
 import org.slf4j.Logger;
@@ -48,14 +47,14 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     private final QuoteFactory quoteFactory;
 
-    private final ContractDBService contractDBservice;
+    private Path contractDBPath;
+    private ContractDBService contractDBService;
 
     private final static int PRICE_BID = 1;
     private final static int PRICE_ASK = 2;
     private final static int SIZE_BID = 0;
     private final static int SIZE_ASK = 3;
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
-    private Path contractsDBPath;
     private Path storageDirPath;
     private final SimpleDateFormat formatYearMonthDay;
     private final SimpleDateFormat formatHour;
@@ -66,16 +65,14 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
-    private Path contractDBPath;
-    private ContractDBService contractDBService;
 
     @Autowired
-    public IBrokersMarketDataCallback(ContractDBService contractDBservice, QuoteFactory quoteFactory) {
+    public IBrokersMarketDataCallback(ContractDBService contractDBService, QuoteFactory quoteFactory) {
         formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
-        this.contractDBservice = contractDBservice;
+        this.contractDBService = contractDBService;
         this.quoteFactory = quoteFactory;
     }
 
@@ -134,7 +131,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         Files.createDirectories(storageDirPath);
         Path productStorage = prepareTickPath(storageDirPath, security);
-        contractDBservice.saveContract(contractsDBPath, security);
+        contractDBService.saveContract(contractDBPath, security);
         subscribed.put(ibCode, productStorage);
         MutableQuote quote = quoteFactory.createMutable(security.getMinTick(), security.getCode());
         orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
@@ -154,7 +151,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         if(updateContractDB.contains(requestId)) {
             Security security = Security.fromContractDetails(contractDetails);
             try {
-                contractDBservice.saveContract(Paths.get("data", "contracts"), security);
+                contractDBService.saveContract(Paths.get("data", "contracts"), security);
                 updateContractDB.remove(requestId);
             } catch (IOException e) {
                 logger.error("failed to update contract db", e);

@@ -12,6 +12,7 @@ import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import rx.Observable;
 import rx.exceptions.Exceptions;
 import rx.functions.Action1;
@@ -33,6 +34,9 @@ import java.util.*;
 @Slf4j
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements QuoteProcessor {
 
+
+    @Value("${ibrokers.ticks.storagePath}")
+    private String contractDBPathName;
 
     @Autowired
     private ContractDBService contractDBService;
@@ -85,8 +89,6 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     }
 
     private Map<String, Security> createProducts() throws IOException {
-        JsonArray pathElements = config().getJsonArray(VerticleProperties.PROPERTY_CONTRACT_DB_PATH);
-        String contractDBPathName = String.join(File.separator, pathElements.getList());
         Path contractDBPath = FileSystems.getDefault().getPath(contractDBPathName);
         String[] productCodes = getProductCodes();
         Map<String, Security> products = new HashMap<>();

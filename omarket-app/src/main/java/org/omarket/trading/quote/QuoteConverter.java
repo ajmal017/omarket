@@ -22,8 +22,12 @@ public class QuoteConverter {
     private final static DateTimeFormatter millisFormat = DateTimeFormatter.ofPattern("mm:ss.SSS");
     private final static DateTimeFormatter isoFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS'Z'");
 
+    private final QuoteFactory quoteFactory;
+
     @Autowired
-    private QuoteFactory quoteFactory;
+    public QuoteConverter(QuoteFactory quoteFactory) {
+        this.quoteFactory = quoteFactory;
+    }
 
     public static String toPriceVolumeString(Quote quote) {
         String timestamp = millisFormat.format(quote.getLastModified());

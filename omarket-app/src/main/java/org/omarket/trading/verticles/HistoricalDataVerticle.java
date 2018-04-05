@@ -14,15 +14,18 @@ import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
 import org.omarket.trading.util.OperatorMergeSorted;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
 import java.io.*;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -39,6 +42,9 @@ import static rx.Observable.*;
 public class HistoricalDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_PROVIDE_HISTORY = "oot.historicalData.provide";
 
+    @Value("${ibrokers.ticks.storagePath}")
+    private String storageDir;
+
     private final QuoteFactory quoteFactory;
 
     @Autowired
@@ -48,10 +54,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
 
     public void start(Future<Void> startFuture) throws Exception {
         log.info("starting historical data");
-        JsonArray storageDirs = config().getJsonArray(VerticleProperties.PROPERTY_IBROKERS_TICKS_PATH);
-        List<String> dirs = storageDirs.getList();
-        String storageDirPathName = String.join(File.separator, dirs);
-        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+        Path storageDirPath = Paths.get(storageDir).toAbsolutePath();
         log.info("ticks data storage set to '" + storageDirPath + "'");
 
         final MessageConsumer<JsonObject> provideRequest = vertx.eventBus().consumer(ADDRESS_PROVIDE_HISTORY);
@@ -66,7 +69,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
                         List<Observable<Quote>> quoteStreams = new LinkedList<>();
                         try {
                             for (Object productCode : productCodes.getList()) {
-                                Observable<Quote> stream = getHistoricalQuoteStream(dirs, (String) productCode);
+                                Observable<Quote> stream = getHistoricalQuoteStream(storageDirPath, (String) productCode);
                                 quoteStreams.add(stream);
                             }
                         } catch (IOException e) {
@@ -102,9 +105,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
         startFuture.complete();
     }
 
-    public Observable<Quote> getHistoricalQuoteStream(final List<String> dirs, final String productCode) throws IOException {
-        String storageDirPathName = String.join(File.separator, dirs);
-        Path storageDirPath = FileSystems.getDefault().getPath(storageDirPathName);
+    public Observable<Quote> getHistoricalQuoteStream(final Path storageDirPath, final String productCode) throws IOException {
         Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
         log.info("accessing storage: " + productStorage);
         Observable<String[]> quotesStream = empty();
