@@ -9,6 +9,7 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
+import org.omarket.trading.MarketData;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
@@ -46,10 +47,12 @@ public class HistoricalDataVerticle extends AbstractVerticle {
     private String storageDir;
 
     private final QuoteFactory quoteFactory;
+    private MarketData marketData;
 
     @Autowired
-    public HistoricalDataVerticle(QuoteFactory quoteFactory) {
+    public HistoricalDataVerticle(QuoteFactory quoteFactory, MarketData marketData) {
         this.quoteFactory = quoteFactory;
+        this.marketData = marketData;
     }
 
     public void start(Future<Void> startFuture) throws Exception {
@@ -106,7 +109,7 @@ public class HistoricalDataVerticle extends AbstractVerticle {
     }
 
     public Observable<Quote> getHistoricalQuoteStream(final Path storageDirPath, final String productCode) throws IOException {
-        Path productStorage = storageDirPath.resolve(createChannelQuote(productCode));
+        Path productStorage = storageDirPath.resolve(marketData.createChannelQuote(productCode));
         log.info("accessing storage: " + productStorage);
         Observable<String[]> quotesStream = empty();
         if (Files.exists(productStorage)) {

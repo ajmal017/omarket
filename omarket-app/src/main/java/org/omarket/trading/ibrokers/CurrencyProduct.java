@@ -1,16 +1,18 @@
 package org.omarket.trading.ibrokers;
 
+import org.omarket.trading.MarketData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.omarket.trading.MarketData.createChannelQuote;
-
 /**
  * Created by Christophe on 05/11/2016.
  */
+@Component
 public class CurrencyProduct {
     private final static Logger logger = LoggerFactory.getLogger(CurrencyProduct.class);
     public final static Map<String, Integer> IB_CODES = new HashMap<>();
@@ -109,12 +111,15 @@ public class CurrencyProduct {
         IB_CODES.put("KRW.AUD", 36771196);
     }
 
+    @Autowired
+    private MarketData marketData;
+
     public String getChannel(String currency1, String currency2){
         String cross = currency1.toUpperCase() + "." + currency2.toUpperCase();
         if (!IB_CODES.containsKey(cross)){
             logger.error("no channel for {} / {}", currency1, currency2);
         }
-        return createChannelQuote(IB_CODES.get(cross).toString());
+        return marketData.createChannelQuote(IB_CODES.get(cross).toString());
     }
 
     public String getChannelDirect(String currency){

@@ -56,16 +56,18 @@ public class MarketDataVerticle extends AbstractVerticle {
     @Value("${oot.contracts.dbPath}")
     private String contractDB;
 
-    public final static String ADDRESS_SUBSCRIBE_TICK = "oot.marketData.subscribeTick";
-    public final static String ADDRESS_EOD_REQUEST = "oot.marketData.subscribeDaily";
-    public static final String ADDRESS_EOD_DATA_PREFIX = "oot.marketData.hist";
-    public final static String ADDRESS_UNSUBSCRIBE_TICK = "oot.marketData.unsubscribeTick";
-    public final static String ADDRESS_UNSUBSCRIBE_ALL = "oot.marketData.unsubscribeAll";
-    public final static String ADDRESS_CONTRACT_RETRIEVE = "oot.marketData.contractRetrieve";
-    public final static String ADDRESS_CONTRACT_DOWNLOAD = "oot.marketData.contractDownload";
-    public final static String ADDRESS_ORDER_BOOK_LEVEL_ONE = "oot.marketData.orderBookLevelOne";
-    public final static String ADDRESS_ADMIN_COMMAND = "oot.marketData.adminCommand";
-    public final static String ADDRESS_ERROR_MESSAGE_PREFIX = "oot.marketData.error";
+    @Value("${address.subscribe_tick}")
+    private String ADDRESS_SUBSCRIBE_TICK;
+    @Value("address.eod_request")	private String ADDRESS_EOD_REQUEST;
+    @Value("address.eod_data_prefix")	private String ADDRESS_EOD_DATA_PREFIX;
+    @Value("address.unsubscribe_tick")	private String ADDRESS_UNSUBSCRIBE_TICK;
+    @Value("address.unsubscribe_all")	private String ADDRESS_UNSUBSCRIBE_ALL;
+    @Value("address.contract_retrieve")	private String ADDRESS_CONTRACT_RETRIEVE;
+    @Value("address.contract_download")	private String ADDRESS_CONTRACT_DOWNLOAD;
+    @Value("address.order_book_level_one")	private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
+    @Value("address.admin_command")	private String ADDRESS_ADMIN_COMMAND;
+    @Value("address.error_message_prefix")	private String ADDRESS_ERROR_MESSAGE_PREFIX;
+
     public static final JsonObject EMPTY = new JsonObject();
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, Security> subscribedProducts = new HashMap<>();
@@ -76,11 +78,11 @@ public class MarketDataVerticle extends AbstractVerticle {
         this.ibrokersClient = ibrokersClient;
     }
 
-    public static String getErrorChannel(Integer requestId) {
+    public String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
     }
 
-    public static String getErrorChannelGeneric() {
+    public String getErrorChannelGeneric() {
         return ADDRESS_ERROR_MESSAGE_PREFIX + ".*";
     }
 
@@ -97,7 +99,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return subscribedProducts.keySet();
     }
 
-    private static void setupSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -148,7 +150,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         logger.info("quotes subscription service deployed");
     }
 
-    private static void setupUnsubscribeTick(Vertx vertx) {
+    private void setupUnsubscribeTick(Vertx vertx) {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_UNSUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -168,7 +170,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -189,7 +191,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void setupContractDownload(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupContractDownload(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DOWNLOAD);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -225,7 +227,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return result;
     }
 
-    private static void setupAdminCommand(Vertx vertx) {
+    private void setupAdminCommand(Vertx vertx) {
         Observable<Message<String>> consumer = vertx.eventBus().<String>consumer(ADDRESS_ADMIN_COMMAND).toObservable();
         consumer.subscribe(message -> {
             final String commandLine = message.body();
@@ -252,8 +254,8 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public static void adminCommand(Vertx vertx, String commandLine) {
-        vertx.eventBus().send(MarketDataVerticle.ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
+    public void adminCommand(Vertx vertx, String commandLine) {
+        vertx.eventBus().send(ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
             if (reply.succeeded()) {
                 String commandResult = (String) reply.result().body();
                 logger.debug(commandLine + " -> '" + commandResult + "'");
@@ -263,7 +265,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private static void setupHistoricalEOD(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupHistoricalEOD(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {

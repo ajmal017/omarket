@@ -2,6 +2,9 @@ package org.omarket.trading;
 
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.verticles.MarketDataVerticle;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,10 +20,13 @@ import java.util.stream.Stream;
  * Created by christophe on 30/11/16.
  */
 @Slf4j
+@Component
 public class MarketData {
 
-    static public String createChannelQuote(String productCode) {
-        return MarketDataVerticle.ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + productCode;
+    @Value("address.order_book_level_one")	private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
+
+    public String createChannelQuote(String productCode) {
+        return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + productCode;
     }
 
     public static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");

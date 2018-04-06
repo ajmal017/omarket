@@ -9,8 +9,12 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.omarket.trading.MarketData;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.*;
+import org.omarket.trading.quote.MutableQuote;
+import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
+import org.omarket.trading.quote.QuoteFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,12 +35,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import org.omarket.trading.ContractDBService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import static org.omarket.trading.MarketData.createChannelQuote;
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
-import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannel;
-import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGeneric;
 
 
 /**
@@ -49,6 +51,9 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     private Path contractDBPath;
     private ContractDBService contractDBService;
+    private MarketData marketData;
+
+    @Value("address.error_message_prefix")	private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
     private final static int PRICE_BID = 1;
     private final static int PRICE_ASK = 2;
@@ -67,18 +72,19 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Map<Integer, String> eodReplies = new HashMap<>();
 
     @Autowired
-    public IBrokersMarketDataCallback(ContractDBService contractDBService, QuoteFactory quoteFactory) {
+    public IBrokersMarketDataCallback(ContractDBService contractDBService, QuoteFactory quoteFactory, MarketData marketData) {
         formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
         formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
         this.contractDBService = contractDBService;
         this.quoteFactory = quoteFactory;
+        this.marketData = marketData;
     }
 
-    private static Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
+    private Path prepareTickPath(Path storageDirPath, Security contractDetails) throws IOException {
         String code = contractDetails.getCode();
-        Path productStorage = storageDirPath.resolve(createChannelQuote(code));
+        Path productStorage = storageDirPath.resolve(marketData.createChannelQuote(code));
         logger.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         return productStorage;
@@ -90,6 +96,9 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         }
         lastRequestId += 1;
         return lastRequestId;
+    }
+    public String getErrorChannel(Integer requestId) {
+        return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
     }
 
     public String requestContract(Contract contract, Message<JsonObject> message) {
@@ -210,7 +219,7 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     }
 
     private void processOrderBook(Contract contract, Quote orderBook) {
-        String channel = createChannelQuote(String.valueOf(contract.conid()));
+        String channel = marketData.createChannelQuote(String.valueOf(contract.conid()));
         try {
             Path rootDirectory = subscribed.get(contract.conid());
             Date now = new Date();
@@ -285,6 +294,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
                 }
             }
         }
+    }
+
+    public String getErrorChannelGeneric() {
+        return ADDRESS_ERROR_MESSAGE_PREFIX + ".*";
     }
 
     @Override

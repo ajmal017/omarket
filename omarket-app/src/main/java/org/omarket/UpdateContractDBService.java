@@ -60,7 +60,7 @@ public class UpdateContractDBService {
             return codesStream;
         })
                 .concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
-                .flatMap(new ContractFetcher(vertx))
+                .flatMap(new ContractFetcher())
                 .doOnNext(result -> {
                     JsonObject error = result.body().getJsonObject("error");
                     if (!error.equals(MarketDataVerticle.EMPTY)) {

@@ -8,12 +8,18 @@ import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
 @Slf4j
 @Component
 public class RecorderService {
+
+    @Value("${address.subscribe_tick}")
+    private String ADDRESS_SUBSCRIBE_TICK;
+    @Value("${address.contract_retrieve}")
+    private String ADDRESS_CONTRACT_RETRIEVE;
 
     @Autowired
     private MarketDataVerticle marketDataVerticle;
@@ -107,7 +113,7 @@ public class RecorderService {
                 log.info("subscribing ibCode: " + ibCode);
                 JsonObject contract = new JsonObject().put("conId", ibCode);
                 ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
-                vertx.eventBus().send(MarketDataVerticle.ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
+                vertx.eventBus().send(ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
                 contractStream.subscribe((Message<JsonObject> contractMessage) -> {
                     JsonObject envelopJson = contractMessage.body();
                     if(!envelopJson.getJsonObject("error").isEmpty()){
@@ -116,7 +122,7 @@ public class RecorderService {
                     JsonObject contractJson = envelopJson.getJsonObject("content");
                     log.info("contract retrieved: " + contractJson);
                     ObservableFuture<Message<JsonObject>> quoteStream = io.vertx.rx.java.RxHelper.observableFuture();
-                    vertx.eventBus().send(MarketDataVerticle.ADDRESS_SUBSCRIBE_TICK, contractJson, quoteStream.toHandler());
+                    vertx.eventBus().send(ADDRESS_SUBSCRIBE_TICK, contractJson, quoteStream.toHandler());
                     quoteStream.subscribe(resultMessage -> {
                         JsonObject result = resultMessage.body();
                         log.info("received: " + result);
