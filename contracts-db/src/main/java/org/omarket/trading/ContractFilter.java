@@ -26,33 +26,33 @@ public abstract class ContractFilter {
         return filename.toString();
     }
 
-    public String getPrimaryExchange() {
-        return primaryExchange.toString();
-    }
-
-    public String getCurrency() {
-        return currency.toString();
-    }
-
-    public String getSecurityType() {
-        return securityType.toString();
-    }
-
-    protected abstract boolean accept(String content);
-
     public void setFilename(Path filename) {
         this.filename = filename;
+    }
+
+    public String getPrimaryExchange() {
+        return primaryExchange.toString();
     }
 
     public void setPrimaryExchange(Path primaryExchange) {
         this.primaryExchange = primaryExchange;
     }
 
+    public String getCurrency() {
+        return currency.toString();
+    }
+
     public void setCurrency(Path currency) {
         this.currency = currency;
+    }
+
+    public String getSecurityType() {
+        return securityType.toString();
     }
 
     public void setSecurityType(Path securityType) {
         this.securityType = securityType;
     }
+
+    protected abstract boolean accept(String content);
 }

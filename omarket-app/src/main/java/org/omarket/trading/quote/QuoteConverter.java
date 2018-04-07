@@ -5,8 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -42,15 +40,15 @@ public class QuoteConverter {
         BigDecimal askPrice = quote.getBestAskPrice();
         asJSON.put("lastModified", isoFormat.format(quote.getLastModified()));
         asJSON.put("bestBidSize", quote.getBestBidSize());
-        if (bidPrice!=null){
+        if (bidPrice != null) {
             asJSON.put("bestBidPrice", bidPrice.doubleValue());
         } else {
-            asJSON.put("bestBidPrice", (Enum)null);
+            asJSON.put("bestBidPrice", (Enum) null);
         }
-        if (askPrice!=null){
+        if (askPrice != null) {
             asJSON.put("bestAskPrice", askPrice.doubleValue());
         } else {
-            asJSON.put("bestAskPrice", (Enum)null);
+            asJSON.put("bestAskPrice", (Enum) null);
         }
         asJSON.put("bestAskSize", quote.getBestAskSize());
         asJSON.put("productCode", quote.getProductCode());

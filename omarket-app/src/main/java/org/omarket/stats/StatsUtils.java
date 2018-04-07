@@ -1,15 +1,18 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.DecompositionSolver;
+import org.apache.commons.math3.linear.LUDecomposition;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.Arrays;
-import java.util.DoubleSummaryStatistics;
 import java.util.List;
 
 import static java.lang.Math.min;
 
-interface MatrixElementOperator{
+interface MatrixElementOperator {
     double compute(int row, int column);
 }
 
@@ -34,7 +37,7 @@ public class StatsUtils {
     }
 
     public static RealMatrix identity(int dimension) {
-        ElementProvider onesProvider = (row, column) -> (row == column)? 1.: 0.;
+        ElementProvider onesProvider = (row, column) -> (row == column) ? 1. : 0.;
         LightweightMatrix matrix = new LightweightMatrix(dimension, dimension, onesProvider);
         return matrix;
     }
@@ -45,8 +48,8 @@ public class StatsUtils {
 
     public static RealMatrix fillValues(int rowDimension, int columnDimension, MatrixElementOperator operator) {
         RealMatrix matrix = MatrixUtils.createRealMatrix(rowDimension, columnDimension);
-        for(int row=0; row < rowDimension; row ++){
-            for (int column = 0; column < columnDimension; column++){
+        for (int row = 0; row < rowDimension; row++) {
+            for (int column = 0; column < columnDimension; column++) {
                 matrix.setEntry(row, column, operator.compute(row, column));
             }
         }
@@ -57,39 +60,39 @@ public class StatsUtils {
         return ones(other.getRowDimension(), other.getColumnDimension());
     }
 
-    public static double[] columnMeans(RealMatrix matrix){
+    public static double[] columnMeans(RealMatrix matrix) {
         RealMatrix ones = StatsUtils.ones(1, matrix.getRowDimension());
         RealMatrix sums = ones.multiply(matrix);
         return sums.scalarMultiply(1. / matrix.getRowDimension()).getRow(0);
     }
 
-    public static double[] rowMeans(RealMatrix matrix){
+    public static double[] rowMeans(RealMatrix matrix) {
         RealMatrix ones = StatsUtils.ones(matrix.getColumnDimension(), 1);
         RealMatrix sums = matrix.multiply(ones);
         return sums.scalarMultiply(1. / matrix.getColumnDimension()).getColumn(0);
     }
 
-    public static RealMatrix constantDetrendColumns(RealMatrix matrix){
+    public static RealMatrix constantDetrendColumns(RealMatrix matrix) {
         RealMatrix output = matrix.copy();
         double[] means = new double[matrix.getColumnDimension()];
-        for(int column=0; column < output.getColumnDimension(); column++){
+        for (int column = 0; column < output.getColumnDimension(); column++) {
             double[] values = output.getColumn(column);
             means[column] = StatUtils.mean(values);
         }
-        for(int row=0; row < output.getRowDimension(); row++){
-            for(int column=0; column < output.getColumnDimension(); column++){
+        for (int row = 0; row < output.getRowDimension(); row++) {
+            for (int column = 0; column < output.getColumnDimension(); column++) {
                 output.setEntry(row, column, output.getEntry(row, column) - means[column]);
             }
         }
         return output;
     }
 
-    public static RealMatrix constantDetrendRows(RealMatrix matrix){
+    public static RealMatrix constantDetrendRows(RealMatrix matrix) {
         RealMatrix ones = StatsUtils.ones(matrix.getColumnDimension());
         return matrix.subtract(matrix.multiply(ones).scalarMultiply(1. / matrix.getColumnDimension()));
     }
 
-    public static RealMatrix diffRows(RealMatrix matrix){
+    public static RealMatrix diffRows(RealMatrix matrix) {
         ElementProvider provider = new ElementProvider() {
             @Override
             public double getElement(int row, int column) {
@@ -104,39 +107,39 @@ public class StatsUtils {
         return new LightweightMatrix(matrix.getRowDimension(), matrix.getColumnDimension(), provider);
     }
 
-    public static RealMatrix truncateTop(final RealMatrix matrix, final int count){
-        if(count >= matrix.getRowDimension() || count < 0){
-            throw new IndexOutOfBoundsException("position "+ count +" not allowed for number of rows: " + matrix.getRowDimension());
+    public static RealMatrix truncateTop(final RealMatrix matrix, final int count) {
+        if (count >= matrix.getRowDimension() || count < 0) {
+            throw new IndexOutOfBoundsException("position " + count + " not allowed for number of rows: " + matrix.getRowDimension());
         }
         double[][] data = matrix.getData();
         return MatrixUtils.createRealMatrix(Arrays.copyOfRange(data, count, data.length));
     }
 
-    public static RealVector truncateTop(RealVector vector, int count){
-        if(count == vector.getDimension() || count < 0){
-            throw new IndexOutOfBoundsException("position "+ count +" not allowed for vector size: " + vector.getDimension());
+    public static RealVector truncateTop(RealVector vector, int count) {
+        if (count == vector.getDimension() || count < 0) {
+            throw new IndexOutOfBoundsException("position " + count + " not allowed for vector size: " + vector.getDimension());
         }
         double[] data = vector.toArray();
         return MatrixUtils.createRealVector(Arrays.copyOfRange(data, count, data.length));
     }
 
-    public static RealMatrix truncateTop(RealMatrix matrix){
+    public static RealMatrix truncateTop(RealMatrix matrix) {
         return StatsUtils.truncateTop(matrix, 1);
     }
 
-    public static RealVector nullVector(int dimension){
+    public static RealVector nullVector(int dimension) {
         return MatrixUtils.createRealVector(zeros(dimension, 1).getColumn(0));
     }
 
-    public static RealMatrix identity(int rowDimension, int columnDimension){
+    public static RealMatrix identity(int rowDimension, int columnDimension) {
         RealMatrix id = zeros(rowDimension, columnDimension);
-        for(int count=0; count < min(rowDimension, columnDimension); count++){
+        for (int count = 0; count < min(rowDimension, columnDimension); count++) {
             id.setEntry(count, count, 1.);
         }
         return id;
     }
 
-    public static RealMatrix identityLike(RealMatrix other){
+    public static RealMatrix identityLike(RealMatrix other) {
         return identity(other.getRowDimension(), other.getColumnDimension());
     }
 
@@ -144,10 +147,10 @@ public class StatsUtils {
         double[][] data = matrix.getData();
         double[][] shifted = Arrays.copyOfRange(data, 0, data.length - lag);
         double[][] output = new double[data.length][];
-        for(int row=lag; row < output.length; row++){
+        for (int row = lag; row < output.length; row++) {
             output[row] = shifted[row - lag];
         }
-        for(int row=0; row < lag; row++) {
+        for (int row = 0; row < lag; row++) {
             output[row] = new double[matrix.getColumnDimension()];
         }
         return MatrixUtils.createRealMatrix(output);
@@ -182,28 +185,27 @@ public class StatsUtils {
         return MatrixUtils.createRealVector(new double[dimension]);
     }
 
-    public static double sum(RealVector vector){
+    public static double sum(RealVector vector) {
         double value = 0;
-        for(int i=0; i < vector.getDimension(); i++){
+        for (int i = 0; i < vector.getDimension(); i++) {
             value += vector.getEntry(i);
         }
         return value;
     }
 
-    public static boolean equalMatrix(RealMatrix first, RealMatrix second){
+    public static boolean equalMatrix(RealMatrix first, RealMatrix second) {
         boolean same;
         same = first.getRowDimension() == second.getRowDimension();
         same &= first.getColumnDimension() == second.getColumnDimension();
 
-        for(int row=0; row < first.getRowDimension(); row++){
+        for (int row = 0; row < first.getRowDimension(); row++) {
             String rowString = "";
-            for(int column=0; column < first.getColumnDimension(); column++){
+            for (int column = 0; column < first.getColumnDimension(); column++) {
                 Double firstEntry = first.getEntry(row, column);
                 Double secondEntry = second.getEntry(row, column);
-                if(firstEntry.isNaN() && secondEntry.isNaN()){
+                if (firstEntry.isNaN() && secondEntry.isNaN()) {
                     same &= true;
-                }
-                else if(!firstEntry.equals(secondEntry)){
+                } else if (!firstEntry.equals(secondEntry)) {
                     same &= false;
                 }
             }

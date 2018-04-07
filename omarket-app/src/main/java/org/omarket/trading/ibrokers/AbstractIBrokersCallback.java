@@ -1,6 +1,14 @@
 package org.omarket.trading.ibrokers;
 
-import com.ib.client.*;
+import com.ib.client.CommissionReport;
+import com.ib.client.Contract;
+import com.ib.client.ContractDetails;
+import com.ib.client.DeltaNeutralContract;
+import com.ib.client.EClient;
+import com.ib.client.EWrapper;
+import com.ib.client.Execution;
+import com.ib.client.Order;
+import com.ib.client.OrderState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,12 +19,12 @@ public abstract class AbstractIBrokersCallback implements EWrapper {
     private static Logger logger = LoggerFactory.getLogger(AbstractIBrokersCallback.class);
     private EClient m_client;
 
-    public void setClient(EClient m_client){
-        this.m_client = m_client;
+    public EClient getClient() {
+        return this.m_client;
     }
 
-    public EClient getClient(){
-        return this.m_client;
+    public void setClient(EClient m_client) {
+        this.m_client = m_client;
     }
 
     @Override

@@ -11,7 +11,7 @@ import java.time.temporal.TemporalUnit;
 
 /**
  * Created by Christophe on 04/11/2016.
- *
+ * <p>
  * Implementation of Quote interface.
  */
 class QuoteImpl implements Quote {
@@ -61,12 +61,12 @@ class QuoteImpl implements Quote {
 
     @Override
     public boolean isValid() {
-        boolean isNull = bestBidPrice == null || bestAskPrice == null|| bestBidSize == null|| bestAskSize == null;
+        boolean isNull = bestBidPrice == null || bestAskPrice == null || bestBidSize == null || bestAskSize == null;
         return !isNull && bestBidSize > 0 && bestAskSize > 0 && bestBidPrice.compareTo(bestAskPrice) < 0;
     }
 
     @Override
-    public boolean sameSampledTime(Quote other, TemporalUnit temporalUnit){
+    public boolean sameSampledTime(Quote other, TemporalUnit temporalUnit) {
         return getLastModified().truncatedTo(temporalUnit).equals(other.getLastModified().truncatedTo(temporalUnit));
     }
 

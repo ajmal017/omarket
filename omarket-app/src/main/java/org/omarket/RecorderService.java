@@ -109,14 +109,14 @@ public class RecorderService {
         };
         marketDataDeployment.subscribe(deploymentId -> {
             log.info("succesfully deployed market data verticle: " + deploymentId);
-            for(String ibCode: ibCodes){
+            for (String ibCode : ibCodes) {
                 log.info("subscribing ibCode: " + ibCode);
                 JsonObject contract = new JsonObject().put("conId", ibCode);
                 ObservableFuture<Message<JsonObject>> contractStream = io.vertx.rx.java.RxHelper.observableFuture();
                 vertx.eventBus().send(ADDRESS_CONTRACT_RETRIEVE, contract, contractStream.toHandler());
                 contractStream.subscribe((Message<JsonObject> contractMessage) -> {
                     JsonObject envelopJson = contractMessage.body();
-                    if(!envelopJson.getJsonObject("error").isEmpty()){
+                    if (!envelopJson.getJsonObject("error").isEmpty()) {
                         return;
                     }
                     JsonObject contractJson = envelopJson.getJsonObject("content");

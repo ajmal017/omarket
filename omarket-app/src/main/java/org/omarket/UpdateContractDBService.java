@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractFetcher;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
@@ -27,6 +28,9 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class UpdateContractDBService {
+
+    @Value("${address.contract_download}")
+    private String ADDRESS_CONTRACT_DOWNLOAD;
 
     private final MarketDataVerticle marketDataVerticle;
 
@@ -60,7 +64,7 @@ public class UpdateContractDBService {
             return codesStream;
         })
                 .concatMap(code -> Observable.just(code).delay(100, TimeUnit.MILLISECONDS))  // throttling
-                .flatMap(new ContractFetcher())
+                .flatMap(new ContractFetcher(vertx, ADDRESS_CONTRACT_DOWNLOAD))
                 .doOnNext(result -> {
                     JsonObject error = result.body().getJsonObject("error");
                     if (!error.equals(MarketDataVerticle.EMPTY)) {

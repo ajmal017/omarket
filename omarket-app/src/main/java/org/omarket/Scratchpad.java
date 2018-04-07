@@ -5,14 +5,18 @@ import org.apache.commons.math3.exception.DimensionMismatchException;
 import org.apache.commons.math3.exception.NullArgumentException;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.MatrixDimensionMismatchException;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.NonSquareMatrixException;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.Pair;
 import org.omarket.stats.KalmanFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rx.functions.Func1;
 import rx.Observable;
+import rx.functions.Func1;
 import rx.schedulers.Schedulers;
 import yahoofinance.Stock;
 import yahoofinance.YahooFinance;
@@ -20,11 +24,14 @@ import yahoofinance.YahooFinance;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
-
 import static rx.Observable.combineLatest;
 import static rx.Observable.interval;
 

@@ -11,7 +11,7 @@ public class LoggerVerticle extends AbstractVerticle {
     private String loggerName = null;
     private String channelName = null;
 
-    public LoggerVerticle(String loggerName, String channelName){
+    public LoggerVerticle(String loggerName, String channelName) {
         this.loggerName = loggerName;
         this.channelName = channelName;
     }

@@ -14,7 +14,7 @@ public class Order {
     private String orderId = null;
 
 
-    public Order(BigDecimal price, Integer quantity, String orderId){
+    public Order(BigDecimal price, Integer quantity, String orderId) {
         assert quantity > 0;
         this.timestamp = new Date();
         this.price = price;
@@ -22,7 +22,7 @@ public class Order {
         this.orderId = orderId;
     }
 
-    public Order(BigDecimal price, Integer quantity){
+    public Order(BigDecimal price, Integer quantity) {
         this(price, quantity, UUID.randomUUID().toString());
     }
 
@@ -31,11 +31,6 @@ public class Order {
         return "Order{ " + quantity +
                 " @ " + price +
                 " " + orderId + " }";
-    }
-
-    public void setQuantity(Integer newQuantity) {
-        this.quantity = newQuantity;
-        this.timestamp = new Date();
     }
 
     public Date getTimestamp() {
@@ -48,6 +43,11 @@ public class Order {
 
     public Integer getQuantity() {
         return quantity;
+    }
+
+    public void setQuantity(Integer newQuantity) {
+        this.quantity = newQuantity;
+        this.timestamp = new Date();
     }
 
     public String getOrderId() {

@@ -4,15 +4,14 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.Date;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 /**
@@ -59,7 +58,7 @@ public class OrderBookTest {
         assertEquals("best ask does not match", new BigDecimal(101), orderBook.getBestAsk());
     }
 
-    @Test(expected=java.lang.AssertionError.class)
+    @Test(expected = java.lang.AssertionError.class)
     public void wrongBidEqualsAsk() throws Exception {
         OrderBook orderBook = new OrderBook();
 
@@ -72,7 +71,7 @@ public class OrderBookTest {
         orderBook.newAsk(new BigDecimal("100"), 9);
     }
 
-    @Test(expected=java.lang.AssertionError.class)
+    @Test(expected = java.lang.AssertionError.class)
     public void wrongBidHigherThanAsk() throws Exception {
         OrderBook orderBook = new OrderBook();
 
@@ -151,6 +150,7 @@ public class OrderBookTest {
         assertNull(orderBook.getBidLevel(0));
         assertNull(orderBook.getAskLevel(0));
     }
+
     @Test
     public void orderBookUpdate() throws Exception {
         OrderBook orderBook = new OrderBook();
@@ -170,7 +170,7 @@ public class OrderBookTest {
         assertNotNull(lastUpdate1);
         orderBook.updateOrder("myId2", 31);
         Date lastUpdate2 = orderBook.getLastUpdate();
-        assert(lastUpdate2.compareTo(lastUpdate1) >= 0);
+        assert (lastUpdate2.compareTo(lastUpdate1) >= 0);
 
         assertEquals("best bid does not match", new ImmutablePair<>(new BigDecimal(100), 2), orderBook.getBidLevel(0));
         assertEquals("best ask does not match", new ImmutablePair<>(new BigDecimal(101), 40), orderBook.getAskLevel(0));

@@ -1,15 +1,15 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import joinery.DataFrame;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.Quote;
+import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +17,6 @@ import rx.Observable;
 import rx.exceptions.Exceptions;
 import rx.functions.Action1;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.FileSystems;
@@ -25,7 +24,13 @@ import java.nio.file.Path;
 import java.text.ParseException;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -35,25 +40,19 @@ import java.util.*;
 abstract class AbstractStrategyVerticle extends AbstractVerticle implements QuoteProcessor {
 
 
-    @Value("${ibrokers.ticks.storagePath}")
-    private String contractDBPathName;
-
-    @Autowired
-    private ContractDBService contractDBService;
-
-    @Autowired
-    private QuoteFactory quoteFactory;
-
-    @Autowired
-    private QuoteConverter quoteConverter;
-
     static final String KEY_PRODUCT_CODES = "productCodes";
     static final String KEY_REPLY_TO = "replyTo";
     static final String KEY_COMPLETION_ADDRESS = "completionAddress";
-
     private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
     private static final String ADDRESS_REALTIME_START_PREFIX = "oot.realtime.start";
-
+    @Value("${ibrokers.ticks.storagePath}")
+    private String contractDBPathName;
+    @Autowired
+    private ContractDBService contractDBService;
+    @Autowired
+    private QuoteFactory quoteFactory;
+    @Autowired
+    private QuoteConverter quoteConverter;
     private JsonObject parameters = new JsonObject();
 
     private static DataFrame<Object> createSamplesDataFrame(Deque<Quote> quoteSamples) {
@@ -92,7 +91,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
         Path contractDBPath = FileSystems.getDefault().getPath(contractDBPathName);
         String[] productCodes = getProductCodes();
         Map<String, Security> products = new HashMap<>();
-        for(String productCode: productCodes){
+        for (String productCode : productCodes) {
             Security contract = contractDBService.loadContract(contractDBPath, productCode);
             products.put(productCode, contract);
         }
@@ -126,10 +125,10 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 Map<String, Security> contracts = createProducts();
                 final QuoteProcessor tickDataProcessor = new QuoteProcessor(getSampleDataUnit(), contracts);
                 tickStream.subscribe(
-                                tickDataProcessor,
-                                error -> {
-                                    log.error("error occured during backtest", error);
-                                });
+                        tickDataProcessor,
+                        error -> {
+                            log.error("error occured during backtest", error);
+                        });
 
                 MessageConsumer<JsonObject> realtimeStartConsumer = vertx.eventBus().consumer(getRealtimeQuotesAddress());
                 Observable<JsonObject> realtimeStartStream = realtimeStartConsumer.bodyStream().toObservable();
@@ -197,7 +196,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             return quotesByProductCode;
         }
 
-        public String toString(){
+        public String toString() {
             return quotesByProductCode.toString();
         }
     }
@@ -210,6 +209,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             super(capacity);
             this.samplingUnit = samplingUnit;
         }
+
         private Quote first(String productCode) {
             Deque<Quote> quotes = quotesByProductCode.get(productCode);
             if (quotes == null || quotes.size() == 0) {
@@ -225,6 +225,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             }
             return quotes.getLast();
         }
+
         void addQuoteSampled(Quote quote) {
             String productCode = quote.getProductCode();
             Quote prevQuote = prevQuotes.getOrDefault(productCode, null);
@@ -238,8 +239,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
                 ZonedDateTime endDateTime = lastModified.minus(1, samplingUnit);
                 forwardFillQuotes(productCode, endDateTime);
                 addQuote(newQuote);
-                for(String currentProductCode: quotesByProductCode.keySet()){
-                    if(currentProductCode.equals(productCode)){
+                for (String currentProductCode : quotesByProductCode.keySet()) {
+                    if (currentProductCode.equals(productCode)) {
                         continue;
                     }
                     forwardFillQuotes(currentProductCode, lastModified);
@@ -265,12 +266,12 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             }
         }
 
-        Map<String, DataFrame>  getDataFrames(){
-                Map<String, DataFrame> samplesDataframe = new HashMap<>();
-                getQuotes().forEach((productCode, quotes) -> {
-                    samplesDataframe.put(productCode, createSamplesDataFrame(quotes));
-                });
-                return samplesDataframe;
+        Map<String, DataFrame> getDataFrames() {
+            Map<String, DataFrame> samplesDataframe = new HashMap<>();
+            getQuotes().forEach((productCode, quotes) -> {
+                samplesDataframe.put(productCode, createSamplesDataFrame(quotes));
+            });
+            return samplesDataframe;
         }
     }
 

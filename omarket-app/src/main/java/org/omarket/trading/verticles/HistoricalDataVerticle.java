@@ -4,8 +4,6 @@ import com.opencsv.CSVReader;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
@@ -19,21 +17,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
-import java.io.*;
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.nio.charset.Charset;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
-import static org.omarket.trading.MarketData.*;
-import static rx.Observable.*;
+import static org.omarket.trading.MarketData.DATE_FORMAT;
+import static org.omarket.trading.MarketData.getTickFiles;
+import static rx.Observable.empty;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -42,17 +41,28 @@ import static rx.Observable.*;
 @Component
 public class HistoricalDataVerticle extends AbstractVerticle {
     public final static String ADDRESS_PROVIDE_HISTORY = "oot.historicalData.provide";
-
+    private final QuoteFactory quoteFactory;
     @Value("${ibrokers.ticks.storagePath}")
     private String storageDir;
-
-    private final QuoteFactory quoteFactory;
     private MarketData marketData;
 
     @Autowired
     public HistoricalDataVerticle(QuoteFactory quoteFactory, MarketData marketData) {
         this.quoteFactory = quoteFactory;
         this.marketData = marketData;
+    }
+
+    public static Observable<Quote> mergeQuoteStreams(List<Observable<Quote>> quoteStreams) {
+        return Observable.from(quoteStreams)
+                .lift(new OperatorMergeSorted<>((x, y) -> {
+                    if (x.getLastModified().equals(y.getLastModified())) {
+                        return 0;
+                    } else if (x.getLastModified().isBefore(y.getLastModified())) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                }));
     }
 
     public void start(Future<Void> startFuture) throws Exception {
@@ -141,19 +151,6 @@ public class HistoricalDataVerticle extends AbstractVerticle {
             quote = quoteFactory.create(zonedTimestamp, volumeBid, priceBid, priceAsk, volumeAsk, productCode);
         }
         return quote;
-    }
-
-    public static Observable<Quote> mergeQuoteStreams(List<Observable<Quote>> quoteStreams) {
-        return Observable.from(quoteStreams)
-                .lift(new OperatorMergeSorted<>((x, y) -> {
-                    if (x.getLastModified().equals(y.getLastModified())) {
-                        return 0;
-                    } else if (x.getLastModified().isBefore(y.getLastModified())) {
-                        return -1;
-                    } else {
-                        return 1;
-                    }
-                }));
     }
 
 }

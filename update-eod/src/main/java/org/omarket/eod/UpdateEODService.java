@@ -58,20 +58,14 @@ import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 @Component
 public class UpdateEODService {
 
-    private final ContractDBService contractDBservice;
-
     private final static SimpleDateFormat FORMAT_YYYYMMDD = new SimpleDateFormat("yyyyMMdd");
+    private final ContractDBService contractDBservice;
     private final Path dbContractsPath;
     private final boolean onlyCurrentYear;
     private Path storageEOD;
 
-    private static String propertiesArrayJoin(JsonElement input, String separator){
-        String[] elements = new Gson().fromJson(input.getAsJsonArray(), String[].class);
-        return Arrays.stream(elements).collect(Collectors.joining(separator));
-    }
-
     @Autowired
-    public UpdateEODService(ContractDBService contractDBservice){
+    public UpdateEODService(ContractDBService contractDBservice) {
         final String resourceName = "update-eod.json";
         log.info("starting EOD update");
         InputStream resourceStream = ClassLoader.getSystemResourceAsStream(resourceName);
@@ -84,6 +78,11 @@ public class UpdateEODService {
         final Path eodStorage = Paths.get(dbPath);
         setStorageEOD(eodStorage);
         this.contractDBservice = contractDBservice;
+    }
+
+    private static String propertiesArrayJoin(JsonElement input, String separator) {
+        String[] elements = new Gson().fromJson(input.getAsJsonArray(), String[].class);
+        return Arrays.stream(elements).collect(Collectors.joining(separator));
     }
 
     public void update() throws IOException {
@@ -255,7 +254,7 @@ public class UpdateEODService {
             final String[] lastBarDate = {null};
             for (Integer year : years) {
                 Set<HistoricalQuote> quotes = byYear.get(year);
-                if (quotes == null){
+                if (quotes == null) {
                     log.warn(format("year %s not forund for stock %s", year, stock));
                     continue;
                 }

@@ -33,7 +33,7 @@ public class Security {
         this.longName = longName;
     }
 
-    public static Security fromJson(JsonObject contractDetails){
+    public static Security fromJson(JsonObject contractDetails) {
         JsonObject contract = contractDetails.getAsJsonObject("m_contract");
         String currency = contract.get("m_currency").getAsString();
         String primaryExchange = contract.get("m_primaryExch").getAsString();
@@ -47,23 +47,39 @@ public class Security {
         return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
-    public String getCode(){
+    public static Security fromContractDetails(ContractDetails contractDetails) {
+        Contract contract = contractDetails.contract();
+        String code = String.valueOf(contractDetails.conid());
+        String symbol = contract.localSymbol();
+        String currency = contract.currency();
+        String primaryExchange = contract.primaryExch();
+        String exchange = contract.exchange();
+        String securityType = contract.getSecType();
+        Double minTick = contractDetails.minTick();
+        String priceMagnifier = String.valueOf(contractDetails.priceMagnifier());
+        String longName = contractDetails.longName();
+        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
+    }
+
+    public String getCode() {
         return code;
     }
 
-    public String getCurrency(){
+    public String getCurrency() {
         return currency;
     }
-    public String getExchange(){
+
+    public String getExchange() {
         String defaultExchange;
-        if(primaryExchange != null){
+        if (primaryExchange != null) {
             defaultExchange = primaryExchange;
         } else {
             defaultExchange = exchange;
         }
         return defaultExchange;
     }
-    public String getSecurityType(){
+
+    public String getSecurityType() {
         return securityType;
     }
 
@@ -71,7 +87,7 @@ public class Security {
         return new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros();
     }
 
-    public ContractDetails toContractDetails(){
+    public ContractDetails toContractDetails() {
         ContractDetails ibContractDetails = new ContractDetails();
         ibContractDetails.minTick(minTick);
         Contract ibContract = new Contract();
@@ -87,20 +103,6 @@ public class Security {
 
     public String getSymbol() {
         return symbol;
-    }
-
-    public static Security fromContractDetails(ContractDetails contractDetails) {
-        Contract contract = contractDetails.contract();
-        String code = String.valueOf(contractDetails.conid());
-        String symbol = contract.localSymbol();
-        String currency = contract.currency();
-        String primaryExchange = contract.primaryExch();
-        String exchange = contract.exchange();
-        String securityType = contract.getSecType();
-        Double minTick = contractDetails.minTick();
-        String priceMagnifier = String.valueOf(contractDetails.priceMagnifier());
-        String longName = contractDetails.longName();
-        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
     public String toJson() {

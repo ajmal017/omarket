@@ -1,7 +1,6 @@
 package org.omarket.trading.quote;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,11 +14,11 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class QuoteFactory {
 
-    public QuoteImpl create(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode){
+    public QuoteImpl create(ZonedDateTime lastModified, Integer bestBidSize, BigDecimal bestBidPrice, BigDecimal bestAskPrice, Integer bestAskSize, String productCode) {
         return new QuoteImpl(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 
-    public QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified){
+    public QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified) {
         Integer bestBidSize = quote.getBestBidSize();
         BigDecimal bestBidPrice = quote.getBestBidPrice();
         BigDecimal bestAskPrice = quote.getBestAskPrice();
@@ -28,7 +27,7 @@ public class QuoteFactory {
         return new QuoteImpl(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 
-    public QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified, ChronoUnit sampleUnit){
+    public QuoteImpl createFrom(Quote quote, ZonedDateTime lastModified, ChronoUnit sampleUnit) {
         Integer bestBidSize = quote.getBestBidSize();
         BigDecimal bestBidPrice = quote.getBestBidPrice();
         BigDecimal bestAskPrice = quote.getBestAskPrice();
@@ -37,7 +36,7 @@ public class QuoteFactory {
         return new QuoteImpl(toSampledTime(lastModified, sampleUnit), bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 
-    public ZonedDateTime toSampledTime(ZonedDateTime dateTime, ChronoUnit sampleUnit){
+    public ZonedDateTime toSampledTime(ZonedDateTime dateTime, ChronoUnit sampleUnit) {
         ZonedDateTime truncated = dateTime.truncatedTo(sampleUnit);
         ZonedDateTime output;
         if (truncated.equals(dateTime)) {
@@ -48,7 +47,7 @@ public class QuoteFactory {
         return output;
     }
 
-    public QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit, Integer sampleDelay){
+    public QuoteImpl createFrom(Quote quote, ChronoUnit sampleUnit, Integer sampleDelay) {
         ZonedDateTime lastModified = toSampledTime(quote.getLastModified(), sampleUnit).plus(sampleDelay, sampleUnit);
         Integer bestBidSize = quote.getBestBidSize();
         BigDecimal bestBidPrice = quote.getBestBidPrice();

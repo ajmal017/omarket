@@ -11,7 +11,6 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.Vertx;
-import io.vertx.rxjava.core.eventbus.EventBus;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.ContractDBService;
@@ -37,53 +36,46 @@ import java.util.Set;
 @Component
 public class MarketDataVerticle extends AbstractVerticle {
 
-    private final ContractDBService contractDBService;
-
-    private final IBrokersMarketDataCallback ibrokersClient;
-
-    @Value("${ibrokers.host}")
-    private String ibrokersHost;
-
-    @Value("${ibrokers.port}")
-    private String ibrokersPort;
-
-    @Value("${org.omarket.client_id.record_prices}")
-    private String ibrokersClientId;
-
-    @Value("${ibrokers.ticks.storagePath}")
-    private String storageDir;
-
-    @Value("${oot.contracts.dbPath}")
-    private String contractDB;
-
-    @Value("${address.subscribe_tick}")
-    private String ADDRESS_SUBSCRIBE_TICK;
-    @Value("address.eod_request")	private String ADDRESS_EOD_REQUEST;
-    @Value("address.eod_data_prefix")	private String ADDRESS_EOD_DATA_PREFIX;
-    @Value("address.unsubscribe_tick")	private String ADDRESS_UNSUBSCRIBE_TICK;
-    @Value("address.unsubscribe_all")	private String ADDRESS_UNSUBSCRIBE_ALL;
-    @Value("address.contract_retrieve")	private String ADDRESS_CONTRACT_RETRIEVE;
-    @Value("address.contract_download")	private String ADDRESS_CONTRACT_DOWNLOAD;
-    @Value("address.order_book_level_one")	private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
-    @Value("address.admin_command")	private String ADDRESS_ADMIN_COMMAND;
-    @Value("address.error_message_prefix")	private String ADDRESS_ERROR_MESSAGE_PREFIX;
-
     public static final JsonObject EMPTY = new JsonObject();
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, Security> subscribedProducts = new HashMap<>();
+    private final ContractDBService contractDBService;
+    private final IBrokersMarketDataCallback ibrokersClient;
+    @Value("${ibrokers.host}")
+    private String ibrokersHost;
+    @Value("${ibrokers.port}")
+    private String ibrokersPort;
+    @Value("${org.omarket.client_id.record_prices}")
+    private String ibrokersClientId;
+    @Value("${ibrokers.ticks.storagePath}")
+    private String storageDir;
+    @Value("${oot.contracts.dbPath}")
+    private String contractDB;
+    @Value("${address.subscribe_tick}")
+    private String ADDRESS_SUBSCRIBE_TICK;
+    @Value("${address.eod_request}")
+    private String ADDRESS_EOD_REQUEST;
+    @Value("${address.eod_data_prefix}")
+    private String ADDRESS_EOD_DATA_PREFIX;
+    @Value("${address.unsubscribe_tick}")
+    private String ADDRESS_UNSUBSCRIBE_TICK;
+    @Value("${address.unsubscribe_all}")
+    private String ADDRESS_UNSUBSCRIBE_ALL;
+    @Value("${address.contract_retrieve}")
+    private String ADDRESS_CONTRACT_RETRIEVE;
+    @Value("${address.contract_download}")
+    private String ADDRESS_CONTRACT_DOWNLOAD;
+    @Value("${address.order_book_level_one}")
+    private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
+    @Value("${address.admin_command}")
+    private String ADDRESS_ADMIN_COMMAND;
+    @Value("${address.error_message_prefix}")
+    private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
     @Autowired
     public MarketDataVerticle(ContractDBService contractDBService, IBrokersMarketDataCallback ibrokersClient) {
         this.contractDBService = contractDBService;
         this.ibrokersClient = ibrokersClient;
-    }
-
-    public String getErrorChannel(Integer requestId) {
-        return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
-    }
-
-    public String getErrorChannelGeneric() {
-        return ADDRESS_ERROR_MESSAGE_PREFIX + ".*";
     }
 
     private static String getProductAsString(String ibCode) {
@@ -97,6 +89,20 @@ public class MarketDataVerticle extends AbstractVerticle {
 
     private static Set<String> getSubscribedProducts() {
         return subscribedProducts.keySet();
+    }
+
+    private static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
+        JsonObject result = new JsonObject();
+        result.put("error", errorMessage);
+        result.put("content", content);
+        return result;
+    }
+
+    public static JsonObject createSuccessReply(JsonObject content) {
+        JsonObject result = new JsonObject();
+        result.put("error", EMPTY);
+        result.put("content", content);
+        return result;
     }
 
     private void setupSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
@@ -211,20 +217,6 @@ public class MarketDataVerticle extends AbstractVerticle {
             });
             message.reply(createSuccessReply(body));
         });
-    }
-
-    private static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
-        JsonObject result = new JsonObject();
-        result.put("error", errorMessage);
-        result.put("content", content);
-        return result;
-    }
-
-    public static JsonObject createSuccessReply(JsonObject content) {
-        JsonObject result = new JsonObject();
-        result.put("error", EMPTY);
-        result.put("content", content);
-        return result;
     }
 
     private void setupAdminCommand(Vertx vertx) {

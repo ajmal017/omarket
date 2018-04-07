@@ -3,7 +3,6 @@ package org.omarket.trading;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import rx.Observable;
 
 import java.io.BufferedWriter;
@@ -25,7 +24,7 @@ import java.util.stream.Collectors;
 class ContractDBServiceImpl implements ContractDBService {
 
     @Override
-    public final ContractFilter filterCurrency(String currencyCode){
+    public final ContractFilter filterCurrency(String currencyCode) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -35,7 +34,7 @@ class ContractDBServiceImpl implements ContractDBService {
     }
 
     @Override
-    public final ContractFilter filterExchange(String exchangeCode){
+    public final ContractFilter filterExchange(String exchangeCode) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -45,7 +44,7 @@ class ContractDBServiceImpl implements ContractDBService {
     }
 
     @Override
-    public final ContractFilter filterSecurityType(String securityType){
+    public final ContractFilter filterSecurityType(String securityType) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -61,9 +60,9 @@ class ContractDBServiceImpl implements ContractDBService {
             @Override
             protected String prepare(Path path) throws IOException {
                 int count = path.getNameCount();
-                for(ContractFilter filter: filters){
+                for (ContractFilter filter : filters) {
                     filter.prepare(path);
-                    filter.setFilename (path.getFileName());
+                    filter.setFilename(path.getFileName());
                     filter.setPrimaryExchange(path.getName(count - 3));
                     filter.setCurrency(path.getName(count - 4));
                     filter.setSecurityType(path.getName(count - 5));
@@ -74,8 +73,8 @@ class ContractDBServiceImpl implements ContractDBService {
             @Override
             protected boolean accept(String content) {
                 boolean accepted = true;
-                for(ContractFilter filter: filters){
-                    if(!filter.accept(content)){
+                for (ContractFilter filter : filters) {
+                    if (!filter.accept(content)) {
                         accepted = false;
                         break;
                     }
@@ -91,9 +90,8 @@ class ContractDBServiceImpl implements ContractDBService {
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException
-            {
-                if(file.getFileName().toString().equals(productCode + ".json")){
+                    throws IOException {
+                if (file.getFileName().toString().equals(productCode + ".json")) {
                     targetFile[0] = file;
                     return FileVisitResult.TERMINATE;
                 } else {
@@ -102,7 +100,7 @@ class ContractDBServiceImpl implements ContractDBService {
             }
         });
         Path descriptionFilePath = targetFile[0];
-        if(descriptionFilePath == null){
+        if (descriptionFilePath == null) {
             throw new IOException("missing data for contract: " + productCode);
         }
         String content = Files.lines(descriptionFilePath, StandardCharsets.UTF_8).collect(Collectors.joining());
@@ -120,17 +118,17 @@ class ContractDBServiceImpl implements ContractDBService {
         String fileName = fileBaseName + ".json";
         Path exchangePath = contractsDirPath.resolve(securityType).resolve(currency).resolve(primaryExchange);
         String initials;
-        if(fileBaseName.length() < 3){
+        if (fileBaseName.length() < 3) {
             initials = fileBaseName;
         } else {
             initials = fileBaseName.substring(0, 3);
         }
         Path targetPath = exchangePath.resolve(initials);
-        if(Files.notExists(targetPath)){
+        if (Files.notExists(targetPath)) {
             Files.createDirectories(targetPath);
         }
         Path filePath = targetPath.resolve(fileName);
-        if(Files.notExists(filePath)){
+        if (Files.notExists(filePath)) {
             Files.createFile(filePath);
         }
         BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
@@ -144,14 +142,13 @@ class ContractDBServiceImpl implements ContractDBService {
         List<Security> contracts = new LinkedList<>();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
-            {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:*.json");
-                if(!matcher.matches(file.getFileName())){
+                if (!matcher.matches(file.getFileName())) {
                     return FileVisitResult.CONTINUE;
                 }
                 String content = filter.prepare(file);
-                if(filter.accept(content)){
+                if (filter.accept(content)) {
                     JsonParser parser = new JsonParser();
                     JsonObject jsonContract = parser.parse(content).getAsJsonObject();
                     contracts.add(Security.fromJson(jsonContract));

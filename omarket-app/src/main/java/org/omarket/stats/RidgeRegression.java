@@ -6,8 +6,8 @@ import org.apache.commons.math3.linear.SingularValueDecomposition;
 
 /**
  * Copied from https://github.com/Netflix/Surus/blob/master/src/main/java/org/surus/math/RidgeRegression.java
- *
- *  Created by christophe on 25/12/16.
+ * <p>
+ * Created by christophe on 25/12/16.
  */
 
 public class RidgeRegression {
@@ -42,7 +42,7 @@ public class RidgeRegression {
         RealMatrix U = this.X_svd.getU();
 
         for (int i = 0; i < s.length; i++) {
-            s[i] = s[i] / (s[i]*s[i] + l2penalty);
+            s[i] = s[i] / (s[i] * s[i] + l2penalty);
         }
         RealMatrix S = MatrixUtils.createRealDiagonalMatrix(s);
 

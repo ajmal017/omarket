@@ -21,24 +21,32 @@ import org.apache.commons.math3.exception.DimensionMismatchException;
 import org.apache.commons.math3.exception.NullArgumentException;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.CholeskyDecomposition;
+import org.apache.commons.math3.linear.MatrixDimensionMismatchException;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.NonSquareMatrixException;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.linear.SingularMatrixException;
 import org.apache.commons.math3.util.MathUtils;
 
 /**
  * Implementation of a Kalman filter to estimate the state <i>x<sub>k</sub></i>
  * of a discrete-time controlled process that is governed by the linear
  * stochastic difference equation:
- *
+ * <p>
  * <pre>
  * <i>x<sub>k</sub></i> = <b>A</b><i>x<sub>k-1</sub></i> + <b>B</b><i>u<sub>k-1</sub></i> + <i>w<sub>k-1</sub></i>
  * </pre>
- *
+ * <p>
  * with a measurement <i>x<sub>k</sub></i> that is
- *
+ * <p>
  * <pre>
  * <i>z<sub>k</sub></i> = <b>H</b><i>x<sub>k</sub></i> + <i>v<sub>k</sub></i>.
  * </pre>
- *
+ * <p>
  * <p>
  * The random variables <i>w<sub>k</sub></i> and <i>v<sub>k</sub></i> represent
  * the process and measurement noise and are assumed to be independent of each
@@ -65,51 +73,63 @@ import org.apache.commons.math3.util.MathUtils;
  * </ul>
  *
  * @see <a href="http://www.cs.unc.edu/~welch/kalman/">Kalman filter
- *      resources</a>
+ * resources</a>
  * @see <a href="http://www.cs.unc.edu/~welch/media/pdf/kalman_intro.pdf">An
- *      introduction to the Kalman filter by Greg Welch and Gary Bishop</a>
+ * introduction to the Kalman filter by Greg Welch and Gary Bishop</a>
  * @see <a href="http://academic.csuohio.edu/simond/courses/eec644/kalman.pdf">
- *      Kalman filter example by Dan Simon</a>
+ * Kalman filter example by Dan Simon</a>
  * @see ProcessModel
  * @see MeasurementModel
  * @since 3.0
  */
 public class KalmanFilter {
-    /** The process model used by this filter instance. */
+    /**
+     * The process model used by this filter instance.
+     */
     private final ProcessModel processModel;
-    /** The measurement model used by this filter instance. */
+    /**
+     * The measurement model used by this filter instance.
+     */
     private final MeasurementModel measurementModel;
-    /** The transition matrix, equivalent to A. */
-    private RealMatrix transitionMatrix;
-    /** The transposed transition matrix. */
-    private RealMatrix transitionMatrixT;
-    /** The control matrix, equivalent to B. */
-    private RealMatrix controlMatrix;
-    /** The measurement matrix, equivalent to H. */
+    /**
+     * The measurement matrix, equivalent to H.
+     */
     protected RealMatrix measurementMatrix;
-    /** The transposed measurement matrix. */
+    /**
+     * The transposed measurement matrix.
+     */
     protected RealMatrix measurementMatrixT;
-    /** The internal state estimation vector, equivalent to x hat. */
+    /**
+     * The transition matrix, equivalent to A.
+     */
+    private RealMatrix transitionMatrix;
+    /**
+     * The transposed transition matrix.
+     */
+    private RealMatrix transitionMatrixT;
+    /**
+     * The control matrix, equivalent to B.
+     */
+    private RealMatrix controlMatrix;
+    /**
+     * The internal state estimation vector, equivalent to x hat.
+     */
     private RealVector stateEstimation;
-    /** The error covariance matrix, equivalent to P. */
+    /**
+     * The error covariance matrix, equivalent to P.
+     */
     private RealMatrix errorCovariance;
 
     /**
      * Creates a new Kalman filter with the given process and measurement models.
      *
-     * @param process
-     *            the model defining the underlying process dynamics
-     * @param measurement
-     *            the model defining the given measurement characteristics
-     * @throws NullArgumentException
-     *             if any of the given inputs is null (except for the control matrix)
-     * @throws NonSquareMatrixException
-     *             if the transition matrix is non square
-     * @throws DimensionMismatchException
-     *             if the column dimension of the transition matrix does not match the dimension of the
-     *             initial state estimation vector
-     * @throws MatrixDimensionMismatchException
-     *             if the matrix dimensions do not fit together
+     * @param process     the model defining the underlying process dynamics
+     * @param measurement the model defining the given measurement characteristics
+     * @throws NullArgumentException            if any of the given inputs is null (except for the control matrix)
+     * @throws NonSquareMatrixException         if the transition matrix is non square
+     * @throws DimensionMismatchException       if the column dimension of the transition matrix does not match the dimension of the
+     *                                          initial state estimation vector
+     * @throws MatrixDimensionMismatchException if the matrix dimensions do not fit together
      */
     public KalmanFilter(final ProcessModel process, final MeasurementModel measurement)
             throws NullArgumentException, NonSquareMatrixException, DimensionMismatchException,
@@ -270,10 +290,8 @@ public class KalmanFilter {
     /**
      * Predict the internal state estimation one time step ahead.
      *
-     * @param u
-     *            the control vector
-     * @throws DimensionMismatchException
-     *             if the dimension of the control vector does not fit
+     * @param u the control vector
+     * @throws DimensionMismatchException if the dimension of the control vector does not fit
      */
     public void predict(final double[] u) throws DimensionMismatchException {
         predict(new ArrayRealVector(u, false));
@@ -282,10 +300,8 @@ public class KalmanFilter {
     /**
      * Predict the internal state estimation one time step ahead.
      *
-     * @param u
-     *            the control vector
-     * @throws DimensionMismatchException
-     *             if the dimension of the control vector does not match
+     * @param u the control vector
+     * @throws DimensionMismatchException if the dimension of the control vector does not match
      */
     public void predict(final RealVector u) throws DimensionMismatchException {
         // sanity checks
@@ -314,14 +330,10 @@ public class KalmanFilter {
     /**
      * Correct the current state estimate with an actual measurement.
      *
-     * @param z
-     *            the measurement vector
-     * @throws NullArgumentException
-     *             if the measurement vector is {@code null}
-     * @throws DimensionMismatchException
-     *             if the dimension of the measurement vector does not fit
-     * @throws SingularMatrixException
-     *             if the covariance matrix could not be inverted
+     * @param z the measurement vector
+     * @throws NullArgumentException      if the measurement vector is {@code null}
+     * @throws DimensionMismatchException if the dimension of the measurement vector does not fit
+     * @throws SingularMatrixException    if the covariance matrix could not be inverted
      */
     public void correct(final double[] z)
             throws NullArgumentException, DimensionMismatchException, SingularMatrixException {
@@ -331,14 +343,10 @@ public class KalmanFilter {
     /**
      * Correct the current state estimate with an actual measurement.
      *
-     * @param z
-     *            the measurement vector
-     * @throws NullArgumentException
-     *             if the measurement vector is {@code null}
-     * @throws DimensionMismatchException
-     *             if the dimension of the measurement vector does not fit
-     * @throws SingularMatrixException
-     *             if the covariance matrix could not be inverted
+     * @param z the measurement vector
+     * @throws NullArgumentException      if the measurement vector is {@code null}
+     * @throws DimensionMismatchException if the dimension of the measurement vector does not fit
+     * @throws SingularMatrixException    if the covariance matrix could not be inverted
      */
     public void correct(final RealVector z)
             throws NullArgumentException, DimensionMismatchException, SingularMatrixException {

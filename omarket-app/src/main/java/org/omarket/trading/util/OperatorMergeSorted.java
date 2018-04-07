@@ -1,16 +1,5 @@
 package org.omarket.trading.util;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
 import rx.Observable;
 import rx.Observable.Operator;
 import rx.Observer;
@@ -21,6 +10,17 @@ import rx.exceptions.MissingBackpressureException;
 import rx.internal.operators.BackpressureUtils;
 import rx.internal.util.RxRingBuffer;
 import rx.subscriptions.CompositeSubscription;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Merges source {@link Observable}s into one {@code Observable}, without any
@@ -75,42 +75,6 @@ public final class OperatorMergeSorted<T> implements Operator<T, Observable<? ex
         return new MergeSortedSubscriber(child, merger, producer);
     }
 
-    private final class MergeSortedSubscriber extends Subscriber<Observable<? extends T>> {
-
-        final Subscriber<? super T> child;
-        final SortedMerge<T> merge;
-        final MergeSortedProducer<T> producer;
-        final List<Observable<? extends T>> sources = new ArrayList<Observable<? extends T>>();
-
-        public MergeSortedSubscriber(Subscriber<? super T> child, SortedMerge<T> merge, MergeSortedProducer<T> producer) {
-            this.child = child;
-            this.merge = merge;
-            this.producer = producer;
-        }
-
-        @Override
-        public void onCompleted() {
-            if (sources.isEmpty()) {
-                // this means we have not received a valid onNext before termination so
-                // we emit the onCompleted
-                child.onCompleted();
-            } else {
-                merge.start(sources, producer);
-            }
-        }
-
-        @Override
-        public void onError(Throwable e) {
-            child.onError(e);
-        }
-
-        @Override
-        public void onNext(Observable<? extends T> observable) {
-            sources.add(observable);
-        }
-
-    }
-
     private static final class MergeSortedProducer<T> extends AtomicLong implements Producer {
         /** */
         private static final long serialVersionUID = -1216676403723546796L;
@@ -130,15 +94,12 @@ public final class OperatorMergeSorted<T> implements Operator<T, Observable<? ex
     }
 
     private static final class SortedMerge<T> extends AtomicLong {
+        static final int THRESHOLD = (int) (RxRingBuffer.SIZE * 0.7);
         /** */
         private static final long serialVersionUID = 1237247396158074733L;
-
         private final Comparator<T> comparator;
         private final Observer<? super T> child;
         private final CompositeSubscription childSubscription = new CompositeSubscription();
-
-        static final int THRESHOLD = (int) (RxRingBuffer.SIZE * 0.7);
-
         /* initialized when started in `start` */
         private AtomicLong requested;
         private PriorityQueue<ValueSourcePair> queue; // not synchronized as
@@ -375,6 +336,42 @@ public final class OperatorMergeSorted<T> implements Operator<T, Observable<? ex
                 return String.valueOf(value);
             }
 
+        }
+
+    }
+
+    private final class MergeSortedSubscriber extends Subscriber<Observable<? extends T>> {
+
+        final Subscriber<? super T> child;
+        final SortedMerge<T> merge;
+        final MergeSortedProducer<T> producer;
+        final List<Observable<? extends T>> sources = new ArrayList<Observable<? extends T>>();
+
+        public MergeSortedSubscriber(Subscriber<? super T> child, SortedMerge<T> merge, MergeSortedProducer<T> producer) {
+            this.child = child;
+            this.merge = merge;
+            this.producer = producer;
+        }
+
+        @Override
+        public void onCompleted() {
+            if (sources.isEmpty()) {
+                // this means we have not received a valid onNext before termination so
+                // we emit the onCompleted
+                child.onCompleted();
+            } else {
+                merge.start(sources, producer);
+            }
+        }
+
+        @Override
+        public void onError(Throwable e) {
+            child.onError(e);
+        }
+
+        @Override
+        public void onNext(Observable<? extends T> observable) {
+            sources.add(observable);
         }
 
     }

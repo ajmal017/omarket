@@ -1,8 +1,6 @@
 package org.omarket.trading;
 
 import lombok.extern.slf4j.Slf4j;
-import org.omarket.trading.verticles.MarketDataVerticle;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -23,13 +21,9 @@ import java.util.stream.Stream;
 @Component
 public class MarketData {
 
-    @Value("address.order_book_level_one")	private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
-
-    public String createChannelQuote(String productCode) {
-        return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + productCode;
-    }
-
     public static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
+    @Value("${address.order_book_level_one}")
+    private String ADDRESS_ORDER_BOOK_LEVEL_ONE;
 
     /**
      * Detects tick files from local drive.
@@ -57,6 +51,10 @@ public class MarketData {
             log.error("failed to access recorded ticks for product " + productCode, e);
         }
         return tickFiles;
+    }
+
+    public String createChannelQuote(String productCode) {
+        return ADDRESS_ORDER_BOOK_LEVEL_ONE + "." + productCode;
     }
 
 }

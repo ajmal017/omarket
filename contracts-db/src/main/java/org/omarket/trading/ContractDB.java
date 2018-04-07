@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class ContractDB {
 
 
-    public final static ContractFilter filterCurrency(String currencyCode){
+    public final static ContractFilter filterCurrency(String currencyCode) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -37,7 +37,7 @@ public class ContractDB {
         };
     }
 
-    public final static ContractFilter filterExchange(String exchangeCode){
+    public final static ContractFilter filterExchange(String exchangeCode) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -46,7 +46,7 @@ public class ContractDB {
         };
     }
 
-    public final static ContractFilter filterSecurityType(String securityType){
+    public final static ContractFilter filterSecurityType(String securityType) {
         return new ContractFilter() {
             @Override
             protected boolean accept(String content) {
@@ -60,9 +60,8 @@ public class ContractDB {
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException
-            {
-                if(file.getFileName().toString().equals(productCode + ".json")){
+                    throws IOException {
+                if (file.getFileName().toString().equals(productCode + ".json")) {
                     targetFile[0] = file;
                     return FileVisitResult.TERMINATE;
                 } else {
@@ -71,7 +70,7 @@ public class ContractDB {
             }
         });
         Path descriptionFilePath = targetFile[0];
-        if(descriptionFilePath == null){
+        if (descriptionFilePath == null) {
             throw new IOException("missing data for contract: " + productCode);
         }
         String content = Files.lines(descriptionFilePath, StandardCharsets.UTF_8).collect(Collectors.joining());
@@ -88,17 +87,17 @@ public class ContractDB {
         String fileName = fileBaseName + ".json";
         Path exchangePath = contractsDirPath.resolve(securityType).resolve(currency).resolve(primaryExchange);
         String initials;
-        if(fileBaseName.length() < 3){
+        if (fileBaseName.length() < 3) {
             initials = fileBaseName;
         } else {
             initials = fileBaseName.substring(0, 3);
         }
         Path targetPath = exchangePath.resolve(initials);
-        if(Files.notExists(targetPath)){
+        if (Files.notExists(targetPath)) {
             Files.createDirectories(targetPath);
         }
         Path filePath = targetPath.resolve(fileName);
-        if(Files.notExists(filePath)){
+        if (Files.notExists(filePath)) {
             Files.createFile(filePath);
         }
         BufferedWriter writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
@@ -111,14 +110,13 @@ public class ContractDB {
         List<Security> contracts = new LinkedList<>();
         Files.walkFileTree(contractsDirPath, new SimpleFileVisitor<Path>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
-            {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:*.json");
-                if(!matcher.matches(file.getFileName())){
+                if (!matcher.matches(file.getFileName())) {
                     return FileVisitResult.CONTINUE;
                 }
                 String content = filter.prepare(file);
-                if(filter.accept(content)){
+                if (filter.accept(content)) {
                     JsonParser parser = new JsonParser();
                     JsonObject jsonContract = parser.parse(content).getAsJsonObject();
                     contracts.add(Security.fromJson(jsonContract));

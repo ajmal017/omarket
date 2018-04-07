@@ -1,8 +1,21 @@
 package org.omarket.stats;
 
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.CholeskyDecomposition;
+import org.apache.commons.math3.linear.DecompositionSolver;
+import org.apache.commons.math3.linear.EigenDecomposition;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.QRDecomposition;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealMatrixFormat;
+import org.apache.commons.math3.linear.RealVector;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static java.lang.Math.log;
 
@@ -163,16 +176,18 @@ public class CoIntegration {
         return y.subtract(x.operate(pinv(x).operate(y)));
     }
 
-    public static RealMatrix pinv(RealMatrix a){
+    public static RealMatrix pinv(RealMatrix a) {
         QRDecomposition decomposition = new QRDecomposition(a);
         DecompositionSolver solver = decomposition.getSolver();
         return solver.getInverse();
     }
-    public static Result cointegration_johansen(RealMatrix input_df){
+
+    public static Result cointegration_johansen(RealMatrix input_df) {
         return cointegration_johansen(input_df, 1);
 
     }
-    public static Result cointegration_johansen(RealMatrix input, int lag){
+
+    public static Result cointegration_johansen(RealMatrix input, int lag) {
         RealMatrix x = StatsUtils.constantDetrendColumns(input);
         RealMatrix dx = StatsUtils.truncateTop(StatsUtils.diffRows(x));
         RealMatrix z = StatsUtils.constantDetrendColumns(StatsUtils.truncateTop(StatsUtils.shiftDown(dx, lag), lag));
@@ -180,7 +195,7 @@ public class CoIntegration {
         QRDecomposition qr = new QRDecomposition(z);
         DecompositionSolver solver = qr.getSolver();
         RealMatrix r0t = shiftedDx.subtract(z.multiply(solver.solve(shiftedDx)));
-        RealMatrix shiftedDx2 = StatsUtils.constantDetrendColumns((StatsUtils.truncateTop(StatsUtils.shiftDown(x, lag), lag+1)));
+        RealMatrix shiftedDx2 = StatsUtils.constantDetrendColumns((StatsUtils.truncateTop(StatsUtils.shiftDown(x, lag), lag + 1)));
         RealMatrix rkt = shiftedDx2.subtract(z.multiply(solver.solve(shiftedDx2)));
 
         RealMatrix skk = rkt.transpose().multiply(rkt).scalarMultiply(1. / rkt.getRowDimension());
@@ -190,15 +205,15 @@ public class CoIntegration {
         EigenDecomposition decomposition = new EigenDecomposition(StatsUtils.inverse(skk).multiply(sig));
         double[] eigenValues = decomposition.getRealEigenvalues();
         Map<Double, RealVector> vectors = new TreeMap<>();
-        for(int i=0; i<eigenValues.length; i++){
+        for (int i = 0; i < eigenValues.length; i++) {
             vectors.put(eigenValues[i], decomposition.getEigenvector(i));
         }
         RealMatrix eigenVectors = decomposition.getV();
         RealMatrix sortedVectors = MatrixUtils.createRealMatrix(eigenVectors.getRowDimension(), eigenVectors.getColumnDimension());
         int count = vectors.size() - 1;
-        for(Double eigenvalue: vectors.keySet()){
+        for (Double eigenvalue : vectors.keySet()) {
             RealVector eigenvector = vectors.get(eigenvalue);
-            for(int row=0; row < eigenvector.getDimension(); row++){
+            for (int row = 0; row < eigenvector.getDimension(); row++) {
                 sortedVectors.setEntry(row, count, eigenvector.getEntry(row));
             }
             count--;
@@ -211,19 +226,19 @@ public class CoIntegration {
         int m = input.getColumnDimension();
         RealVector lr1 = StatsUtils.zerosVector(m);
         RealVector lr2 = StatsUtils.zerosVector(m);
-        RealMatrix cvm = StatsUtils.zeros(m,3);
-        RealMatrix cvt = StatsUtils.zeros(m,3);
+        RealMatrix cvm = StatsUtils.zeros(m, 3);
+        RealMatrix cvt = StatsUtils.zeros(m, 3);
         RealVector iota = StatsUtils.onesVector(m);
         int t = rkt.getRowDimension();
         /* Computes the trace and max eigenvalue statistics */
 
         List<Double> sortedValues = new LinkedList<>();
-        for(Double value: vectors.keySet()){
+        for (Double value : vectors.keySet()) {
             sortedValues.add(value);
         }
         Collections.reverse(sortedValues);
         RealVector sortedEigenvalues = StatsUtils.createVector(sortedValues);
-        for(int i=0; i < m; i++){
+        for (int i = 0; i < m; i++) {
             RealVector lr1Tmp = iota.subtract(sortedEigenvalues).map(Math::log);
             RealVector lr1TmpTruncated = StatsUtils.truncateTop(lr1Tmp, i);
             lr1.setEntry(i, -t * StatsUtils.sum(lr1TmpTruncated));
@@ -235,7 +250,7 @@ public class CoIntegration {
         return new Result(sortedEigenvalues, dt, lr1, lr2, cvt, cvm);
     }
 
-    static class Result{
+    static class Result {
         private final RealVector eigenValues;
         private final RealMatrix eigenVectors;
         private final RealVector lr1;
@@ -301,7 +316,7 @@ public class CoIntegration {
             return cvm;
         }
 
-        public String toString(){
+        public String toString() {
             Map<String, String> entries = new LinkedHashMap<>();
             RealMatrixFormat toOctave = MatrixUtils.OCTAVE_FORMAT;
             entries.put("eigenvalues", eigenValues.toString());

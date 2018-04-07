@@ -35,7 +35,7 @@ public class ContractDBTest {
         ContractFilter filter = new ContractFilter() {
             @Override
             public boolean accept(String content) {
-                return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK")  && getCurrency().equals("USD");
+                return getPrimaryExchange().equals("ARCA") && getSecurityType().equals("STK") && getCurrency().equals("USD");
             }
         };
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
@@ -61,7 +61,7 @@ public class ContractDBTest {
         ContractFilter currencyFilter = service.filterCurrency("USD");
         ContractFilter exchangeFilter = service.filterExchange("ARCA");
         ContractFilter typeFilter = service.filterSecurityType("STK");
-        ContractFilter filter = service.composeFilter(currencyFilter, exchangeFilter,typeFilter);
+        ContractFilter filter = service.composeFilter(currencyFilter, exchangeFilter, typeFilter);
         Path contractsDirPath = Paths.get(ClassLoader.getSystemResource("contracts").toURI());
         rx.Observable<Security> contractsStream = service.loadContracts(contractsDirPath, filter);
         contractsStream.count().last().subscribe(x -> assertEquals(Integer.valueOf(17), x));

@@ -14,8 +14,9 @@ import java.util.Map;
  */
 @Component
 public class CurrencyProduct {
-    private final static Logger logger = LoggerFactory.getLogger(CurrencyProduct.class);
     public final static Map<String, Integer> IB_CODES = new HashMap<>();
+    private final static Logger logger = LoggerFactory.getLogger(CurrencyProduct.class);
+
     static {
         IB_CODES.put("AUD.ZAR", 208558338);
         IB_CODES.put("GBP.ZAR", 208558332);
@@ -114,19 +115,19 @@ public class CurrencyProduct {
     @Autowired
     private MarketData marketData;
 
-    public String getChannel(String currency1, String currency2){
+    public String getChannel(String currency1, String currency2) {
         String cross = currency1.toUpperCase() + "." + currency2.toUpperCase();
-        if (!IB_CODES.containsKey(cross)){
+        if (!IB_CODES.containsKey(cross)) {
             logger.error("no channel for {} / {}", currency1, currency2);
         }
         return marketData.createChannelQuote(IB_CODES.get(cross).toString());
     }
 
-    public String getChannelDirect(String currency){
+    public String getChannelDirect(String currency) {
         return getChannel(currency, "USD");
     }
 
-    public String getChannelIndirect(String currency){
+    public String getChannelIndirect(String currency) {
         return getChannel("USD", currency);
     }
 }

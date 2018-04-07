@@ -26,7 +26,7 @@ public class UpdateContractDBRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        if(Objects.equals(args.getNonOptionArgs().get(0), "update-contracts")) {
+        if (Objects.equals(args.getNonOptionArgs().get(0), "update-contracts")) {
             service.update();
         }
     }

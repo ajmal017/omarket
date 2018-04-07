@@ -1,13 +1,12 @@
 package org.omarket.trading;
 
-import org.springframework.stereotype.Service;
 import rx.Observable;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
 public interface ContractDBService {
-    ContractFilter FILTER_NONE = new ContractFilter(){
+    ContractFilter FILTER_NONE = new ContractFilter() {
 
         @Override
         protected boolean accept(String content) {

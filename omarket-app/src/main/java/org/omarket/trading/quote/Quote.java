@@ -6,7 +6,7 @@ import java.time.temporal.TemporalUnit;
 
 /**
  * Model of a quote (bid/ask with volume and timestamp).
- *
+ * <p>
  * Created by Christophe on 07/12/2016.
  */
 public interface Quote {

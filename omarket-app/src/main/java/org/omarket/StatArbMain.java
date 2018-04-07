@@ -1,8 +1,8 @@
 package org.omarket;
 
 import io.vertx.core.Verticle;
-import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.RxHelper;
+import io.vertx.rxjava.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.verticles.DummyMeanReversionStrategyVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,7 @@ class StatArbService {
                             })
                             .doOnError(err -> log.error("failed to deploy", err));
                 })
-                ;
+        ;
     }
 
 }

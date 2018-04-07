@@ -1,33 +1,40 @@
 package org.omarket.trading.verticles;
 
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import joinery.DataFrame;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.filter.KalmanFilter;
 import org.apache.commons.math3.filter.MeasurementModel;
 import org.apache.commons.math3.filter.ProcessModel;
-import org.apache.commons.math3.linear.*;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.DiagonalMatrix;
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.RealVector;
 import org.omarket.trading.Security;
 import org.omarket.trading.quote.Quote;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.Map;
 
 /**
  * Created by Christophe on 01/11/2016.
  */
 @Slf4j
+@Component
 public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle {
-    final static String ADDRESS_STRATEGY_SIGNAL = "oot.strategy.signal.dummy";
-
     private final static String IB_CODE_GCG7 = "188989072";
     private final static String IB_CODE_GDX_ARCA = "229726316";
-
     private final static String IB_CODE_EUR_CHF = "12087817";
     private final static String IB_CODE_USD_CHF = "12087820";
     private final static String IB_CODE_EUR_SEK = "37893488";
+    @Value("${address.strategy_signal}")
+    private String ADDRESS_STRATEGY_SIGNAL;
 
     @Override
     protected String[] getProductCodes() {
@@ -84,7 +91,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
         KalmanFilter filter = new KalmanFilter(pm, mm);
         // have a look at: http://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
         int count = 0;
-        while (count < midGDXValues.length){
+        while (count < midGDXValues.length) {
             double independentVariable = midGDXValues[count];
             double dependentVariable = midGoldValues[count];
             filter.predict();
@@ -138,6 +145,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
 
     private static class LinearRegressionMeasurementModel implements MeasurementModel {
         private Double currentMeasurement = 0.;
+
         /**
          * This is the observation model, that is the second asset price
          * augmented with 1. in the second column.
@@ -157,7 +165,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             return MatrixUtils.createRowRealMatrix(new double[]{1., 1.});
         }
 
-        void setMeasurement(double value){
+        void setMeasurement(double value) {
             currentMeasurement = value;
         }
     }

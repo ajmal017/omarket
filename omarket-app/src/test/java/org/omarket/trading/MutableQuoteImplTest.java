@@ -8,7 +8,6 @@ import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.QuoteFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -17,9 +16,8 @@ import static org.junit.Assert.assertEquals;
 
 /**
  * Created by Christophe on 04/11/2016.
- *
+ * <p>
  * Testing a mutable quote.
- *
  */
 @RunWith(SpringRunner.class)
 @SpringBootTest

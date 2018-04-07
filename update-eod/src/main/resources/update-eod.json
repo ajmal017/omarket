@@ -1,5 +1,13 @@
 {
-  "db.eod.path": ["contracts-db", "data", "eod"],
-  "db.contracts.path": ["contracts-db", "data", "contracts"],
+  "db.eod.path": [
+    "contracts-db",
+    "data",
+    "eod"
+  ],
+  "db.contracts.path": [
+    "contracts-db",
+    "data",
+    "contracts"
+  ],
   "current.year.flag": true
 }

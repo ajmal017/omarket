@@ -5,9 +5,8 @@ import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
 
 /**
- *
  * Copied from https://github.com/Netflix/Surus/blob/master/src/main/java/org/surus/math/AugmentedDickeyFuller.java
- *
+ * <p>
  * Created by christophe on 25/12/16.
  */
 public class AugmentedDickeyFuller {
@@ -22,6 +21,7 @@ public class AugmentedDickeyFuller {
     /**
      * Uses the Augmented Dickey Fuller test to determine
      * if ts is a stationary time series
+     *
      * @param ts
      * @param lag
      */
@@ -34,6 +34,7 @@ public class AugmentedDickeyFuller {
     /**
      * Uses the Augmented Dickey Fuller test to determine
      * if ts is a stationary time series
+     *
      * @param ts
      */
     public AugmentedDickeyFuller(double[] ts) {
@@ -45,15 +46,15 @@ public class AugmentedDickeyFuller {
     private void computeADFStatistics() {
         double[] y = diff(ts);
         RealMatrix designMatrix = null;
-        int k = lag+1;
+        int k = lag + 1;
         int n = ts.length - 1;
 
         RealMatrix z = MatrixUtils.createRealMatrix(laggedMatrix(y, k)); //has rows length(ts) - 1 - k + 1
         RealVector zcol1 = z.getColumnVector(0); //has length length(ts) - 1 - k + 1
-        double[] xt1 = subsetArray(ts, k-1, n-1);  //ts[k:(length(ts) - 1)], has length length(ts) - 1 - k + 1
-        double[] trend = sequence(k,n); //trend k:n, has length length(ts) - 1 - k + 1
+        double[] xt1 = subsetArray(ts, k - 1, n - 1);  //ts[k:(length(ts) - 1)], has length length(ts) - 1 - k + 1
+        double[] trend = sequence(k, n); //trend k:n, has length length(ts) - 1 - k + 1
         if (k > 1) {
-            RealMatrix yt1 = z.getSubMatrix(0, ts.length - 1 - k, 1, k-1); //same as z but skips first column
+            RealMatrix yt1 = z.getSubMatrix(0, ts.length - 1 - k, 1, k - 1); //same as z but skips first column
             //build design matrix as cbind(xt1, 1, trend, yt1)
             designMatrix = MatrixUtils.createRealMatrix(ts.length - 1 - k + 1, 3 + k - 1);
             designMatrix.setColumn(0, xt1);
@@ -68,7 +69,7 @@ public class AugmentedDickeyFuller {
             designMatrix.setColumn(1, ones(ts.length - 1 - k + 1));
             designMatrix.setColumn(2, trend);
         }
-		/*OLSMultipleLinearRegression regression = new OLSMultipleLinearRegression();
+        /*OLSMultipleLinearRegression regression = new OLSMultipleLinearRegression();
 		regression.setNoIntercept(true);
 		regression.newSampleData(zcol1.toArray(), designMatrix.getData());
 		double[] beta = regression.estimateRegressionParameters();
@@ -89,6 +90,7 @@ public class AugmentedDickeyFuller {
 
     /**
      * Takes finite differences of x
+     *
      * @param x
      * @return Returns an array of length x.length-1 of
      * the first differences of x
@@ -98,9 +100,9 @@ public class AugmentedDickeyFuller {
         double[] zeroPaddedDiff = new double[x.length];
         zeroPaddedDiff[0] = 0;
         for (int i = 0; i < diff.length; i++) {
-            double diff_i = x[i+1] - x[i];
+            double diff_i = x[i + 1] - x[i];
             diff[i] = diff_i;
-            zeroPaddedDiff[i+1] = diff_i;
+            zeroPaddedDiff[i + 1] = diff_i;
         }
         this.zeroPaddedDiff = zeroPaddedDiff;
         return diff;
@@ -108,6 +110,7 @@ public class AugmentedDickeyFuller {
 
     /**
      * Equivalent to matlab and python ones
+     *
      * @param n
      * @return an array of doubles of length n that are
      * initialized to 1
@@ -122,11 +125,12 @@ public class AugmentedDickeyFuller {
 
     /**
      * Equivalent to R's embed function
-     * @param x time series vector
+     *
+     * @param x   time series vector
      * @param lag number of lags, where lag=1 is the same as no lags
      * @return a matrix that has x.length - lag + 1 rows by lag columns.
      */
-    private double[][] laggedMatrix(double[]x, int lag) {
+    private double[][] laggedMatrix(double[] x, int lag) {
         double[][] laggedMatrix = new double[x.length - lag + 1][lag];
         for (int j = 0; j < lag; j++) { //loop through columns
             for (int i = 0; i < laggedMatrix.length; i++) {
@@ -138,6 +142,7 @@ public class AugmentedDickeyFuller {
 
     /**
      * Takes x[start] through x[end - 1]
+     *
      * @param x
      * @param start
      * @param end
@@ -151,6 +156,7 @@ public class AugmentedDickeyFuller {
 
     /**
      * Generates a sequence of ints [start, end]
+     *
      * @param start
      * @param end
      * @return

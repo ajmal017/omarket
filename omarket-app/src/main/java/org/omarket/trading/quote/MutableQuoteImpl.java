@@ -9,9 +9,8 @@ import java.time.ZonedDateTime;
 
 /**
  * Created by Christophe on 04/11/2016.
- *
+ * <p>
  * Implementation of a MutableQuote interface.
- *
  */
 class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
@@ -26,7 +25,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     @Override
     public boolean updateBestBidSize(int size) {
-        if (this.getBestBidSize() != null && this.getBestBidSize().equals(size)){
+        if (this.getBestBidSize() != null && this.getBestBidSize().equals(size)) {
             return false;
         }
         this.bestBidSize = size;
@@ -36,7 +35,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
 
     @Override
     public boolean updateBestAskSize(int size) {
-        if (this.getBestAskSize() != null && this.getBestAskSize() == size){
+        if (this.getBestAskSize() != null && this.getBestAskSize() == size) {
             return false;
         }
         this.bestAskSize = size;
@@ -47,7 +46,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
     @Override
     public boolean updateBestBidPrice(double price) {
         BigDecimal newBestBidPrice = BigDecimal.valueOf(Double.valueOf(price / minTick.doubleValue()).intValue()).multiply(minTick);
-        if (newBestBidPrice.equals(this.getBestBidPrice())){
+        if (newBestBidPrice.equals(this.getBestBidPrice())) {
             return false;
         }
         this.bestBidPrice = newBestBidPrice;
@@ -58,7 +57,7 @@ class MutableQuoteImpl extends QuoteImpl implements MutableQuote {
     @Override
     public boolean updateBestAskPrice(double price) {
         BigDecimal newBestAskPrice = BigDecimal.valueOf(Double.valueOf(price / minTick.doubleValue()).intValue()).multiply(minTick);
-        if (newBestAskPrice.equals(this.getBestAskPrice())){
+        if (newBestAskPrice.equals(this.getBestAskPrice())) {
             return false;
         }
         this.bestAskPrice = newBestAskPrice;
