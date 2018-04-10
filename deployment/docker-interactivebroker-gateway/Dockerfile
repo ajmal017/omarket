@@ -13,7 +13,7 @@ RUN groupadd -r ibguser \
 # Some required tools
 RUN \
     apt-get update -y \
-    && apt-get install -y software-properties-common python-software-properties unzip xterm
+    && apt-get install -y software-properties-common python-software-properties unzip xterm socat git-core
 
 # Java 8
 RUN \
@@ -38,7 +38,18 @@ RUN mkdir -p /opt/IBController \
     && mkdir -p /headless/IBController/Logs \
     && chown -R ibguser:ibguser /headless/IBController
 
+# Installing Python IBroker libs for testing purposes
+RUN cd /tmp \
+    && git clone https://github.com/blampe/IbPy \
+    && cd /tmp/IbPy \
+    && python setup.py install
+
 ADD config/IBController.ini /headless/IBController/IBController.ini
+ADD config/jts.ini          /headless/Jts/jts.ini
+ADD scripts/start_ibg.sh    /headless/start_ibg.sh
+ADD scripts/vnc_launch.sh   /headless/vnc_launch.sh
+RUN chown -R ibguser:ibguser /headless \
+    && chmod 755 /headless/*.sh
 
 USER ibguser
 WORKDIR /headless
@@ -57,9 +68,23 @@ RUN chmod a+x *.sh \
     && sed -i 's/%CONF_IB_USER%/'"$CONF_IB_USER"'/g' /headless/IBController/IBController.ini \
     && sed -i 's/%CONF_IB_PASS%/'"$CONF_IB_PASS"'/g' /headless/IBController/IBController.ini
 
-ADD config/jts.ini /headless/Jts/jts.ini
+#RUN chmod 755 /headless/run_within_X.sh
 
-# TODO: socat port 4001-->4003 ? See https://github.com/ryankennedyio/ib-docker/blob/master/runscript.sh
-EXPOSE 4002
+ENV IBC_PATH=/opt/IBController
+#RUN $IBC_PATH/Scripts/DisplayBannerAndLaunch.sh &
+#RUN sleep 30 \
+#    && echo "Using display $DISPLAY\n" \
+#    && echo "Forking 127.0.0.1:4002 onto 0.0.0.0:4003\n" \
+#    && socat TCP-LISTEN:4003,fork TCP:127.0.0.1:4002 &
 
-RUN /opt/IBController/IBControllerGatewayStart.sh &
+
+#USER 0
+#WORKDIR /root
+#
+ADD scripts/ibapi.py.script /headless/ibapi.py
+
+EXPOSE 4003
+#ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
+ENTRYPOINT ["/headless/vnc_launch.sh"]
+CMD ["/headless/start_ibg.sh"]
+
