@@ -15,9 +15,8 @@ import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
-import org.omarket.trading.ibrokers.AbstractIBrokerClient;
-import org.omarket.trading.ibrokers.VertxIBrokerClient;
+import org.omarket.trading.ibroker.IBrokersConnectionFailure;
+import org.omarket.trading.ibroker.VertxIBrokerClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -307,8 +306,8 @@ public class MarketDataVerticle extends AbstractVerticle {
         ibrokersClient.setContractDBPath(contractDBPath);
         vertx.executeBlocking(future -> {
             try {
-                org.omarket.trading.ibrokers.Util.ibrokerConnect(ibrokersHost, Integer.valueOf(ibrokersPort), Integer.valueOf(ibrokersClientId),
-                        ibrokersClient);
+                ibrokersClient.connect(Integer.valueOf(ibrokersClientId), ibrokersHost, Integer.valueOf(ibrokersPort));
+                ibrokersClient.startMessageProcessingThread();
                 setupContractRetrieve(vertx, ibrokersClient);
                 setupContractDownload(vertx, ibrokersClient);
                 setupHistoricalEOD(vertx, ibrokersClient);

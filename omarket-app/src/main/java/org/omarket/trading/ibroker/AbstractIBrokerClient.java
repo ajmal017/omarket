@@ -1,4 +1,4 @@
-package org.omarket.trading.ibrokers;
+package org.omarket.trading.ibroker;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;
@@ -14,8 +14,6 @@ import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.lang.String.format;
 
@@ -32,14 +30,37 @@ public abstract class AbstractIBrokerClient implements EWrapper {
         return this.client;
     }
 
-    public void init(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
-        final EClientSocket clientSocket = new EClientSocket(this, readerSignal);
-        this.client = clientSocket;
+    public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
+        this.client = new EClientSocket(this, readerSignal);
         log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
-        clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
-        if (!clientSocket.isConnected()) {
+        this.client.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
+        if (!this.client.isConnected()) {
             throw new IBrokersConnectionFailure(ibrokerHost, ibrokerPort);
         }
+    }
+
+    /**
+     * Launching IBroker client thread
+     */
+    public void startMessageProcessingThread(){
+        final EClientSocket clientSocket = this.client;
+        Thread messageThread = new Thread(() -> {
+            EReader reader = new EReader(clientSocket, readerSignal);
+            reader.start();
+            while (clientSocket.isConnected()) {
+                readerSignal.waitForSignal();
+                try {
+                    log.debug("IBrokers thread waiting for signal");
+                    reader.processMsgs();
+                } catch (Exception e) {
+                    log.error("Exception", e);
+                }
+            }
+            if (clientSocket.isConnected()) {
+                clientSocket.eDisconnect();
+            }
+        });
+        messageThread.start();
     }
 
     @Override
@@ -281,27 +302,4 @@ public abstract class AbstractIBrokerClient implements EWrapper {
         client.startAPI();
     }
 
-    /**
-     * Launching IBroker client thread
-     */
-    public void startMessageProcessingThread(){
-        EClientSocket clientSocket = this.client;
-        Thread messageThread = new Thread(() -> {
-            EReader reader = new EReader(clientSocket, readerSignal);
-            reader.start();
-            while (clientSocket.isConnected()) {
-                readerSignal.waitForSignal();
-                try {
-                    log.debug("IBrokers thread waiting for signal");
-                    reader.processMsgs();
-                } catch (Exception e) {
-                    log.error("Exception", e);
-                }
-            }
-            if (clientSocket.isConnected()) {
-                clientSocket.eDisconnect();
-            }
-        });
-        messageThread.start();
-    }
 }

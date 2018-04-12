@@ -1,4 +1,4 @@
-package org.omarket.trading.ibrokers;
+package org.omarket.trading.ibroker;
 
 /**
  * Created by christophe on 12/12/16.

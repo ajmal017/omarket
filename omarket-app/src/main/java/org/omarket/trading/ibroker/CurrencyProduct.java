@@ -1,4 +1,4 @@
-package org.omarket.trading.ibrokers;
+package org.omarket.trading.ibroker;
 
 import org.omarket.trading.MarketData;
 import org.slf4j.Logger;

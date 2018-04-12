@@ -1,4 +1,4 @@
-package org.omarket.trading.ibrokers;
+package org.omarket.trading.ibroker;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
