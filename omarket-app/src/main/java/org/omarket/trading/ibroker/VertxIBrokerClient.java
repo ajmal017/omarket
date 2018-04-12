@@ -66,14 +66,12 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     private ContractDBService contractDBService;
     private MarketData marketData;
     private Path storageDirPath;
-    private Integer lastRequestId = null;
     private Set<Integer> updateContractDB = new TreeSet<>();
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
-    private ConcurrentLinkedQueue<Pair<Integer, String>> errors = new ConcurrentLinkedQueue<>();
 
     @Autowired
     public VertxIBrokerClient(ContractDBService contractDBService, QuoteFactory quoteFactory, MarketData marketData) {
@@ -92,14 +90,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
         log.info("preparing storage for contract: " + productStorage);
         Files.createDirectories(productStorage);
         return productStorage;
-    }
-
-    synchronized private Integer newRequestId() {
-        if (lastRequestId == null) {
-            lastRequestId = 0;
-        }
-        lastRequestId += 1;
-        return lastRequestId;
     }
 
     public String getErrorChannel(Integer requestId) {
@@ -266,6 +256,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
 
     @Override
     public void error(int requestId, int errorCode, String errorMsg) {
+        super.error(requestId, errorCode, errorMsg);
         Map<Integer, String> ignores = new HashMap<>();
         ignores.put(2104, "Market data farm connection is OK");
         ignores.put(2106, "HMDS data farm connection is OK");
@@ -277,7 +268,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
                 errorJson.put("message", errorMsg);
                 this.eventBus.send(getErrorChannel(requestId), errorJson);
             } else {
-                getErrors().add(new ImmutablePair<>(errorCode, errorMsg));
                 log.error("error code: " + errorCode + " - " + errorMsg);
                 if (errorCode == 2110) {
                     // Connectivity between Trader Workstation and server is broken. It will be restored automatically.
@@ -330,10 +320,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
 
     public void setContractDBService(ContractDBService contractDBService) {
         this.contractDBService = contractDBService;
-    }
-
-    public ConcurrentLinkedQueue<Pair<Integer, String>> getErrors() {
-        return errors;
     }
 
 }

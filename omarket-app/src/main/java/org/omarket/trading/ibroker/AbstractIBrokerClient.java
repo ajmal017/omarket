@@ -14,33 +14,59 @@ import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static java.lang.String.format;
+import static java.lang.Thread.sleep;
 
 /**
  * Created by Christophe on 01/11/2016.
  */
 @Slf4j
 public abstract class AbstractIBrokerClient implements EWrapper {
-    
+
+    private Integer lastRequestId = null;
     private EClientSocket client;
     final private EReaderSignal readerSignal = new EJavaSignal();
+    private ConcurrentLinkedQueue<Pair<Integer, String>> errors = new ConcurrentLinkedQueue<>();
 
     public EClient getClient() {
         return this.client;
     }
 
+    /**
+     * Connects to IBroker TWS or Gateway
+     * @param ibrokerClientId
+     * @param ibrokerHost
+     * @param ibrokerPort
+     * @throws IBrokersConnectionFailure
+     */
     public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
         this.client = new EClientSocket(this, readerSignal);
+        //this.client.setAsyncEConnect(true);
         log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
         this.client.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
+        /*
+        int countdown = 20;
+        try {
+            while(countdown >= 0 && !this.client.isConnected()){
+                sleep(1000);
+                countdown -= 1;
+            }
+        } catch (InterruptedException e) {
+            log.error("connection to IBroker Gateway interrupted", e);
+        }
+        */
         if (!this.client.isConnected()) {
             throw new IBrokersConnectionFailure(ibrokerHost, ibrokerPort);
         }
     }
 
     /**
-     * Launching IBroker client thread
+     * Launching IBroker API client thread
      */
     public void startMessageProcessingThread(){
         final EClientSocket clientSocket = this.client;
@@ -61,6 +87,18 @@ public abstract class AbstractIBrokerClient implements EWrapper {
             }
         });
         messageThread.start();
+    }
+
+    /**
+     * Generates a new valid request Id.
+     * @return
+     */
+    synchronized protected Integer newRequestId() {
+        if (lastRequestId == null) {
+            lastRequestId = 0;
+        }
+        lastRequestId += 1;
+        return lastRequestId;
     }
 
     @Override
@@ -290,6 +328,11 @@ public abstract class AbstractIBrokerClient implements EWrapper {
     @Override
     public void error(int id, int errorCode, String errorMsg) {
         log.error(format("%s: error %s %s", id, errorCode, errorMsg));
+        getErrors().add(new ImmutablePair<>(errorCode, errorMsg));
+    }
+
+    public ConcurrentLinkedQueue<Pair<Integer, String>> getErrors() {
+        return errors;
     }
 
     @Override
