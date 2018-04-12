@@ -47,7 +47,6 @@ RUN cd /tmp \
 ADD config/IBController.ini /headless/IBController/IBController.ini
 ADD config/jts.ini          /headless/Jts/jts.ini
 ADD scripts/start_ibg.sh    /headless/start_ibg.sh
-ADD scripts/vnc_launch.sh   /headless/vnc_launch.sh
 RUN chown -R ibguser:ibguser /headless \
     && chmod 755 /headless/*.sh
 
@@ -68,23 +67,10 @@ RUN chmod a+x *.sh \
     && sed -i 's/%CONF_IB_USER%/'"$CONF_IB_USER"'/g' /headless/IBController/IBController.ini \
     && sed -i 's/%CONF_IB_PASS%/'"$CONF_IB_PASS"'/g' /headless/IBController/IBController.ini
 
-#RUN chmod 755 /headless/run_within_X.sh
-
 ENV IBC_PATH=/opt/IBController
-#RUN $IBC_PATH/Scripts/DisplayBannerAndLaunch.sh &
-#RUN sleep 30 \
-#    && echo "Using display $DISPLAY\n" \
-#    && echo "Forking 127.0.0.1:4002 onto 0.0.0.0:4003\n" \
-#    && socat TCP-LISTEN:4003,fork TCP:127.0.0.1:4002 &
-
-
-#USER 0
-#WORKDIR /root
-#
-ADD scripts/ibapi.py.script /headless/ibapi.py
 
 EXPOSE 4003
-#ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
-ENTRYPOINT ["/headless/vnc_launch.sh"]
+
+ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
 CMD ["/headless/start_ibg.sh"]
 
