@@ -16,7 +16,8 @@ import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
 import org.omarket.trading.ibrokers.IBrokersConnectionFailure;
-import org.omarket.trading.ibrokers.IBrokersMarketDataCallback;
+import org.omarket.trading.ibrokers.AbstractIBrokerClient;
+import org.omarket.trading.ibrokers.VertxIBrokerClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -40,7 +41,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     private final static Logger logger = LoggerFactory.getLogger(MarketDataVerticle.class.getName());
     private final static Map<String, Security> subscribedProducts = new HashMap<>();
     private final ContractDBService contractDBService;
-    private final IBrokersMarketDataCallback ibrokersClient;
+    private final VertxIBrokerClient ibrokersClient;
     @Value("${ibrokers.host}")
     private String ibrokersHost;
     @Value("${ibrokers.port}")
@@ -73,7 +74,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
     @Autowired
-    public MarketDataVerticle(ContractDBService contractDBService, IBrokersMarketDataCallback ibrokersClient) {
+    public MarketDataVerticle(ContractDBService contractDBService, VertxIBrokerClient ibrokersClient) {
         this.contractDBService = contractDBService;
         this.ibrokersClient = ibrokersClient;
     }
@@ -105,7 +106,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return result;
     }
 
-    private void setupSubscribeTick(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupSubscribeTick(Vertx vertx, VertxIBrokerClient ibrokersClient) {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -176,7 +177,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupContractRetrieve(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupContractRetrieve(Vertx vertx, VertxIBrokerClient ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -197,7 +198,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupContractDownload(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupContractDownload(Vertx vertx, VertxIBrokerClient ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DOWNLOAD);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -257,7 +258,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupHistoricalEOD(Vertx vertx, IBrokersMarketDataCallback ibrokersClient) {
+    private void setupHistoricalEOD(Vertx vertx, VertxIBrokerClient ibrokersClient) {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {
@@ -306,7 +307,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         ibrokersClient.setContractDBPath(contractDBPath);
         vertx.executeBlocking(future -> {
             try {
-                org.omarket.trading.ibrokers.Util.ibrokers_connect(ibrokersHost, Integer.valueOf(ibrokersPort), Integer.valueOf(ibrokersClientId),
+                org.omarket.trading.ibrokers.Util.ibrokerConnect(ibrokersHost, Integer.valueOf(ibrokersPort), Integer.valueOf(ibrokersClientId),
                         ibrokersClient);
                 setupContractRetrieve(vertx, ibrokersClient);
                 setupContractDownload(vertx, ibrokersClient);

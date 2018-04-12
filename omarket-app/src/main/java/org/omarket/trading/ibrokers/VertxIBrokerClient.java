@@ -17,8 +17,6 @@ import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
 import org.omarket.trading.quote.QuoteFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -42,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 
@@ -51,7 +50,10 @@ import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessRepl
  */
 @Slf4j
 @Component
-public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
+public class VertxIBrokerClient extends AbstractIBrokerClient {
+
+    @Value("${address.error_message_prefix}")
+    private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
     private final static int PRICE_BID = 1;
     private final static int PRICE_ASK = 2;
@@ -63,8 +65,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Path contractDBPath;
     private ContractDBService contractDBService;
     private MarketData marketData;
-    @Value("${address.error_message_prefix}")
-    private String ADDRESS_ERROR_MESSAGE_PREFIX;
     private Path storageDirPath;
     private Integer lastRequestId = null;
     private Set<Integer> updateContractDB = new TreeSet<>();
@@ -73,9 +73,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
+    private ConcurrentLinkedQueue<Pair<Integer, String>> errors = new ConcurrentLinkedQueue<>();
 
     @Autowired
-    public IBrokersMarketDataCallback(ContractDBService contractDBService, QuoteFactory quoteFactory, MarketData marketData) {
+    public VertxIBrokerClient(ContractDBService contractDBService, QuoteFactory quoteFactory, MarketData marketData) {
         formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
         formatHour = new SimpleDateFormat("HH");
         formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -265,10 +266,10 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
 
     @Override
     public void error(int requestId, int errorCode, String errorMsg) {
-        Map<Integer, String> exceptions = new HashMap<>();
-        exceptions.put(2104, "Market data farm connection is OK");
-        exceptions.put(2106, "HMDS data farm connection is OK");
-        if (!exceptions.containsKey(errorCode)) {
+        Map<Integer, String> ignores = new HashMap<>();
+        ignores.put(2104, "Market data farm connection is OK");
+        ignores.put(2106, "HMDS data farm connection is OK");
+        if (!ignores.containsKey(errorCode)) {
             if (requestId != -1) {
                 log.error("error code: " + errorCode + " - " + errorMsg + " (request id: " + requestId + ")");
                 JsonObject errorJson = new JsonObject();
@@ -276,23 +277,22 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
                 errorJson.put("message", errorMsg);
                 this.eventBus.send(getErrorChannel(requestId), errorJson);
             } else {
+                getErrors().add(new ImmutablePair<>(errorCode, errorMsg));
+                log.error("error code: " + errorCode + " - " + errorMsg);
                 if (errorCode == 2110) {
                     // Connectivity between Trader Workstation and server is broken. It will be restored automatically.
-                    log.error("error code: " + errorCode + " - " + errorMsg);
                     JsonObject errorJson = new JsonObject();
                     errorJson.put("code", errorCode);
                     errorJson.put("message", errorMsg);
                     this.eventBus.send(getErrorChannelGeneric(), errorJson);
                 } else if (errorCode == 1102) {
                     // Connectivity between IB and Trader Workstation has been restored - data maintained.
-                    log.error("error code: " + errorCode + " - " + errorMsg);
                     JsonObject errorJson = new JsonObject();
                     errorJson.put("code", errorCode);
                     errorJson.put("message", errorMsg);
                     this.eventBus.send(getErrorChannelGeneric(), errorJson);
                 } else {
                     // Connectivity between IB and Trader Workstation has been restored - data maintained.
-                    log.error("error code: " + errorCode + " - " + errorMsg);
                     JsonObject errorJson = new JsonObject();
                     errorJson.put("code", errorCode);
                     errorJson.put("message", errorMsg);
@@ -331,4 +331,9 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     public void setContractDBService(ContractDBService contractDBService) {
         this.contractDBService = contractDBService;
     }
+
+    public ConcurrentLinkedQueue<Pair<Integer, String>> getErrors() {
+        return errors;
+    }
+
 }

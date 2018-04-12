@@ -5,26 +5,41 @@ import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import com.ib.client.DeltaNeutralContract;
 import com.ib.client.EClient;
+import com.ib.client.EClientSocket;
+import com.ib.client.EJavaSignal;
+import com.ib.client.EReader;
+import com.ib.client.EReaderSignal;
 import com.ib.client.EWrapper;
 import com.ib.client.Execution;
 import com.ib.client.Order;
 import com.ib.client.OrderState;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.lang.String.format;
 
 /**
  * Created by Christophe on 01/11/2016.
  */
-public abstract class AbstractIBrokersCallback implements EWrapper {
-    private static Logger logger = LoggerFactory.getLogger(AbstractIBrokersCallback.class);
-    private EClient m_client;
+@Slf4j
+public abstract class AbstractIBrokerClient implements EWrapper {
+    
+    private EClientSocket client;
+    final private EReaderSignal readerSignal = new EJavaSignal();
 
     public EClient getClient() {
-        return this.m_client;
+        return this.client;
     }
 
-    public void setClient(EClient m_client) {
-        this.m_client = m_client;
+    public void init(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
+        final EClientSocket clientSocket = new EClientSocket(this, readerSignal);
+        this.client = clientSocket;
+        log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
+        clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
+        if (!clientSocket.isConnected()) {
+            throw new IBrokersConnectionFailure(ibrokerHost, ibrokerPort);
+        }
     }
 
     @Override
@@ -243,17 +258,17 @@ public abstract class AbstractIBrokersCallback implements EWrapper {
 
     @Override
     public void error(Exception e) {
-        logger.error("IBrokers callback wrapper error", e);
+        log.error("IBrokers callback wrapper error", e);
     }
 
     @Override
     public void error(String str) {
-        logger.error(str);
+        log.error(str);
     }
 
     @Override
     public void error(int id, int errorCode, String errorMsg) {
-
+        log.error(format("%s: error %s %s", id, errorCode, errorMsg));
     }
 
     @Override
@@ -263,6 +278,30 @@ public abstract class AbstractIBrokersCallback implements EWrapper {
 
     @Override
     public void connectAck() {
-        m_client.startAPI();
+        client.startAPI();
+    }
+
+    /**
+     * Launching IBroker client thread
+     */
+    public void startMessageProcessingThread(){
+        EClientSocket clientSocket = this.client;
+        Thread messageThread = new Thread(() -> {
+            EReader reader = new EReader(clientSocket, readerSignal);
+            reader.start();
+            while (clientSocket.isConnected()) {
+                readerSignal.waitForSignal();
+                try {
+                    log.debug("IBrokers thread waiting for signal");
+                    reader.processMsgs();
+                } catch (Exception e) {
+                    log.error("Exception", e);
+                }
+            }
+            if (clientSocket.isConnected()) {
+                clientSocket.eDisconnect();
+            }
+        });
+        messageThread.start();
     }
 }
