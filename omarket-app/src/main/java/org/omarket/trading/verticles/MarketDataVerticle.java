@@ -8,7 +8,6 @@ import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.AbstractVerticle;
-import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import rx.Observable;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -105,7 +105,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         return result;
     }
 
-    private void setupSubscribeTick(Vertx vertx, VertxIBrokerClient ibrokersClient) {
+    private void setupSubscribeTick() {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_SUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -156,7 +156,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         log.info("quotes subscription service deployed");
     }
 
-    private void setupUnsubscribeTick(Vertx vertx) {
+    private void setupUnsubscribeTick() {
         Observable<Message<JsonObject>> consumer =
                 vertx.eventBus().<JsonObject>consumer(ADDRESS_UNSUBSCRIBE_TICK).toObservable();
         consumer.subscribe(message -> {
@@ -176,7 +176,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupContractRetrieve(Vertx vertx, VertxIBrokerClient ibrokersClient) {
+    private void setupContractRetrieve() {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -197,7 +197,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupContractDownload(Vertx vertx, VertxIBrokerClient ibrokersClient) {
+    private void setupContractDownload() {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DOWNLOAD);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
         contractStream.subscribe(message -> {
@@ -219,7 +219,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupAdminCommand(Vertx vertx) {
+    private void setupAdminCommand() {
         Observable<Message<String>> consumer = vertx.eventBus().<String>consumer(ADDRESS_ADMIN_COMMAND).toObservable();
         consumer.subscribe(message -> {
             final String commandLine = message.body();
@@ -246,7 +246,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    public void adminCommand(Vertx vertx, String commandLine) {
+    public void adminCommand(String commandLine) {
         vertx.eventBus().send(ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
             if (reply.succeeded()) {
                 String commandResult = (String) reply.result().body();
@@ -257,7 +257,7 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupHistoricalEOD(Vertx vertx, VertxIBrokerClient ibrokersClient) {
+    private void setupHistoricalEOD() {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_EOD_REQUEST);
         Observable<Message<JsonObject>> histRequestStream = consumer.toObservable();
         histRequestStream.subscribe(request -> {
@@ -308,14 +308,17 @@ public class MarketDataVerticle extends AbstractVerticle {
             try {
                 ibrokersClient.connect(Integer.valueOf(ibrokersClientId), ibrokersHost, Integer.valueOf(ibrokersPort));
                 ibrokersClient.startMessageProcessing();
-                setupContractRetrieve(vertx, ibrokersClient);
-                setupContractDownload(vertx, ibrokersClient);
-                setupHistoricalEOD(vertx, ibrokersClient);
-                setupSubscribeTick(vertx, ibrokersClient);
-                setupUnsubscribeTick(vertx);
-                setupAdminCommand(vertx);
+                setupContractRetrieve();
+                setupContractDownload();
+                setupHistoricalEOD();
+                setupSubscribeTick();
+                setupUnsubscribeTick();
+                setupAdminCommand();
                 future.complete();
-            } catch (IBrokersConnectionFailure iBrokersConnectionFailure) {
+            } catch (IOException ioe) {
+                log.error("error during message processing", ioe);
+                future.fail(ioe);
+            }catch (IBrokersConnectionFailure iBrokersConnectionFailure) {
                 log.error("connection failed", iBrokersConnectionFailure);
                 future.fail(iBrokersConnectionFailure);
             }

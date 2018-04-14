@@ -17,10 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static java.lang.String.format;
-import static java.lang.Thread.sleep;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -29,68 +29,54 @@ import static java.lang.Thread.sleep;
 public abstract class AbstractIBrokerClient implements EWrapper {
 
     private Integer lastRequestId = null;
-    private EClientSocket client;
+    private EClientSocket clientSocket;
     final private EReaderSignal readerSignal = new EJavaSignal();
     private ConcurrentLinkedQueue<Pair<Integer, String>> errors = new ConcurrentLinkedQueue<>();
 
-    public EClient getClient() {
-        return this.client;
+    public EClient getClientSocket() {
+        return this.clientSocket;
     }
 
     /**
      * Connects to IBroker TWS or Gateway
+     *
      * @param ibrokerClientId
      * @param ibrokerHost
      * @param ibrokerPort
      * @throws IBrokersConnectionFailure
      */
     public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
-        this.client = new EClientSocket(this, readerSignal);
+        this.clientSocket = new EClientSocket(this, readerSignal);
         //this.client.setAsyncEConnect(true);
         log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
-        this.client.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
-        /*
-        int countdown = 20;
-        try {
-            while(countdown >= 0 && !this.client.isConnected()){
-                sleep(1000);
-                countdown -= 1;
-            }
-        } catch (InterruptedException e) {
-            log.error("connection to IBroker Gateway interrupted", e);
-        }
-        */
-        if (!this.client.isConnected()) {
+        this.clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
+        if (!this.clientSocket.isConnected()) {
             throw new IBrokersConnectionFailure(ibrokerHost, ibrokerPort);
         }
     }
 
     /**
-     * Launching IBroker API client thread
+     * Launching IBroker API client thread.
+     * <p>
+     * Looping on received signals and blocking until disconnect.
      */
-    public void startMessageProcessingThread(){
-        final EClientSocket clientSocket = this.client;
-        Thread messageThread = new Thread(() -> {
-            EReader reader = new EReader(clientSocket, readerSignal);
-            reader.start();
-            while (clientSocket.isConnected()) {
-                readerSignal.waitForSignal();
-                try {
-                    log.debug("IBrokers thread waiting for signal");
-                    reader.processMsgs();
-                } catch (Exception e) {
-                    log.error("Exception", e);
-                }
-            }
-            if (clientSocket.isConnected()) {
-                clientSocket.eDisconnect();
-            }
-        });
-        messageThread.start();
+    public void startMessageProcessing() throws IOException {
+        final EClientSocket clientSocket = this.clientSocket;
+        EReader reader = new EReader(clientSocket, readerSignal);
+        reader.start();
+        while (clientSocket.isConnected()) {
+            readerSignal.waitForSignal();
+            log.debug("IBrokers thread waiting for signal");
+            reader.processMsgs();
+        }
+        if (clientSocket.isConnected()) {
+            clientSocket.eDisconnect();
+        }
     }
 
     /**
      * Generates a new valid request Id.
+     *
      * @return
      */
     synchronized protected Integer newRequestId() {

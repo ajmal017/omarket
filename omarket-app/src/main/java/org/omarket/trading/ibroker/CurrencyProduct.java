@@ -1,8 +1,7 @@
 package org.omarket.trading.ibroker;
 
+import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.MarketData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -12,10 +11,10 @@ import java.util.Map;
 /**
  * Created by Christophe on 05/11/2016.
  */
+@Slf4j
 @Component
 public class CurrencyProduct {
     public final static Map<String, Integer> IB_CODES = new HashMap<>();
-    private final static Logger logger = LoggerFactory.getLogger(CurrencyProduct.class);
 
     static {
         IB_CODES.put("AUD.ZAR", 208558338);
@@ -118,7 +117,7 @@ public class CurrencyProduct {
     public String getChannel(String currency1, String currency2) {
         String cross = currency1.toUpperCase() + "." + currency2.toUpperCase();
         if (!IB_CODES.containsKey(cross)) {
-            logger.error("no channel for {} / {}", currency1, currency2);
+            log.error("no channel for {} / {}", currency1, currency2);
         }
         return marketData.createChannelQuote(IB_CODES.get(cross).toString());
     }

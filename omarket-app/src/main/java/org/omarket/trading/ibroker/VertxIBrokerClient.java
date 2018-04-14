@@ -65,11 +65,11 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     private ContractDBService contractDBService;
     private MarketData marketData;
     private Path storageDirPath;
+    private EventBus eventBus;
     private Set<Integer> updateContractDB = new TreeSet<>();
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
-    private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
 
     @Autowired
