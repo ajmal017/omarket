@@ -5,6 +5,9 @@ package org.omarket.trading.ibroker;
  */
 public class IBrokersConnectionFailure extends Throwable {
     public IBrokersConnectionFailure(String ibrokersHost, int ibrokersPort) {
-        super("failed to connect to IBrokers client: " + ibrokersHost + "/" + ibrokersPort);
+        super("connection to IBrokers client failed: " + ibrokersHost + "/" + ibrokersPort);
+    }
+    public IBrokersConnectionFailure(String ibrokersHost, int ibrokersPort, String errorMessage) {
+        super("failed to initiate connection to IBrokers client " + ibrokersHost + "/" + ibrokersPort + ": " + errorMessage);
     }
 }

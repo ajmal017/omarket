@@ -151,6 +151,7 @@ public abstract class AbstractIBrokerClient implements EWrapper {
 
     @Override
     public void updateAccountTime(String timeStamp) {
+        log.info(format("updateAccountTime: %s", timeStamp));
     }
 
     @Override
@@ -197,7 +198,7 @@ public abstract class AbstractIBrokerClient implements EWrapper {
 
     @Override
     public void updateNewsBulletin(int msgId, int msgType, String message, String origExchange) {
-
+        log.info(format("updateNewsBulletin: %s", message));
     }
 
     @Override
@@ -237,7 +238,7 @@ public abstract class AbstractIBrokerClient implements EWrapper {
 
     @Override
     public void currentTime(long time) {
-
+        log.info(format("currentTime: %s", time));
     }
 
     @Override
@@ -337,12 +338,13 @@ public abstract class AbstractIBrokerClient implements EWrapper {
 
     @Override
     public void connectionClosed() {
-
+        log.info(format("connectionClosed"));
     }
 
     @Override
     public void connectAck() {
-        client.startAPI();
+        log.info("IBrokers connect ACK");
+        clientSocket.startAPI();
     }
 
 }

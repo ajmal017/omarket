@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 
@@ -99,14 +98,14 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     public String requestContract(Contract contract, Message<JsonObject> message) {
         Integer newRequestId = newRequestId();
         callbackMessages.put(newRequestId, message);
-        getClient().reqContractDetails(newRequestId, contract);
+        getClientSocket().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
     }
 
     public String requestContract(Contract contract) {
         Integer newRequestId = newRequestId();
         this.updateContractDB.add(newRequestId);
-        getClient().reqContractDetails(newRequestId, contract);
+        getClientSocket().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
     }
 
@@ -121,7 +120,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
         int rth = 1;
         int useLongDate = 2;
         eodReplies.put(requestId, replyAddress);
-        getClient().reqHistoricalData(requestId, contractDetails.toContractDetails().contract(), endDateString, duration, bar, what, rth, useLongDate, null);
+        getClientSocket().reqHistoricalData(requestId, contractDetails.toContractDetails().contract(), endDateString, duration, bar, what, rth, useLongDate, null);
         return getErrorChannel(requestId);
     }
 
@@ -140,7 +139,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
         MutableQuote quote = quoteFactory.createMutable(security.getMinTick(), security.getCode());
         orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
         log.info("requesting market data for " + security);
-        getClient().reqMktData(requestId, contract, "", false, null);
+        getClientSocket().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
     }
 
