@@ -54,20 +54,18 @@ USER ibguser
 WORKDIR /headless
 
 # IBroker Gateway
-RUN wget https://download2.interactivebrokers.com/installers/ibgateway/stable-standalone/ibgateway-stable-standalone-linux-x64.sh
 ENV INSTALL4J_ADD_VM_PARAMS="-Djava.awt.headless=true"
+RUN wget https://download2.interactivebrokers.com/installers/ibgateway/stable-standalone/ibgateway-stable-standalone-linux-x64.sh
+RUN chmod a+x *.sh \
+    && echo "n" | ./ibgateway-stable-standalone-linux-x64.sh \
+    && rm -f /headless/ibgateway-stable-standalone-linux-x64.sh
+
+ENV IBC_PATH=/opt/IBController
+
+# Environment variables to be overriden
 ENV CONF_TRADING_MODE="paper"
 ENV CONF_IB_USER="edemo"
 ENV CONF_IB_PASS="demouser"
-RUN chmod a+x *.sh \
-    && echo "n" | ./ibgateway-stable-standalone-linux-x64.sh \
-    && rm -f /headless/ibgateway-stable-standalone-linux-x64.sh \
-    && echo "\n-Djava.awt.headless=false\n" >> /headless/Jts/ibgateway/963/ibgateway.vmoptions \
-    && sed -i 's/%CONF_TRADING_MODE%/'"$CONF_TRADING_MODE"'/g' /headless/IBController/IBController.ini \
-    && sed -i 's/%CONF_IB_USER%/'"$CONF_IB_USER"'/g' /headless/IBController/IBController.ini \
-    && sed -i 's/%CONF_IB_PASS%/'"$CONF_IB_PASS"'/g' /headless/IBController/IBController.ini
-
-ENV IBC_PATH=/opt/IBController
 
 EXPOSE 4003
 

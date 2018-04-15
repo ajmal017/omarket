@@ -47,7 +47,6 @@ public abstract class AbstractIBrokerClient implements EWrapper {
      */
     public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
         this.clientSocket = new EClientSocket(this, readerSignal);
-        //this.client.setAsyncEConnect(true);
         log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
         this.clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
         if (!this.clientSocket.isConnected()) {
@@ -64,14 +63,21 @@ public abstract class AbstractIBrokerClient implements EWrapper {
         final EClientSocket clientSocket = this.clientSocket;
         EReader reader = new EReader(clientSocket, readerSignal);
         reader.start();
-        while (clientSocket.isConnected()) {
-            readerSignal.waitForSignal();
-            log.debug("IBrokers thread waiting for signal");
-            reader.processMsgs();
-        }
-        if (clientSocket.isConnected()) {
-            clientSocket.eDisconnect();
-        }
+        Thread ibrokerSignalProcessor = new Thread(() -> {
+            while (clientSocket.isConnected()) {
+                log.debug("IBrokers thread waiting for signal");
+                readerSignal.waitForSignal();
+                try {
+                    reader.processMsgs();
+                } catch (IOException e) {
+                    log.error("failed to process signal from IBroker", e);
+                }
+            }
+            if (clientSocket.isConnected()) {
+                clientSocket.eDisconnect();
+            }
+        });
+        ibrokerSignalProcessor.start();
     }
 
     /**

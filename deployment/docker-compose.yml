@@ -1,17 +1,17 @@
 version: '3'
 services:
-  tws:
-    image: algotrader/ibgateway:963
-    environment:
-      # loaded from .env file in same directory
-      TWS_USERNAME: ${TWS_USERNAME}
-      TWS_PASSWORD: ${TWS_PASSWORD}
-      TRADING_MODE: ${TRADING_MODE}
-    ports:
-      - 4001:4001
-    volumes:
-      # loaded from .env file in same directory
-      - ./tws:/var/lib/tws
+#  tws:
+#    image: algotrader/ibgateway:963
+#    environment:
+#      # loaded from .env file in same directory
+#      TWS_USERNAME: ${TWS_USERNAME}
+#      TWS_PASSWORD: ${TWS_PASSWORD}
+#      TRADING_MODE: ${TRADING_MODE}
+#    ports:
+#      - 4001:4001
+#    volumes:
+#      # loaded from .env file in same directory
+#      - ./tws:/var/lib/tws
 #
 #  Runs the most current stable Interactive Brokers Gateway installer and allows to configure the Gateway settings
 #  before committing the configured container.

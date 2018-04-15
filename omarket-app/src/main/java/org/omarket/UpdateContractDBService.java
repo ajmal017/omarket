@@ -76,7 +76,7 @@ public class UpdateContractDBService {
                     }
                 })
                 .subscribe(response -> {
-                    log.info("processed: " + response);
+                    log.info("processed: " + response.body());
                 }, failed -> {
                     log.error("terminating - unrecoverable error occurred:", failed);
                     System.exit(0);

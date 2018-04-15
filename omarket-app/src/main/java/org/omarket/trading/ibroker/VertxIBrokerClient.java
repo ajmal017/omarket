@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
+import static java.lang.String.format;
 import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 
 
@@ -98,6 +99,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     public String requestContract(Contract contract, Message<JsonObject> message) {
         Integer newRequestId = newRequestId();
         callbackMessages.put(newRequestId, message);
+        log.info(format("request contract details: id %s", newRequestId));
         getClientSocket().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
     }
@@ -105,6 +107,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     public String requestContract(Contract contract) {
         Integer newRequestId = newRequestId();
         this.updateContractDB.add(newRequestId);
+        log.info(format("request contract details: id %s", newRequestId));
         getClientSocket().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
     }
