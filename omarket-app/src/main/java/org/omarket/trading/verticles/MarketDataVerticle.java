@@ -24,10 +24,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -76,19 +74,6 @@ public class MarketDataVerticle extends AbstractVerticle {
     public MarketDataVerticle(ContractDBService contractDBService, VertxIBrokerClient ibrokersClient) {
         this.contractDBService = contractDBService;
         this.ibrokersClient = ibrokersClient;
-    }
-
-    private static String getProductAsString(String ibCode) {
-        Security product = subscribedProducts.get(ibCode);
-        if (product == null) {
-            log.error("product not found for : " + ibCode);
-            return null;
-        }
-        return product.toString();
-    }
-
-    private static Set<String> getSubscribedProducts() {
-        return subscribedProducts.keySet();
     }
 
     private static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
@@ -176,27 +161,6 @@ public class MarketDataVerticle extends AbstractVerticle {
         });
     }
 
-    private void setupContractRetrieve() {
-        final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_RETRIEVE);
-        Observable<Message<JsonObject>> contractStream = consumer.toObservable();
-        contractStream.subscribe(message -> {
-            final JsonObject body = message.body();
-            log.info("requesting contract: " + body);
-            final int productCode = Integer.parseInt(body.getString("conId"));
-            Contract contract = new Contract();
-            contract.conid(productCode);
-            String errorChannel = ibrokersClient.requestContract(contract, message);
-            Observable<JsonObject> errorStream =
-                    vertx.eventBus().<JsonObject>consumer(errorChannel).bodyStream().toObservable();
-            errorStream.subscribe(errorMessage -> {
-                log.error("failed to request contract '" + productCode + "': " + errorMessage);
-                Gson gson = new GsonBuilder().create();
-                JsonObject product = new JsonObject(gson.toJson(contract));
-                message.reply(createErrorReply(errorMessage, product));
-            });
-        });
-    }
-
     private void setupContractDownload() {
         final MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(ADDRESS_CONTRACT_DOWNLOAD);
         Observable<Message<JsonObject>> contractStream = consumer.toObservable();
@@ -216,44 +180,6 @@ public class MarketDataVerticle extends AbstractVerticle {
                 message.reply(createErrorReply(errorMessage, product));
             });
             message.reply(createSuccessReply(body));
-        });
-    }
-
-    private void setupAdminCommand() {
-        Observable<Message<String>> consumer = vertx.eventBus().<String>consumer(ADDRESS_ADMIN_COMMAND).toObservable();
-        consumer.subscribe(message -> {
-            final String commandLine = message.body();
-            String[] fields = commandLine.split("\\s+");
-            String command = fields[0];
-            String[] args = {};
-            if (fields.length >= 2) {
-                args = Arrays.copyOfRange(fields, 1, fields.length);
-            }
-            String result = "";
-            switch (command) {
-                case "subscribed":
-                    result = String.join(", ", getSubscribedProducts());
-                    break;
-                case "details":
-                    String ibCode = args[0];
-                    result = getProductAsString(ibCode);
-                    break;
-                case "help":
-                    result = "available commands: subscribed, details";
-                    break;
-            }
-            message.reply(result);
-        });
-    }
-
-    public void adminCommand(String commandLine) {
-        vertx.eventBus().send(ADDRESS_ADMIN_COMMAND, commandLine, reply -> {
-            if (reply.succeeded()) {
-                String commandResult = (String) reply.result().body();
-                log.debug(commandLine + " -> '" + commandResult + "'");
-            } else {
-                log.error("failed to run admin command '" + commandLine + "'");
-            }
         });
     }
 
@@ -308,12 +234,10 @@ public class MarketDataVerticle extends AbstractVerticle {
             try {
                 ibrokersClient.connect(Integer.valueOf(ibrokersClientId), ibrokersHost, Integer.valueOf(ibrokersPort));
                 ibrokersClient.startMessageProcessing();
-                setupContractRetrieve();
                 setupContractDownload();
                 setupHistoricalEOD();
                 setupSubscribeTick();
                 setupUnsubscribeTick();
-                setupAdminCommand();
                 future.complete();
             } catch (IOException ioe) {
                 log.error("error during message processing", ioe);

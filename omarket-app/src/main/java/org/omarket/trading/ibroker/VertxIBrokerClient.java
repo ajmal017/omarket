@@ -1,12 +1,9 @@
 package org.omarket.trading.ibroker;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.eventbus.EventBus;
-import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -42,7 +39,6 @@ import java.util.TimeZone;
 import java.util.TreeSet;
 
 import static java.lang.String.format;
-import static org.omarket.trading.verticles.MarketDataVerticle.createSuccessReply;
 
 
 /**
@@ -68,7 +64,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     private Path storageDirPath;
     private EventBus eventBus;
     private Set<Integer> updateContractDB = new TreeSet<>();
-    private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private Map<Integer, String> eodReplies = new HashMap<>();
@@ -94,14 +89,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
 
     public String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
-    }
-
-    public String requestContract(Contract contract, Message<JsonObject> message) {
-        Integer newRequestId = newRequestId();
-        callbackMessages.put(newRequestId, message);
-        log.info(format("request contract details: id %s", newRequestId));
-        getClientSocket().reqContractDetails(newRequestId, contract);
-        return getErrorChannel(newRequestId);
     }
 
     public String requestContract(Contract contract) {
@@ -148,12 +135,6 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
 
     @Override
     public void contractDetails(int requestId, ContractDetails contractDetails) {
-        Gson gson = new GsonBuilder().create();
-        JsonObject product = new JsonObject(gson.toJson(contractDetails));
-        if (callbackMessages.containsKey(requestId)) {
-            Message<JsonObject> message = callbackMessages.get(requestId);
-            message.reply(createSuccessReply(product));
-        }
         if (updateContractDB.contains(requestId)) {
             Security security = Security.fromContractDetails(contractDetails);
             try {
