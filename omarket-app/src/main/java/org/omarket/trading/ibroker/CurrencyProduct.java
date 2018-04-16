@@ -1,7 +1,6 @@
 package org.omarket.trading.ibroker;
 
 import lombok.extern.slf4j.Slf4j;
-import org.omarket.trading.MarketData;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

@@ -1,4 +1,4 @@
-package org.omarket.trading.ibroker;
+package org.omarket.trading;
 
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
@@ -8,8 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.omarket.trading.ContractDBService;
-import org.omarket.trading.MarketData;
 import org.omarket.trading.Security;
+import org.omarket.trading.ibroker.AbstractIBrokerClient;
+import org.omarket.trading.ibroker.MarketData;
 import org.omarket.trading.quote.MutableQuote;
 import org.omarket.trading.quote.Quote;
 import org.omarket.trading.quote.QuoteConverter;
@@ -31,6 +32,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +41,7 @@ import java.util.TimeZone;
 import java.util.TreeSet;
 
 import static java.lang.String.format;
+import static java.lang.Thread.sleep;
 
 
 /**
@@ -48,6 +51,8 @@ import static java.lang.String.format;
 @Component
 public class VertxIBrokerClient extends AbstractIBrokerClient {
 
+    public static final int IB_MAX_SIMULTANEOUS_CONTRACT_DETAILS_REQUESTS = 10;
+    public static final int PERIOD_CONTRACT_DETAILS_REQUEST_RETRY_MS = 1000;
     @Value("${address.error_message_prefix}")
     private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
@@ -63,7 +68,7 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
     private MarketData marketData;
     private Path storageDirPath;
     private EventBus eventBus;
-    private Set<Integer> updateContractDB = new TreeSet<>();
+    private Set<Integer> requestsContractDetails = Collections.synchronizedSet(new TreeSet<>());
     private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private Map<Integer, String> eodReplies = new HashMap<>();
@@ -91,9 +96,21 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;
     }
 
+    /**
+     *
+     * @param contract
+     * @return
+     */
     public String requestContract(Contract contract) {
         Integer newRequestId = newRequestId();
-        this.updateContractDB.add(newRequestId);
+        while(this.requestsContractDetails.size() >= IB_MAX_SIMULTANEOUS_CONTRACT_DETAILS_REQUESTS){
+            try {
+                sleep(PERIOD_CONTRACT_DETAILS_REQUEST_RETRY_MS);
+            } catch (InterruptedException e) {
+                log.error("interrupted request for contract details", e);
+            }
+        }
+        this.requestsContractDetails.add(newRequestId);
         log.info(format("request contract details: id %s", newRequestId));
         getClientSocket().reqContractDetails(newRequestId, contract);
         return getErrorChannel(newRequestId);
@@ -135,11 +152,11 @@ public class VertxIBrokerClient extends AbstractIBrokerClient {
 
     @Override
     public void contractDetails(int requestId, ContractDetails contractDetails) {
-        if (updateContractDB.contains(requestId)) {
+        if (requestsContractDetails.contains(requestId)) {
             Security security = Security.fromContractDetails(contractDetails);
             try {
                 contractDBService.saveContract(Paths.get("data", "contracts"), security);
-                updateContractDB.remove(requestId);
+                requestsContractDetails.remove(requestId);
             } catch (IOException e) {
                 log.error("failed to update contract db", e);
             }

@@ -1,6 +1,7 @@
 package org.omarket;
 
 import lombok.extern.slf4j.Slf4j;
+import org.omarket.trading.ibroker.IBrokerConnectionFailure;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -27,7 +28,11 @@ public class RecorderRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if (Objects.equals(args.getNonOptionArgs().get(0), "record-prices")) {
-            service.record();
+            try {
+                service.record();
+            } catch (IBrokerConnectionFailure iBrokerConnectionFailure) {
+                throw new Exception(iBrokerConnectionFailure);
+            }
         }
     }
 }

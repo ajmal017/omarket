@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static java.lang.String.format;
+import static java.lang.Thread.sleep;
 
 /**
  * Created by Christophe on 01/11/2016.
@@ -28,6 +29,7 @@ import static java.lang.String.format;
 @Slf4j
 public abstract class AbstractIBrokerClient implements EWrapper {
 
+    public static final int IBROKER_TIMEOUT_MILLIS = 10000;
     private Integer lastRequestId = null;
     private EClientSocket clientSocket;
     final private EReaderSignal readerSignal = new EJavaSignal();
@@ -43,20 +45,33 @@ public abstract class AbstractIBrokerClient implements EWrapper {
      * @param ibrokerClientId
      * @param ibrokerHost
      * @param ibrokerPort
-     * @throws IBrokersConnectionFailure
+     * @throws IBrokerConnectionFailure
      */
-    public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokersConnectionFailure {
-        this.clientSocket = new EClientSocket(this, readerSignal);
-        log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
-        this.clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
-        if (!this.clientSocket.isConnected()) {
-            throw new IBrokersConnectionFailure(ibrokerHost, ibrokerPort);
+    public void connect(int ibrokerClientId, String ibrokerHost, int ibrokerPort) throws IBrokerConnectionFailure {
+        final AbstractIBrokerClient ibClientRef = this;
+        final Thread ibConnect;
+        ibConnect = new Thread() {
+            public void run(){
+                            clientSocket = new EClientSocket(ibClientRef, readerSignal);
+                            log.info("connecting to ibroker client id {} ({}:{})", ibrokerClientId, ibrokerHost, ibrokerPort);
+                            clientSocket.eConnect(ibrokerHost, ibrokerPort, ibrokerClientId);
+            }
+        };
+        ibConnect.start();
+        try {
+            sleep(IBROKER_TIMEOUT_MILLIS);
+            if (!this.clientSocket.isConnected()) {
+                ibConnect.interrupt();
+                throw new IBrokerConnectionFailure(ibrokerHost, ibrokerPort);
+            }
+        } catch (InterruptedException e) {
+            log.error("interruption while connecting to IBroker");
         }
     }
 
     /**
      * Launching IBroker API client thread.
-     * <p>
+     *
      * Looping on received signals and blocking until disconnect.
      */
     public void startMessageProcessing() throws IOException {
@@ -335,7 +350,7 @@ public abstract class AbstractIBrokerClient implements EWrapper {
 
     @Override
     public void connectAck() {
-        log.info("IBrokers connect ACK");
+        log.info("IBroker connect ACK");
         clientSocket.startAPI();
     }
 

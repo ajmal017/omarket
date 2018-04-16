@@ -6,6 +6,7 @@ import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
+import org.omarket.trading.ibroker.IBrokerConnectionFailure;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,10 +25,10 @@ public class RecorderService {
     @Autowired
     private MarketDataVerticle marketDataVerticle;
 
-    public void record() {
+    public void record() throws IBrokerConnectionFailure {
 
         final Vertx vertx = Vertx.vertx();
-
+        marketDataVerticle.preStart();
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle);
         String[] ibCodes = new String[]{
                 "70083656",

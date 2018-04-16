@@ -13,8 +13,8 @@ import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.omarket.trading.ibroker.IBrokersConnectionFailure;
-import org.omarket.trading.ibroker.VertxIBrokerClient;
+import org.omarket.trading.ibroker.IBrokerConnectionFailure;
+import org.omarket.trading.VertxIBrokerClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -37,7 +37,7 @@ public class MarketDataVerticle extends AbstractVerticle {
     public static final JsonObject EMPTY = new JsonObject();
     private final static Map<String, Security> subscribedProducts = new HashMap<>();
     private final ContractDBService contractDBService;
-    
+
     private final VertxIBrokerClient ibrokersClient;
     @Value("${ibrokers.host}")
     private String ibrokersHost;
@@ -74,6 +74,42 @@ public class MarketDataVerticle extends AbstractVerticle {
     public MarketDataVerticle(ContractDBService contractDBService, VertxIBrokerClient ibrokersClient) {
         this.contractDBService = contractDBService;
         this.ibrokersClient = ibrokersClient;
+    }
+
+    public void preStart() throws IBrokerConnectionFailure {
+        Path storageDirPath = Paths.get(storageDir).toAbsolutePath();
+        Path contractDBPath = Paths.get(contractDB).toAbsolutePath();
+        log.info("ticks data storage set to '" + storageDirPath + "'");
+        ibrokersClient.setContractDBService(contractDBService);
+        ibrokersClient.setStorageDirPath(storageDirPath);
+        ibrokersClient.setContractDBPath(contractDBPath);
+        ibrokersClient.connect(Integer.valueOf(ibrokersClientId), ibrokersHost, Integer.valueOf(ibrokersPort));
+    }
+
+    public void start(Future<Void> startFuture) throws Exception {
+        log.info("starting market data");
+        ibrokersClient.setEventBus(vertx.eventBus());
+        vertx.executeBlocking(future -> {
+            try {
+                ibrokersClient.startMessageProcessing();
+                setupContractDownload();
+                setupHistoricalEOD();
+                setupSubscribeTick();
+                setupUnsubscribeTick();
+                future.complete();
+            } catch (IOException ioe) {
+                log.error("error during message processing", ioe);
+                future.fail(ioe);
+            }
+        }, result -> {
+            if (result.succeeded()) {
+                log.info("started market data verticle");
+                startFuture.complete();
+            } else {
+                log.info("failed to start market data verticle");
+                startFuture.fail("failed to start market data verticle");
+            }
+        });
     }
 
     private static JsonObject createErrorReply(JsonObject errorMessage, JsonObject content) {
@@ -217,43 +253,6 @@ public class MarketDataVerticle extends AbstractVerticle {
                     request.reply(bars);
                 }
             });
-        });
-    }
-
-    public void start(Future<Void> startFuture) throws Exception {
-        log.info("starting market data");
-        Path storageDirPath = Paths.get(storageDir).toAbsolutePath();
-        Path contractDBPath = Paths.get(contractDB).toAbsolutePath();
-        log.info("ticks data storage set to '" + storageDirPath + "'");
-
-        ibrokersClient.setContractDBService(contractDBService);
-        ibrokersClient.setEventBus(vertx.eventBus());
-        ibrokersClient.setStorageDirPath(storageDirPath);
-        ibrokersClient.setContractDBPath(contractDBPath);
-        vertx.executeBlocking(future -> {
-            try {
-                ibrokersClient.connect(Integer.valueOf(ibrokersClientId), ibrokersHost, Integer.valueOf(ibrokersPort));
-                ibrokersClient.startMessageProcessing();
-                setupContractDownload();
-                setupHistoricalEOD();
-                setupSubscribeTick();
-                setupUnsubscribeTick();
-                future.complete();
-            } catch (IOException ioe) {
-                log.error("error during message processing", ioe);
-                future.fail(ioe);
-            }catch (IBrokersConnectionFailure iBrokersConnectionFailure) {
-                log.error("connection failed", iBrokersConnectionFailure);
-                future.fail(iBrokersConnectionFailure);
-            }
-        }, result -> {
-            if (result.succeeded()) {
-                log.info("started market data verticle");
-                startFuture.complete();
-            } else {
-                log.info("failed to start market data verticle");
-                startFuture.fail("failed to start market data verticle");
-            }
         });
     }
 

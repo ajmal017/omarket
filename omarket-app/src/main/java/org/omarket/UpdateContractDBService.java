@@ -11,6 +11,7 @@ import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
+import org.omarket.trading.ibroker.IBrokerConnectionFailure;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,13 +45,15 @@ public class UpdateContractDBService {
     }
 
     /**
-     * Service entry point.
+     * Service entry point: updates list of ETFs contracts.
+     *
      */
-    public void update() {
+    public void update() throws IBrokerConnectionFailure {
         VertxOptions options = new VertxOptions();
         options.setBlockedThreadCheckInterval(1000);
         options.setMaxWorkerExecuteTime(5000000000L);
         final Vertx vertx = Vertx.vertx(options);
+        marketDataVerticle.preStart();
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, marketDataVerticle);
         marketDataDeployment.flatMap(deploymentId -> {
             log.info("succesfully deployed ContractInfo verticle: " + deploymentId);
