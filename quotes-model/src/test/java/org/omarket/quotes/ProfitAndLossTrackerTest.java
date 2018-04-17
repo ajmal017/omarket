@@ -1,10 +1,14 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.runner.RunWith;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import java.math.BigDecimal;
 
@@ -13,8 +17,15 @@ import static org.junit.Assert.assertEquals;
 /**
  * Created by christophe on 24.09.16.
  */
+@RunWith(SpringRunner.class)
+@SpringBootTest
+@ContextConfiguration(classes = {ProfitAndLossTrackerTest.ProfitAndLossTrackerTestConfig.class})
 public class ProfitAndLossTrackerTest {
-    private static Logger logger = LoggerFactory.getLogger(ProfitAndLossTrackerTest.class);
+
+    @Configuration
+    @ComponentScan(basePackages = {"org.omarket.quotes"})
+    protected static class ProfitAndLossTrackerTestConfig {
+    }
 
     @Before
     public void setUp() throws Exception {

@@ -1,4 +1,4 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;

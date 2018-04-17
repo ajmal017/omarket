@@ -12,7 +12,7 @@ import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.Quote;
+import org.omarket.quotes.Quote;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -101,7 +101,7 @@ public class DummyMeanReversionStrategyVerticle extends AbstractStrategyVerticle
             log.info("estimates: " + Arrays.asList(filter.getStateEstimation()));
         }
 
-        log.info("*** completed processing quote ***");
+        log.info("*** completed processing quotes ***");
     }
 
     private static class LinearRegressionProcessModel implements ProcessModel {

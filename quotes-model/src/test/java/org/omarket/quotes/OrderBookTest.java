@@ -1,11 +1,15 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.runner.RunWith;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringRunner;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -17,8 +21,15 @@ import static org.junit.Assert.assertNull;
 /**
  * Created by christophe on 23.09.16.
  */
+@RunWith(SpringRunner.class)
+@SpringBootTest
+@ContextConfiguration(classes = {OrderBookTest.OrderBookTestConfig.class})
 public class OrderBookTest {
-    private static Logger logger = LoggerFactory.getLogger(OrderBookTest.class);
+
+    @Configuration
+    @ComponentScan(basePackages = {"org.omarket.quotes"})
+    protected static class OrderBookTestConfig {
+    }
 
     @Before
     public void setUp() throws Exception {

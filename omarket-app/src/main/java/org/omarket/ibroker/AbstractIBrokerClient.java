@@ -1,4 +1,4 @@
-package org.omarket.trading.ibroker;
+package org.omarket.ibroker;
 
 import com.ib.client.CommissionReport;
 import com.ib.client.Contract;

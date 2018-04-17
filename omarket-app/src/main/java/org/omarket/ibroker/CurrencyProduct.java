@@ -1,4 +1,4 @@
-package org.omarket.trading.ibroker;
+package org.omarket.ibroker;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

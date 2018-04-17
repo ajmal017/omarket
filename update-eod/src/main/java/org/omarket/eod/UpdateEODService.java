@@ -283,7 +283,7 @@ public class UpdateEODService {
                         lastBarDate[0] = barDate;
                         writer.writeNext(row, false);
                     } else {
-                        log.warn(format("ignoring invalid quote: %s", bar));
+                        log.warn(format("ignoring invalid quotes: %s", bar));
                     }
                 });
                 file.close();

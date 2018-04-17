@@ -1,12 +1,12 @@
-package org.omarket.trading.quote;
+package org.omarket.quotes;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalUnit;
 
 /**
- * Model of a quote (bid/ask with volume and timestamp).
- * <p>
+ * Model of a quotes (bid/ask with volume and timestamp).
+ *
  * Created by Christophe on 07/12/2016.
  */
 public interface Quote {

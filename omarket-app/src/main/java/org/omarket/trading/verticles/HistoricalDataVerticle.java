@@ -7,10 +7,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
-import org.omarket.trading.ibroker.MarketData;
-import org.omarket.trading.quote.Quote;
-import org.omarket.trading.quote.QuoteConverter;
-import org.omarket.trading.quote.QuoteFactory;
+import org.omarket.ibroker.MarketData;
+import org.omarket.quotes.Quote;
+import org.omarket.quotes.QuoteConverter;
+import org.omarket.quotes.QuoteFactory;
 import org.omarket.trading.util.OperatorMergeSorted;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,8 +30,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static org.omarket.trading.ibroker.MarketData.DATE_FORMAT;
-import static org.omarket.trading.ibroker.MarketData.getTickFiles;
+import static org.omarket.ibroker.MarketData.DATE_FORMAT;
+import static org.omarket.ibroker.MarketData.getTickFiles;
 import static rx.Observable.empty;
 
 /**

@@ -1,7 +1,6 @@
-package org.omarket.trading.quote;
+package org.omarket.quotes;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
@@ -14,9 +13,8 @@ import java.time.temporal.TemporalUnit;
  * <p>
  * Implementation of Quote interface.
  */
+@Slf4j
 class QuoteImpl implements Quote {
-
-    private static Logger logger = LoggerFactory.getLogger(QuoteImpl.class);
 
     ZonedDateTime lastModified = null;
     BigDecimal bestBidPrice = null;

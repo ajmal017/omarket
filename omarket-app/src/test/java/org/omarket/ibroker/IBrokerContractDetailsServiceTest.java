@@ -1,4 +1,4 @@
-package org.omarket.trading.ibroker;
+package org.omarket.ibroker;
 
 import com.ib.client.Contract;
 import org.junit.Test;
@@ -28,7 +28,7 @@ public class IBrokerContractDetailsServiceTest {
     }
 
     @Configuration
-    @ComponentScan(basePackages = {"org.omarket.trading.ibroker"})
+    @ComponentScan(basePackages = {"org.omarket.ibroker"})
     public static class IBrokerAppConfig {
     }
 }

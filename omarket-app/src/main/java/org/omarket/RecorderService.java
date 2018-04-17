@@ -6,7 +6,7 @@ import io.vertx.rxjava.core.RxHelper;
 import io.vertx.rxjava.core.Vertx;
 import io.vertx.rxjava.core.eventbus.Message;
 import lombok.extern.slf4j.Slf4j;
-import org.omarket.trading.ibroker.IBrokerConnectionFailure;
+import org.omarket.ibroker.IBrokerConnectionFailure;
 import org.omarket.trading.verticles.MarketDataVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

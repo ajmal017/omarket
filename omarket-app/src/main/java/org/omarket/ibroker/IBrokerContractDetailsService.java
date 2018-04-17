@@ -1,20 +1,14 @@
-package org.omarket.trading.ibroker;
+package org.omarket.ibroker;
 
 import com.ib.client.Contract;
 import com.ib.client.ContractDetails;
 import lombok.extern.slf4j.Slf4j;
-import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.TreeSet;
 
 import static java.lang.String.format;
@@ -33,16 +27,7 @@ public class IBrokerContractDetailsService extends AbstractIBrokerClient {
     @Value("${address.error_message_prefix}")
     private String ADDRESS_ERROR_MESSAGE_PREFIX;
 
-    private final SimpleDateFormat formatYearMonthDay;
-    private final SimpleDateFormat formatHour;
     private Set<Integer> requestsContractDetails = Collections.synchronizedSet(new TreeSet<>());
-
-    public IBrokerContractDetailsService() {
-        formatYearMonthDay = new SimpleDateFormat("yyyyMMdd");
-        formatHour = new SimpleDateFormat("HH");
-        formatYearMonthDay.setTimeZone(TimeZone.getTimeZone("UTC"));
-        formatHour.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
 
     public String getErrorChannel(Integer requestId) {
         return ADDRESS_ERROR_MESSAGE_PREFIX + "." + requestId;

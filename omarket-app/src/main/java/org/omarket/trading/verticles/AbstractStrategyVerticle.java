@@ -8,9 +8,9 @@ import joinery.DataFrame;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.Quote;
-import org.omarket.trading.quote.QuoteConverter;
-import org.omarket.trading.quote.QuoteFactory;
+import org.omarket.quotes.Quote;
+import org.omarket.quotes.QuoteConverter;
+import org.omarket.quotes.QuoteFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import rx.Observable;
@@ -43,7 +43,7 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
     static final String KEY_PRODUCT_CODES = "productCodes";
     static final String KEY_REPLY_TO = "replyTo";
     static final String KEY_COMPLETION_ADDRESS = "completionAddress";
-    private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quote";
+    private static final String ADDRESS_HISTORICAL_QUOTES_PREFIX = "oot.historicalData.quotes";
     private static final String ADDRESS_REALTIME_START_PREFIX = "oot.realtime.start";
     @Value("${ibrokers.ticks.storagePath}")
     private String contractDBPathName;
@@ -230,8 +230,8 @@ abstract class AbstractStrategyVerticle extends AbstractVerticle implements Quot
             String productCode = quote.getProductCode();
             Quote prevQuote = prevQuotes.getOrDefault(productCode, null);
             if (prevQuote != null && !quote.sameSampledTime(prevQuote, samplingUnit)) {
-                log.info("prev quote:" + prevQuote.getLastModified());
-                log.info("current quote:" + quote.getLastModified());
+                log.info("prev quotes:" + prevQuote.getLastModified());
+                log.info("current quotes:" + quote.getLastModified());
                 ZonedDateTime samplingTime = quote.getLastModified().minus(1, samplingUnit);
                 log.info("adding new sample for " + samplingTime);
                 Quote newQuote = quoteFactory.createFrom(prevQuote, samplingTime, samplingUnit);

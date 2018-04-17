@@ -1,15 +1,13 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.omarket.trading.quote.MutableQuote;
-import org.omarket.trading.quote.QuoteFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import static org.junit.Assert.assertEquals;
@@ -17,14 +15,17 @@ import static org.junit.Assert.assertEquals;
 /**
  * Created by Christophe on 04/11/2016.
  * <p>
- * Testing a mutable quote.
+ * Testing a mutable quotes.
  */
 @RunWith(SpringRunner.class)
 @SpringBootTest
-@ComponentScan({"org.omarket"})
+@ContextConfiguration(classes = {MutableQuoteImplTest.MutableQuoteConfig.class})
 public class MutableQuoteImplTest {
 
-    private static Logger logger = LoggerFactory.getLogger(MutableQuoteImplTest.class);
+    @Configuration
+    @ComponentScan(basePackages = {"org.omarket.quotes"})
+    protected static class MutableQuoteConfig {
+    }
 
     @Before
     public void setUp() throws Exception {

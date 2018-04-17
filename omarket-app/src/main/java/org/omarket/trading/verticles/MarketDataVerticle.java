@@ -13,7 +13,7 @@ import io.vertx.rxjava.core.eventbus.MessageConsumer;
 import lombok.extern.slf4j.Slf4j;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.Security;
-import org.omarket.trading.ibroker.IBrokerConnectionFailure;
+import org.omarket.ibroker.IBrokerConnectionFailure;
 import org.omarket.trading.VertxIBrokerClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

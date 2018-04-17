@@ -1,4 +1,4 @@
-package org.omarket.trading.quote;
+package org.omarket.quotes;
 
 /**
  * Created by Christophe on 07/12/2016.

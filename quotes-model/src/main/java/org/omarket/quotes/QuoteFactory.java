@@ -1,4 +1,4 @@
-package org.omarket.trading.quote;
+package org.omarket.quotes;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

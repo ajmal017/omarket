@@ -1,6 +1,7 @@
-package org.omarket.trading.quote;
+package org.omarket.quotes;
 
-import io.vertx.core.json.JsonObject;
+import com.google.gson.JsonObject;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 /**
  * Created by Christophe on 07/12/2016.
  */
+@Slf4j
 @Component
 public class QuoteConverter {
 
@@ -38,31 +40,31 @@ public class QuoteConverter {
         JsonObject asJSON = new JsonObject();
         BigDecimal bidPrice = quote.getBestBidPrice();
         BigDecimal askPrice = quote.getBestAskPrice();
-        asJSON.put("lastModified", isoFormat.format(quote.getLastModified()));
-        asJSON.put("bestBidSize", quote.getBestBidSize());
+        asJSON.addProperty("lastModified", isoFormat.format(quote.getLastModified()));
+        asJSON.addProperty("bestBidSize", quote.getBestBidSize());
         if (bidPrice != null) {
-            asJSON.put("bestBidPrice", bidPrice.doubleValue());
+            asJSON.addProperty("bestBidPrice", bidPrice.doubleValue());
         } else {
-            asJSON.put("bestBidPrice", (Enum) null);
+            asJSON.addProperty("bestBidPrice", (Number) null);
         }
         if (askPrice != null) {
-            asJSON.put("bestAskPrice", askPrice.doubleValue());
+            asJSON.addProperty("bestAskPrice", askPrice.doubleValue());
         } else {
-            asJSON.put("bestAskPrice", (Enum) null);
+            asJSON.addProperty("bestAskPrice", (Number) null);
         }
-        asJSON.put("bestAskSize", quote.getBestAskSize());
-        asJSON.put("productCode", quote.getProductCode());
+        asJSON.addProperty("bestAskSize", quote.getBestAskSize());
+        asJSON.addProperty("productCode", quote.getProductCode());
         return asJSON;
     }
 
     public Quote fromJSON(JsonObject json) throws ParseException {
-        LocalDateTime lastModifiedLocal = LocalDateTime.parse(json.getString("lastModified"), isoFormat);
+        LocalDateTime lastModifiedLocal = LocalDateTime.parse(json.getAsJsonPrimitive("lastModified").getAsString(), isoFormat);
         ZonedDateTime lastModified = ZonedDateTime.of(lastModifiedLocal, ZoneOffset.UTC);
-        BigDecimal bestBidPrice = BigDecimal.valueOf(json.getDouble("bestBidPrice"));
-        BigDecimal bestAskPrice = BigDecimal.valueOf(json.getDouble("bestAskPrice"));
-        Integer bestBidSize = json.getInteger("bestBidSize");
-        Integer bestAskSize = json.getInteger("bestAskSize");
-        String productCode = json.getString("productCode");
+        BigDecimal bestBidPrice = BigDecimal.valueOf(json.getAsJsonPrimitive("bestBidPrice").getAsDouble());
+        BigDecimal bestAskPrice = BigDecimal.valueOf(json.getAsJsonPrimitive("bestAskPrice").getAsDouble());
+        Integer bestBidSize = json.getAsJsonPrimitive("bestBidSize").getAsInt();
+        Integer bestAskSize = json.getAsJsonPrimitive("bestAskSize").getAsInt();
+        String productCode = json.getAsJsonPrimitive("productCode").getAsString();
         return quoteFactory.create(lastModified, bestBidSize, bestBidPrice, bestAskPrice, bestAskSize, productCode);
     }
 }

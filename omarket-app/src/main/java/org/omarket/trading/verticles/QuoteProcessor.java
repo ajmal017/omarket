@@ -2,7 +2,7 @@ package org.omarket.trading.verticles;
 
 import joinery.DataFrame;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.Quote;
+import org.omarket.quotes.Quote;
 
 import java.util.Deque;
 import java.util.Map;

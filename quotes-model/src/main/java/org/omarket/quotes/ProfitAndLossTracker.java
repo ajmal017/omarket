@@ -1,7 +1,6 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 
@@ -13,8 +12,8 @@ import static java.lang.Math.min;
  * <p>
  * Computes P&L based on weighted average acquisitionCost method.
  */
+@Slf4j
 public class ProfitAndLossTracker {
-    private static Logger logger = LoggerFactory.getLogger(ProfitAndLossTracker.class);
     private Integer quantity = 0;
     private float acquisitionCost = 0;
     private float realizedPnl = 0;
@@ -39,7 +38,7 @@ public class ProfitAndLossTracker {
     public void addFill(Integer fillQty, BigDecimal fillPrice) {
         /* Adding a fill updates the P&L intermediary data.
          */
-        logger.debug("adding fill: {} at {}", fillQty, fillPrice);
+        log.debug("adding fill: {} at {}", fillQty, fillPrice);
         Integer oldQuantity = this.quantity;
         float oldCost = this.acquisitionCost;
         float oldRealized = this.realizedPnl;
