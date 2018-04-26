@@ -3,6 +3,7 @@ package org.omarket.trading;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
+import org.omarket.quotes.Security;
 import rx.Observable;
 
 import java.io.BufferedWriter;
@@ -21,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-class ContractDBServiceImpl implements ContractDBService {
+public class ContractDBServiceImpl implements ContractDBService {
 
     @Override
     public final ContractFilter filterCurrency(String currencyCode) {

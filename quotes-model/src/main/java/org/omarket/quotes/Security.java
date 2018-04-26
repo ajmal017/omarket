@@ -1,8 +1,6 @@
-package org.omarket.trading;
+package org.omarket.quotes;
 
 import com.google.gson.JsonObject;
-import com.ib.client.Contract;
-import com.ib.client.ContractDetails;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -11,15 +9,19 @@ import java.math.MathContext;
  * Created by christophe on 09/01/17.
  */
 public class Security {
-    private final String code;
-    private final String symbol;
-    private final String currency;
-    private final String primaryExchange;
-    private final String exchange;
-    private final String securityType;
-    private final Double minTick;
-    private final String priceMagnifier;
-    private final String longName;
+    private String code = null;
+    private String symbol = null;
+    private String currency = null;
+    private String primaryExchange = null;
+    private String exchange = null;
+    private String securityType = null;
+    private Double minTick = null;
+    private String priceMagnifier = null;
+    private String longName = null;
+
+    public Security(){
+
+    }
 
     public Security(String code, String symbol, String currency, String primaryExchange, String exchange, String securityType, Double minTick, String priceMagnifier, String longName) {
         this.code = code;
@@ -47,20 +49,6 @@ public class Security {
         return new Security(conId, localSymbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
     }
 
-    public static Security fromContractDetails(ContractDetails contractDetails) {
-        Contract contract = contractDetails.contract();
-        String code = String.valueOf(contractDetails.conid());
-        String symbol = contract.localSymbol();
-        String currency = contract.currency();
-        String primaryExchange = contract.primaryExch();
-        String exchange = contract.exchange();
-        String securityType = contract.getSecType();
-        Double minTick = contractDetails.minTick();
-        String priceMagnifier = String.valueOf(contractDetails.priceMagnifier());
-        String longName = contractDetails.longName();
-        return new Security(code, symbol, currency, primaryExchange, exchange, securityType, minTick, priceMagnifier, longName);
-    }
-
     public String getCode() {
         return code;
     }
@@ -85,20 +73,6 @@ public class Security {
 
     public BigDecimal getMinTick() {
         return new BigDecimal(minTick, MathContext.DECIMAL32).stripTrailingZeros();
-    }
-
-    public ContractDetails toContractDetails() {
-        ContractDetails ibContractDetails = new ContractDetails();
-        ibContractDetails.minTick(minTick);
-        Contract ibContract = new Contract();
-        ibContract.conid(Integer.valueOf(code));
-        ibContract.currency(currency);
-        ibContract.primaryExch(primaryExchange);
-        ibContract.secType(securityType);
-        ibContract.exchange(exchange);
-        ibContract.localSymbol(symbol);
-        ibContractDetails.contract(ibContract);
-        return ibContractDetails;
     }
 
     public String getSymbol() {

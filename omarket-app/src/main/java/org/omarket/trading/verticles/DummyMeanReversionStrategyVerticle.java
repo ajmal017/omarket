@@ -11,7 +11,7 @@ import org.apache.commons.math3.linear.DiagonalMatrix;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
-import org.omarket.trading.Security;
+import org.omarket.contractinfo.Security;
 import org.omarket.quotes.Quote;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

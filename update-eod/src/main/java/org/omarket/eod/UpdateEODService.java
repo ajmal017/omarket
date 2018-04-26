@@ -11,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.ReversedLinesFileReader;
 import org.omarket.trading.ContractDBService;
 import org.omarket.trading.ContractFilter;
-import org.omarket.trading.Security;
+import org.omarket.contractinfo.Security;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import rx.Observable;

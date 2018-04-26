@@ -4,6 +4,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,9 @@ import static org.junit.Assert.assertEquals;
 @ContextConfiguration(classes = {MutableQuoteImplTest.MutableQuoteConfig.class})
 public class MutableQuoteImplTest {
 
+    @Autowired
+    private QuoteFactory quoteFactory;
+
     @Configuration
     @ComponentScan(basePackages = {"org.omarket.quotes"})
     protected static class MutableQuoteConfig {
@@ -39,7 +43,6 @@ public class MutableQuoteImplTest {
 
     @Test
     public void basicUsagePrecision2() throws Exception {
-        QuoteFactory quoteFactory = new QuoteFactory();
         MutableQuote orderBook = quoteFactory.createMutable("0.02", "test000");
         orderBook.updateBestBidPrice(10.125);
         orderBook.updateBestAskPrice(10.159);
@@ -48,7 +51,6 @@ public class MutableQuoteImplTest {
 
     @Test
     public void basicUsagePrecision0() throws Exception {
-        QuoteFactory quoteFactory = new QuoteFactory();
         MutableQuote orderBook = quoteFactory.createMutable("1", "test000");
         orderBook.updateBestBidPrice(10.125);
         orderBook.updateBestAskPrice(10.139);

@@ -4,15 +4,13 @@ import com.ib.client.Contract;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.io.IOException;
 
 @RunWith(SpringRunner.class)
-@ContextConfiguration(classes = {IBrokerContractDetailsServiceTest.IBrokerAppConfig.class})
+@ContextConfiguration(classes = {IBrokerTestConfig.class})
 public class IBrokerContractDetailsServiceTest {
 
     @Autowired
@@ -24,11 +22,7 @@ public class IBrokerContractDetailsServiceTest {
         contractDetailsService.startMessageProcessing();
         Contract contract = new Contract();
         contract.conid(130806085);
-        contractDetailsService.requestContract(contract);
+        contractDetailsService.requestContractDetails(contract);
     }
 
-    @Configuration
-    @ComponentScan(basePackages = {"org.omarket.ibroker"})
-    public static class IBrokerAppConfig {
-    }
 }
