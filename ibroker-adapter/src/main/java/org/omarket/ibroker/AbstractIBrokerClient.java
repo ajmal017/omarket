@@ -29,7 +29,7 @@ import static java.lang.Thread.sleep;
 @Slf4j
 public abstract class AbstractIBrokerClient implements EWrapper {
 
-    public static final int IBROKER_TIMEOUT_MILLIS = 10000;
+    public static final int IBROKER_TIMEOUT_MILLIS = 5000;
     private Integer lastRequestId = null;
     private EClientSocket clientSocket;
     final private EReaderSignal readerSignal = new EJavaSignal();
