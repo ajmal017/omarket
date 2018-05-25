@@ -20,7 +20,7 @@ public class VerticleProperties {
         JsonArray defaultTickStoragePath = new JsonArray(Arrays.asList("data", "ticks"));
         JsonArray defaultContractDBPath = new JsonArray(Arrays.asList("data", "contracts"));
         String defaultHost = "127.0.0.1";
-        int defaultPort = 7497;
+        int defaultPort = 4003;
         JsonObject jsonConfig = new JsonObject()
                 .put(PROPERTY_CONTRACT_DB_PATH, defaultContractDBPath)
                 .put(PROPERTY_IBROKERS_TICKS_PATH, defaultTickStoragePath)

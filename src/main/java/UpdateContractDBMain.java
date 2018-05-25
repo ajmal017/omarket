@@ -32,7 +32,7 @@ public class UpdateContractDBMain {
         DeploymentOptions options = VerticleProperties.makeDeploymentOptions(defaultClientId);
         Observable<String> marketDataDeployment = RxHelper.deployVerticle(vertx, new MarketDataVerticle(), options);
         marketDataDeployment.flatMap(deploymentId -> {
-            logger.info("succesfully deployed market data verticle: " + deploymentId);
+            logger.info("successfully deployed market data verticle: " + deploymentId);
             Observable<String> codesStream = Observable.empty();
             try {
                 URL etfsResource = Thread.currentThread().getContextClassLoader().getResource("etfs.json");

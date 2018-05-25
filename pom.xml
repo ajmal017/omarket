@@ -113,9 +113,9 @@
             <version>0.30</version>
         </dependency>
         <dependency>
-            <groupId>com.github.chris-ch</groupId>
-            <artifactId>yahoofinance-api</artifactId>
-            <version>v3.8.0</version>
+            <groupId>com.yahoofinance-api</groupId>
+            <artifactId>YahooFinanceAPI</artifactId>
+            <version>3.12.3</version>
         </dependency>
     </dependencies>
 
