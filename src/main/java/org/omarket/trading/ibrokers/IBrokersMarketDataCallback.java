@@ -11,7 +11,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.omarket.trading.ContractDB;
 import org.omarket.trading.Security;
-import org.omarket.trading.quote.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,10 +41,7 @@ import static org.omarket.trading.verticles.MarketDataVerticle.getErrorChannelGe
  * Created by Christophe on 03/11/2016.
  */
 public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
-    private final static int PRICE_BID = 1;
-    private final static int PRICE_ASK = 2;
-    private final static int SIZE_BID = 0;
-    private final static int SIZE_ASK = 3;
+
     private static Logger logger = LoggerFactory.getLogger(IBrokersMarketDataCallback.class);
     private final Path contractsDBPath;
     private final Path storageDirPath;
@@ -54,7 +50,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
     private Integer lastRequestId = null;
     private Set<Integer> updateContractDB = new TreeSet<>();
     private Map<Integer, Message<JsonObject>> callbackMessages = new HashMap<>();
-    private Map<Integer, Pair<MutableQuote, Contract>> orderBooks = new HashMap<>();
     private Map<Integer, Path> subscribed = new HashMap<>();
     private EventBus eventBus;
     private Map<Integer, String> eodReplies = new HashMap<>();
@@ -126,8 +121,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         Path productStorage = prepareTickPath(storageDirPath, security);
         saveContract(contractsDBPath, security);
         subscribed.put(ibCode, productStorage);
-        MutableQuote quote = QuoteFactory.createMutable(security.getMinTick(), security.getCode());
-        orderBooks.put(requestId, new ImmutablePair<>(quote, contract));
         logger.info("requesting market data for " + security);
         getClient().reqMktData(requestId, contract, "", false, null);
         return getErrorChannel(requestId);
@@ -162,68 +155,6 @@ public class IBrokersMarketDataCallback extends AbstractIBrokersCallback {
         logger.info("requested current time: {}", time);
     }
 
-    @Override
-    public void tickPrice(int tickerId, int field, double price, int canAutoExecute) {
-        if (field != PRICE_BID && field != PRICE_ASK) {
-            return;
-        }
-        Pair<MutableQuote, Contract> orderBookContract = orderBooks.get(tickerId);
-        MutableQuote orderBook = orderBookContract.getLeft();
-        boolean modified;
-        if (field == PRICE_BID) {
-            modified = orderBook.updateBestBidPrice(price);
-        } else {
-            modified = orderBook.updateBestAskPrice(price);
-        }
-        if (!orderBook.isValid() || !modified) {
-            return;
-        }
-        Contract contract = orderBookContract.getRight();
-        processOrderBook(contract, orderBook);
-    }
-
-    @Override
-    public void tickSize(int tickerId, int field, int size) {
-        if (field != SIZE_BID && field != SIZE_ASK) {
-            return;
-        }
-        Pair<MutableQuote, Contract> orderBookContract = orderBooks.get(tickerId);
-        MutableQuote orderBook = orderBookContract.getLeft();
-        boolean modified;
-        if (field == SIZE_BID) {
-            modified = orderBook.updateBestBidSize(size);
-        } else {
-            modified = orderBook.updateBestAskSize(size);
-        }
-        if (!orderBook.isValid() || !modified) {
-            return;
-        }
-        Contract contract = orderBookContract.getRight();
-        processOrderBook(contract, orderBook);
-    }
-
-    private void processOrderBook(Contract contract, Quote orderBook) {
-        String channel = createChannelQuote(String.valueOf(contract.conid()));
-        try {
-            Path rootDirectory = subscribed.get(contract.conid());
-            Date now = new Date();
-            Path currentDirectory = rootDirectory.resolve(formatYearMonthDay.format(now));
-            Files.createDirectories(currentDirectory);
-            Path tickFilePath = currentDirectory.resolve(formatHour.format(now));
-            String content = QuoteConverter.toPriceVolumeString(orderBook);
-            if (!Files.exists(tickFilePath)) {
-                Files.createFile(tickFilePath);
-            }
-            BufferedWriter writer =
-                    Files.newBufferedWriter(tickFilePath, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
-            writer.write(content);
-            writer.newLine();
-            writer.close();
-            this.eventBus.send(channel, QuoteConverter.toJSON(orderBook));
-        } catch (IOException e) {
-            logger.error("unable to record order book: message not sent", e);
-        }
-    }
     @Override
     public void historicalData(int reqId, String date, double open, double high, double low, double close, int volume,
                                int count, double WAP, boolean hasGaps) {
