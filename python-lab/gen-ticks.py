@@ -89,13 +89,23 @@ class OrderBook(object):
         ask_prices = prices_sequence(initial_price, tick_size, depth, ascending=True)
         self._bids = [(price, 0) for price in bid_prices]
         self._asks = [(price, 0) for price in ask_prices]
+        self._price = initial_price
+        self._tick_size = tick_size
+        self._depth = depth
 
-    def update(self, price, bids, asks):
+    def update_price(self, price):
+        self._price = price
+        bid_prices = prices_sequence(price, self._tick_size, self._depth, ascending=False)
+        ask_prices = prices_sequence(price, self._tick_size, self._depth, ascending=True)
+        # TODO update levels
+
+    def update_bids(self, bids):
         for rank, bid in enumerate(bids):
             if bid:
                 price, volume = self._bids[rank]
                 self._bids[rank] = (price, volume + 1)
 
+    def update_asks(self, asks):
         for rank, ask in enumerate(asks):
             if ask:
                 price, volume = self._asks[rank]
@@ -117,11 +127,14 @@ class OrderBook(object):
         return book
 
 
-def orderbook_update(depth=10):
-    rate = 2
+def limit_buy_orders(depth=10, rate=2):
     bid_levels = [poisson_event(rate, level) for level in range(depth)]
+    return zip(*bid_levels)
+
+
+def limit_sell_orders(depth=10, rate=2):
     ask_levels = [poisson_event(rate, level) for level in range(depth)]
-    return zip(zip(*bid_levels), zip(*ask_levels))
+    return zip(*ask_levels)
 
 
 def main():
@@ -132,10 +145,13 @@ def main():
     depth = 10
     orderbook = OrderBook(initial_price=price, tick_size=tick_size, depth=depth)
     print(orderbook)
-    for bids, asks in itertools.islice(orderbook_update(depth=depth), 30):
-        orderbook.update(price, bids, asks)
-        print(orderbook)
+    for step in range(20):
+        bids = next(limit_buy_orders(depth=depth))
+        asks = next(limit_sell_orders(depth=depth))
+        orderbook.update_bids(price, bids)
+        orderbook.update_asks(price, asks)
 
+        print(orderbook)
 
 if __name__ == '__main__':
     main()
